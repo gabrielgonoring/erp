@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:erp}
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/erp_db?useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:erp_user}
+    password: ${DB_PASSWORD:erp_password}
+    driver-class-name: ${DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+
+  jpa:
+    database-platform: ${JPA_DATABASE_PLATFORM:org.hibernate.dialect.MySQLDialect}
+    hibernate:
+      ddl-auto: ${JPA_HIBERNATE_DDL_AUTO:validate}
+    show-sql: ${JPA_SHOW_SQL:false}
+    open-in-view: ${JPA_OPEN_IN_VIEW:false}
+    properties:
+      hibernate:
+        format_sql: ${JPA_HIBERNATE_FORMAT_SQL:true}
+        use_sql_comments: ${JPA_HIBERNATE_USE_SQL_COMMENTS:true}
+
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: ${FLYWAY_BASELINE_VERSION:0}
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:true}
+
+server:
+  port: ${SERVER_PORT:80}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    company.aura.erp: ${LOG_LEVEL_APP:DEBUG}
+    org.springframework.web: ${LOG_LEVEL_SPRING_WEB:INFO}
+    org.springframework.security: ${LOG_LEVEL_SPRING_SECURITY:INFO}
+    org.springframework.data: ${LOG_LEVEL_SPRING_DATA:INFO}
+    org.hibernate: ${LOG_LEVEL_HIBERNATE:INFO}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:DEBUG}
+    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:TRACE}
+    org.flywaydb: ${LOG_LEVEL_FLYWAY:INFO}
+    com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:WARN}
+    feign: ${LOG_LEVEL_FEIGN:INFO}
+    org.springframework.cloud.openfeign: ${LOG_LEVEL_OPENFEIGN:INFO}
+    io.micrometer: ${LOG_LEVEL_MICROMETER:WARN}
+    brave: ${LOG_LEVEL_BRAVE:WARN}
