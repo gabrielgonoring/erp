@@ -24,7 +24,7 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
 
     List<PartnerEntity> findByCompanyIdAndIsSupplierTrue(Long companyId);
 
-    @Query("SELECT p FROM PartnerEntity p WHERE p.company.id = :companyId AND p.deletedAt IS NULL AND " +
+    @Query("SELECT p FROM PartnerEntity p WHERE p.companyId = :companyId AND p.deletedAt IS NULL AND " +
            "(:search IS NULL OR :search = '' OR " +
            "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')))")

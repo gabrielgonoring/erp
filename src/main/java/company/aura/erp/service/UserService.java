@@ -2,7 +2,6 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.UserRegistrationRequest;
 import company.aura.erp.dto.UserResponse;
-import company.aura.erp.entity.CompanyEntity;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
@@ -27,11 +26,12 @@ public class UserService {
             throw new IllegalArgumentException("E-mail já cadastrado: " + request.email());
         }
 
-        CompanyEntity company = companyRepository.findById(request.companyId())
-                .orElseThrow(() -> new IllegalArgumentException("Empresa não encontrada com o ID: " + request.companyId()));
+        if (!companyRepository.existsById(request.companyId())) {
+            throw new IllegalArgumentException("Empresa não encontrada com o ID: " + request.companyId());
+        }
 
         UserEntity user = UserEntity.builder()
-                .company(company)
+                .companyId(request.companyId())
                 .name(request.name())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))

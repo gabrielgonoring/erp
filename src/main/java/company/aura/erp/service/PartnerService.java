@@ -3,7 +3,6 @@ package company.aura.erp.service;
 import company.aura.erp.dto.partner.PartnerRequest;
 import company.aura.erp.dto.partner.PartnerResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
-import company.aura.erp.entity.CompanyEntity;
 import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.PartnerRepository;
@@ -24,11 +23,12 @@ public class PartnerService {
 
     @Transactional
     public PartnerResponse save(PartnerRequest request, Long companyId) {
-        CompanyEntity company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId));
+        if (!companyRepository.existsById(companyId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId);
+        }
 
         PartnerEntity partner = PartnerEntity.builder()
-                .company(company)
+                .companyId(companyId)
                 .isCustomer(Boolean.TRUE.equals(request.isCustomer()))
                 .isSupplier(Boolean.TRUE.equals(request.isSupplier()))
                 .personType(request.personType())
@@ -85,7 +85,7 @@ public class PartnerService {
         return PartnerResponse.fromEntity(updated);
     }
 
-
+    @Transactional(readOnly = true)
     public PartnerResponse findById(Long id, Long companyId) {
         PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndDeletedAtIsNull(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não encontrado com ID: " + id));

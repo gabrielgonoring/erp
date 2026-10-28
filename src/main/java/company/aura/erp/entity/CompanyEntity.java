@@ -6,8 +6,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "companies")
@@ -90,20 +88,4 @@ public class CompanyEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    @Builder.Default
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<UserEntity> users = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PartnerEntity> partners = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CatalogItemEntity> catalogItems = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "company")
-    private List<InvoiceEntity> invoices = new ArrayList<>();
 }

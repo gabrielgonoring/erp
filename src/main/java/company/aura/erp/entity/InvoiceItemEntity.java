@@ -21,13 +21,11 @@ public class InvoiceItemEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "invoice_id", nullable = false)
-    private InvoiceEntity invoice;
+    @Column(name = "invoice_id", nullable = false)
+    private Long invoiceId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "catalog_item_id")
-    private CatalogItemEntity catalogItem;
+    @Column(name = "catalog_item_id")
+    private Long catalogItemId;
 
     @Column(name = "description", nullable = false)
     private String description;

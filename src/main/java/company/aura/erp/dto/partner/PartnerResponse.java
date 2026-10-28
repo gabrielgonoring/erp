@@ -34,7 +34,7 @@ public record PartnerResponse(
     public static PartnerResponse fromEntity(PartnerEntity entity) {
         return new PartnerResponse(
                 entity.getId(),
-                entity.getCompany() != null ? entity.getCompany().getId() : null,
+                entity.getCompanyId(),
                 entity.getIsCustomer(),
                 entity.getIsSupplier(),
                 entity.getPersonType(),

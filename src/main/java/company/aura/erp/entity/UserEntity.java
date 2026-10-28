@@ -21,9 +21,8 @@ public class UserEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "company_id", nullable = false)
-    private CompanyEntity company;
+    @Column(name = "company_id", nullable = false)
+    private Long companyId;
 
     @Column(name = "name", nullable = false)
     private String name;

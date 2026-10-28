@@ -22,9 +22,8 @@ public class PartnerEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "company_id", nullable = false)
-    private CompanyEntity company;
+    @Column(name = "company_id", nullable = false)
+    private Long companyId;
 
     @Builder.Default
     @Column(name = "is_customer")

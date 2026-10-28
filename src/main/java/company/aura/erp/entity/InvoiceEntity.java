@@ -10,8 +10,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "invoices")
@@ -27,13 +25,11 @@ public class InvoiceEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "company_id", nullable = false)
-    private CompanyEntity company;
+    @Column(name = "company_id", nullable = false)
+    private Long companyId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "partner_id", nullable = false)
-    private PartnerEntity partner;
+    @Column(name = "partner_id", nullable = false)
+    private Long partnerId;
 
     @Column(name = "external_reference", length = 100)
     private String externalReference;
@@ -131,7 +127,4 @@ public class InvoiceEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-    
-    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<InvoiceItemEntity> items = new ArrayList<>();
 }
