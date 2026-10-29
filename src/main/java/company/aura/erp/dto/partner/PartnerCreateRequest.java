@@ -35,9 +35,6 @@ public record PartnerCreateRequest(
         @Size(max = 20, message = "Telefone deve ter no máximo 20 caracteres.")
         String phone,
 
-        @Size(max = 45, message = "Status deve ter no máximo 45 caracteres.")
-        String status,
-
         @NotBlank(message = "Logradouro é obrigatório.")
         @Size(max = 255, message = "Logradouro deve ter no máximo 255 caracteres.")
         String street,

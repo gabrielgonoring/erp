@@ -6,6 +6,7 @@ import company.aura.erp.dto.partner.PartnerResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
 import company.aura.erp.entity.PartnerEntity;
+import company.aura.erp.enums.PartnerStatus;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.PartnerRepository;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,7 @@ public class PartnerService {
                 .stateRegistration(request.stateRegistration())
                 .email(request.email())
                 .phone(request.phone())
-                .status(request.status())
+                .status(PartnerStatus.ACTIVE.name())
                 .street(request.street())
                 .number(request.number())
                 .complement(request.complement())
@@ -76,7 +77,7 @@ public class PartnerService {
         partner.setStateRegistration(request.stateRegistration());
         partner.setEmail(request.email());
         partner.setPhone(request.phone());
-        partner.setStatus(request.status());
+        partner.setStatus(PartnerStatus.ACTIVE.name());
         partner.setStreet(request.street());
         partner.setNumber(request.number());
         partner.setComplement(request.complement());
