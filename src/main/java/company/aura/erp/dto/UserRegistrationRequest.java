@@ -6,8 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record UserRegistrationRequest(
-        @NotNull(message = "O ID da empresa é obrigatório.")
-        Long companyId,
 
         @NotBlank(message = "O nome é obrigatório.")
         @Size(max = 255, message = "O nome deve ter no máximo 255 caracteres.")

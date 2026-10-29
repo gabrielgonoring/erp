@@ -26,12 +26,7 @@ public class UserService {
             throw new IllegalArgumentException("E-mail já cadastrado: " + request.email());
         }
 
-        if (!companyRepository.existsById(request.companyId())) {
-            throw new IllegalArgumentException("Empresa não encontrada com o ID: " + request.companyId());
-        }
-
         UserEntity user = UserEntity.builder()
-                .companyId(request.companyId())
                 .name(request.name())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))

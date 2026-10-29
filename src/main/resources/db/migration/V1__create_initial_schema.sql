@@ -235,7 +235,7 @@ CREATE TABLE users (
    id SERIAL PRIMARY KEY,
 
     -- Chave Estrangeira: Garante que o usuário só enxerga os dados da sua empresa
-   company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+   company_id BIGINT REFERENCES companies(id) ON DELETE CASCADE,
 
     -- Credenciais e Dados
    name VARCHAR(255) NOT NULL,
