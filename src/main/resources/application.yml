@@ -26,6 +26,10 @@ spring:
     baseline-version: ${FLYWAY_BASELINE_VERSION:0}
     validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:true}
 
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: ${JWT_EXPIRATION:86400000} # 24 horas (em milissegundos)
+
 server:
   port: ${SERVER_PORT:80}
 
@@ -35,13 +39,13 @@ logging:
     company.aura.erp: ${LOG_LEVEL_APP:DEBUG}
     org.springframework.web: ${LOG_LEVEL_SPRING_WEB:INFO}
     org.springframework.security: ${LOG_LEVEL_SPRING_SECURITY:INFO}
-    org.springframework.data: ${LOG_LEVEL_SPRING_DATA:INFO}
-    org.hibernate: ${LOG_LEVEL_HIBERNATE:INFO}
-    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:DEBUG}
-    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:TRACE}
+    org.springframework.data: ${LOG_LEVEL_SPRING_DATA:WARN}
+    org.hibernate: ${LOG_LEVEL_HIBERNATE:WARN}
+    org.hibernate.SQL: ${LOG_LEVEL_HIBERNATE_SQL:WARN}
+    org.hibernate.orm.jdbc.bind: ${LOG_LEVEL_HIBERNATE_BIND:WARN}
     org.flywaydb: ${LOG_LEVEL_FLYWAY:INFO}
     com.zaxxer.hikari: ${LOG_LEVEL_HIKARI:WARN}
-    feign: ${LOG_LEVEL_FEIGN:INFO}
-    org.springframework.cloud.openfeign: ${LOG_LEVEL_OPENFEIGN:INFO}
+    feign: ${LOG_LEVEL_FEIGN:WARN}
+    org.springframework.cloud.openfeign: ${LOG_LEVEL_OPENFEIGN:WARN}
     io.micrometer: ${LOG_LEVEL_MICROMETER:WARN}
     brave: ${LOG_LEVEL_BRAVE:WARN}
