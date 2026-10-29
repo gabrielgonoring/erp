@@ -4,6 +4,7 @@ import company.aura.erp.dto.UserRegistrationRequest;
 import company.aura.erp.dto.UserResponse;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.UserService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,7 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity<UserResponse> register(@RequestBody UserRegistrationRequest request) {
+    public ResponseEntity<UserResponse> register(@RequestBody @Valid UserRegistrationRequest request) {
         UserResponse response = userService.registerUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
