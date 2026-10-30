@@ -1,28 +1,32 @@
+# fly.toml app configuration file generated for erp-hwzl0w on 2026-10-30T13:25:38Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-
-app = "aura-erp"
-primary_region = "gru"
+app = 'erp-hwzl0w'
+primary_region = 'gru'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  SERVER_PORT = "80"
+  SERVER_PORT = '80'
 
 [http_service]
   internal_port = 80
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-  processes = ["app"]
+  processes = ['app']
 
   [http_service.concurrency]
-    type = "requests"
+    type = 'requests'
     hard_limit = 250
     soft_limit = 200
 
 [[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512
