@@ -31,8 +31,8 @@ WORKDIR /app
 # Cria usuário não-root para segurança
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Fly.io monitora ou mapeia a porta da aplicação (default 80 no application.yml)
-ENV SERVER_PORT=80 \
+# Fly.io monitora ou mapeia a porta da aplicação (default 8080 no application.yml)
+ENV SERVER_PORT=8080 \
     JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
 
 # Copia os layers do builder com as devidas permissões
@@ -43,7 +43,7 @@ COPY --from=builder --chown=appuser:appgroup /app/extracted/application/ ./
 
 USER appuser
 
-EXPOSE 80
+EXPOSE 8080
 
 # Spring Boot 3.3+ / 4.x JarLauncher no path org.springframework.boot.loader.launch.JarLauncher
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]

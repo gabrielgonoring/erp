@@ -10,10 +10,10 @@ primary_region = 'gru'
   dockerfile = 'Dockerfile'
 
 [env]
-  SERVER_PORT = '80'
+  SERVER_PORT = '8080'
 
 [http_service]
-  internal_port = 80
+  internal_port = 8080
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true

@@ -34,7 +34,7 @@ jwt:
   expiration: ${JWT_EXPIRATION:86400000} # 24 horas (em milissegundos)
 
 server:
-  port: ${SERVER_PORT:80}
+  port: ${SERVER_PORT:8080}
 
 logging:
   level:
