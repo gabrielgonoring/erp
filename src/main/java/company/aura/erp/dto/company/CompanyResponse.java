@@ -9,7 +9,6 @@ public record CompanyResponse(
         String corporateName,
         String tradeName,
         String cnpj,
-        String status,
         String stateRegistration,
         String municipalRegistration,
         Integer taxRegime,
@@ -23,10 +22,7 @@ public record CompanyResponse(
         String zipCode,
         String countryCode,
         String countryName,
-        LocalDateTime certificateExpirationDate,
-        String notaasCompanyId,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime certificateExpirationDate
 ) {
     public static CompanyResponse fromEntity(CompanyEntity entity) {
         return new CompanyResponse(
@@ -34,7 +30,6 @@ public record CompanyResponse(
                 entity.getCorporateName(),
                 entity.getTradeName(),
                 entity.getCnpj(),
-                entity.getStatus(),
                 entity.getStateRegistration(),
                 entity.getMunicipalRegistration(),
                 entity.getTaxRegime(),
@@ -48,10 +43,7 @@ public record CompanyResponse(
                 entity.getZipCode(),
                 entity.getCountryCode(),
                 entity.getCountryName(),
-                entity.getCertificateExpirationDate(),
-                entity.getNotaasCompanyId(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCertificateExpirationDate()
         );
     }
 }
