@@ -62,5 +62,12 @@ public class PartnerController {
         return ResponseEntity.ok(page);
     }
 
-
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        partnerService.delete(id, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
 }

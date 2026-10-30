@@ -66,14 +66,14 @@ public class PartnerService {
 
     @Transactional
     public PartnerResponse update(Long id, PartnerUpdateRequest request, Long companyId) {
-        PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndDeletedAtIsNull(id, companyId)
+        PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, PartnerStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não encontrado com ID: " + id));
 
         partner.setIsCustomer(request.isCustomer());
         partner.setIsSupplier(request.isSupplier());
         partner.setDocument(request.document());
         partner.setName(request.name());
-       partner.setIndicatorIe(request.indicatorIe());
+        partner.setIndicatorIe(request.indicatorIe());
         partner.setStateRegistration(request.stateRegistration());
         partner.setEmail(request.email());
         partner.setPhone(request.phone());
@@ -96,10 +96,19 @@ public class PartnerService {
 
     @Transactional(readOnly = true)
     public PartnerResponse findById(Long id, Long companyId) {
-        PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndDeletedAtIsNull(id, companyId)
+        PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, PartnerStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não encontrado com ID: " + id));
 
         return PartnerResponse.fromEntity(partner);
+    }
+
+    @Transactional
+    public void delete(Long id, Long companyId) {
+        PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, PartnerStatus.DELETED.name())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não encontrado com ID: " + id));
+
+        partner.setStatus(PartnerStatus.DELETED.name());
+        partnerRepository.save(partner);
     }
 
     @Transactional(readOnly = true)
