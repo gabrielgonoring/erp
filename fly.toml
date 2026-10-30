@@ -1,6 +1,6 @@
-# fly.toml app configuration file generated for erp-hwzl0w on 2026-10-30T13:25:38Z
+# fly.toml app configuration file generated for erp-hwzl0w on 2026-10-30T14:04:06Z
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
 app = 'erp-hwzl0w'
@@ -15,15 +15,11 @@ primary_region = 'gru'
 [http_service]
   internal_port = 80
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
-
-  [http_service.concurrency]
-    type = 'requests'
-    hard_limit = 250
-    soft_limit = 200
+  concurrency = { hard_limit = 250, soft_limit = 200, type = 'requests' }
 
 [[vm]]
   memory = '512mb'
