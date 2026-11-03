@@ -3,21 +3,26 @@ package company.aura.erp.service;
 import company.aura.erp.dto.order.OrderCreateRequest;
 import company.aura.erp.dto.order.OrderItemCreateRequest;
 import company.aura.erp.dto.order.OrderItemUpdateRequest;
+import company.aura.erp.entity.CatalogItemEntity;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.repository.CatalogItemRepository;
 import company.aura.erp.repository.OrderItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 public class OrderItemService {
 
     private final OrderItemRepository orderItemRepository;
+    private final CatalogItemRepository catalogItemRepository;
 
     public List<OrderItemEntity> saveInitialItems(OrderCreateRequest request, OrderEntity savedOrder) {
         return request.items().stream()
@@ -27,8 +32,10 @@ public class OrderItemService {
 
     public OrderItemEntity createItem(OrderItemCreateRequest itemRequest, OrderEntity order) {
 
-        BigDecimal discount = itemRequest.discountPercentage() != null ? itemRequest.discountPercentage() : BigDecimal.ZERO;
-        BigDecimal totalPrice = itemRequest.quantity().multiply(itemRequest.unitPrice()).subtract(discount);
+        CatalogItemEntity catalogItem = findCatalogItem(itemRequest.catalogItemId(), order.getId());
+
+        BigDecimal discount = itemRequest.discountAmount() != null ? itemRequest.discountAmount() : BigDecimal.ZERO;
+        BigDecimal totalPrice = itemRequest.quantity().multiply(catalogItem.getUnitPrice()).subtract(discount);
 
         if (totalPrice.compareTo(BigDecimal.ZERO) < 0) {
             totalPrice = BigDecimal.ZERO;
@@ -40,7 +47,7 @@ public class OrderItemService {
                 .itemType(itemRequest.itemType())
                 .description(itemRequest.description())
                 .quantity(itemRequest.quantity())
-                .unitPrice(itemRequest.unitPrice())
+                .unitPrice(catalogItem.getUnitPrice())
                 .discountAmount(discount)
                 .totalPrice(totalPrice)
                 .professionalId(itemRequest.professionalId())
@@ -50,11 +57,14 @@ public class OrderItemService {
         return orderItemRepository.save(item);
     }
 
+
+
     public OrderItemEntity updateOrderItem(Long orderId, Long itemId, OrderItemUpdateRequest request){
         OrderItemEntity item = findOrderItem(orderId, itemId);
+        CatalogItemEntity catalogItem = findCatalogItem(item.getCatalogItemId(), orderId);
 
         item.setQuantity(request.quantity());
-        item.setUnitPrice(request.unitPrice());
+        item.setUnitPrice(catalogItem.getUnitPrice());
         item.setDiscountAmount(request.discountAmount());
         item.setProfessionalId(request.professionalId());
         item.setDescription(request.description());
@@ -109,5 +119,10 @@ public class OrderItemService {
         return orderItemRepository.findById(itemId)
                 .filter(i -> i.getOrderId().equals(orderId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado no pedido com ID: " + itemId));
+    }
+
+    private CatalogItemEntity findCatalogItem(Long catalogItemId, Long orderId) {
+        return catalogItemRepository.findByIdAndCompanyId(catalogItemId, orderId)
+                .orElseThrow(()-> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um dos itens do pedido não existe"));
     }
 }

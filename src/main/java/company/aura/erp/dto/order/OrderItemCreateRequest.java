@@ -19,13 +19,8 @@ public record OrderItemCreateRequest(
         @DecimalMin(value = "0.0001", message = "A quantidade deve ser maior que zero.")
         BigDecimal quantity,
 
-        @NotNull(message = "O preço unitário é obrigatório.")
-        @DecimalMin(value = "0.00", message = "O preço unitário não pode ser negativo.")
-        BigDecimal unitPrice,
-
         @DecimalMin(value = "0.00", message = "O valor de desconto não pode ser negativo.")
-        @DecimalMax(value = "100.00", message = "O valor de desconto não pode ser maior que 100.")
-        BigDecimal discountPercentage,
+        BigDecimal discountAmount,
 
         Long professionalId
 ) {}
