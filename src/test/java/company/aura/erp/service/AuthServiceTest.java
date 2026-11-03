@@ -2,11 +2,13 @@ package company.aura.erp.service;
 
 import company.aura.erp.constants.AuthConstants;
 import company.aura.erp.dto.auth.ForgotPasswordRequest;
+import company.aura.erp.dto.auth.LoginRequest;
+import company.aura.erp.dto.auth.LoginResponse;
 import company.aura.erp.dto.auth.ResetPasswordRequest;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.repository.UserRepository;
 import company.aura.erp.security.JwtService;
-import org.junit.jupiter.api.BeforeEach;
+import company.aura.erp.security.UserPrincipal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,8 +18,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -48,13 +50,51 @@ class AuthServiceTest {
     @Mock
     private EmailService emailService;
 
-    @InjectMocks
-    private AuthService authService;
-
     @Mock
     private AuthConstants authConstants;
 
+    @InjectMocks
+    private AuthService authService;
 
+    @Test
+    @DisplayName("Deve autenticar com sucesso e retornar LoginResponse")
+    void shouldLoginSuccessfully() {
+        LoginRequest request = new LoginRequest("usuario@empresa.com", "senha123");
+        UserEntity user = UserEntity.builder()
+                .id(1L)
+                .email(request.email())
+                .name("Usuario Teste")
+                .passwordHash("senha_hash")
+                .status("ACTIVE")
+                .build();
+
+        when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
+        when(jwtService.generateToken(any(UserPrincipal.class))).thenReturn("fake-jwt-token");
+        when(jwtService.getExpirationTime()).thenReturn(86400000L);
+
+        LoginResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertEquals("fake-jwt-token", response.token());
+        assertEquals("Bearer", response.tokenType());
+        assertEquals(86400000L, response.expiresIn());
+        assertEquals(user.getEmail(), response.user().email());
+
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        verify(userService).recordLogin(user.getEmail());
+    }
+
+    @Test
+    @DisplayName("Deve lançar erro 404 quando usuário não for encontrado no login")
+    void shouldThrowNotFoundWhenLoginUserNotFound() {
+        LoginRequest request = new LoginRequest("inexistente@empresa.com", "senha123");
+        when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.login(request));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        verify(userService, never()).recordLogin(anyString());
+    }
 
     @Test
     @DisplayName("Deve gerar código de 255 caracteres, salvar expiração e disparar e-mail com sucesso")
@@ -70,9 +110,9 @@ class AuthServiceTest {
                 .status("ACTIVE")
                 .build();
 
-        when(authConstants.getResetPasswordBaseUrl()).thenReturn("http://localhost:5173/redefinir-senha");
-
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(authConstants.getResetPasswordBaseUrl()).thenReturn("http://localhost:5173/redefinir-senha");
+        when(authConstants.getResetPasswordExpirationMinutes()).thenReturn(60L);
 
         authService.requestPasswordReset(request);
 
@@ -98,7 +138,7 @@ class AuthServiceTest {
     void shouldThrowNotFoundWhenEmailDoesNotExist() {
         String email = "inexistente@empresa.com";
         ForgotPasswordRequest request = new ForgotPasswordRequest(email);
-        when(authConstants.getResetPasswordBaseUrl()).thenReturn("http://localhost:5173/redefinir-senha");
+
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.requestPasswordReset(request));
@@ -120,7 +160,7 @@ class AuthServiceTest {
                 .resetPasswordToken(code)
                 .resetPasswordExpires(LocalDateTime.now().plusMinutes(30))
                 .build();
-        when(authConstants.getResetPasswordBaseUrl()).thenReturn("http://localhost:5173/redefinir-senha");
+
         when(userRepository.findByResetPasswordToken(code)).thenReturn(Optional.of(user));
         when(passwordEncoder.encode(newPassword)).thenReturn("nova_senha_hasheada");
 
@@ -139,7 +179,6 @@ class AuthServiceTest {
         ResetPasswordRequest request = new ResetPasswordRequest(code, "novaSenha123");
 
         when(userRepository.findByResetPasswordToken(code)).thenReturn(Optional.empty());
-        when(authConstants.getResetPasswordBaseUrl()).thenReturn("http://localhost:5173/redefinir-senha");
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.resetPassword(request));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
@@ -161,7 +200,6 @@ class AuthServiceTest {
                 .build();
 
         when(userRepository.findByResetPasswordToken(code)).thenReturn(Optional.of(user));
-        when(authConstants.getResetPasswordBaseUrl()).thenReturn("http://localhost:5173/redefinir-senha");
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.resetPassword(request));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
