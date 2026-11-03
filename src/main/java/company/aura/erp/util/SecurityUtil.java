@@ -4,7 +4,7 @@ import java.security.SecureRandom;
 
 public class SecurityUtil {
 
-    private static final String RESET_CODE_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%¨&*_+{}[]";
+    private static final String RESET_CODE_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int RESET_CODE_LENGTH = 255;
 
