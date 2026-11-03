@@ -13,6 +13,8 @@ public record PartnerUpdateRequest(
         @NotNull(message = "Informe se a pessoa é um fornecedor")
         Boolean isSupplier,
 
+        Boolean isCarrier,
+
         @Size(min = 11, max = 14, message = "Documento deve conter entre 11 e 14 dígitos numéricos.")
         String document,
 

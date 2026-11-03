@@ -11,6 +11,8 @@ public record PartnerCreateRequest(
         @NotNull(message = "Informe se a pessoa é um fornecedor")
         Boolean isSupplier,
 
+        Boolean isCarrier,
+
         @NotNull(message = "Tipo de pessoa é obrigatório.")
         PersonType personType,
 

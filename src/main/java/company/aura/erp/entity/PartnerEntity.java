@@ -36,6 +36,10 @@ public class PartnerEntity {
     @Column(name = "is_supplier")
     private Boolean isSupplier = false;
 
+    @Builder.Default
+    @Column(name = "is_carrier", nullable = false)
+    private Boolean isCarrier = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "person_type", nullable = false, length = 2)
     private PersonType personType;

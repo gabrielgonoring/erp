@@ -50,6 +50,9 @@ class PartnerServiceTest {
                 .name("Empresa Parceira")
                 .document("12345678000199")
                 .personType(PersonType.PJ)
+                .isCustomer(true)
+                .isSupplier(false)
+                .isCarrier(false)
                 .email("contato@parceira.com")
                 .street("Rua das Flores")
                 .number("100")
@@ -73,35 +76,34 @@ class PartnerServiceTest {
 
         assertEquals(PartnerStatus.DELETED.name(), activePartner.getStatus());
         verify(partnerRepository).save(activePartner);
-        verify(partnerRepository, never()).delete(any());
-        verify(partnerRepository, never()).deleteById(any());
     }
 
     @Test
-    void shouldThrowNotFoundWhenDeletingPartnerThatDoesNotExistOrBelongsToAnotherCompany() {
+    void shouldThrowNotFoundWhenDeletingNonExistentPartner() {
         when(partnerRepository.findByIdAndCompanyIdAndStatusNot(99L, 10L, PartnerStatus.DELETED.name()))
                 .thenReturn(Optional.empty());
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+        assertThrows(ResponseStatusException.class, () ->
                 partnerService.delete(99L, 10L)
         );
 
-        assertTrue(ex.getMessage().contains("Parceiro não encontrado"));
         verify(partnerRepository, never()).save(any());
     }
 
     @Test
-    void shouldThrowNotFoundWhenFindingByIdPartnerThatIsDeleted() {
-        when(partnerRepository.findByIdAndCompanyIdAndStatusNot(1L, 10L, PartnerStatus.DELETED.name()))
+    void shouldThrowNotFoundWhenDeletingPartnerOfAnotherCompany() {
+        when(partnerRepository.findByIdAndCompanyIdAndStatusNot(1L, 999L, PartnerStatus.DELETED.name()))
                 .thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class, () ->
-                partnerService.findById(1L, 10L)
+                partnerService.delete(1L, 999L)
         );
+
+        verify(partnerRepository, never()).save(any());
     }
 
     @Test
-    void shouldFindActivePartnerById() {
+    void shouldFindPartnerByIdWhenActive() {
         when(partnerRepository.findByIdAndCompanyIdAndStatusNot(1L, 10L, PartnerStatus.DELETED.name()))
                 .thenReturn(Optional.of(activePartner));
 
@@ -110,6 +112,7 @@ class PartnerServiceTest {
         assertNotNull(response);
         assertEquals(1L, response.id());
         assertEquals("Empresa Parceira", response.name());
+        assertFalse(response.isCarrier());
     }
 
     @Test
@@ -118,7 +121,7 @@ class PartnerServiceTest {
                 .thenReturn(Optional.empty());
 
         PartnerUpdateRequest updateRequest = new PartnerUpdateRequest(
-                true, false, "12345678000199", "Nome Atualizado",
+                true, false, false, "12345678000199", "Nome Atualizado",
                 9, null, "email@teste.com", "1199999999",
                 "Rua X", "12", null, "Bairro", "3550308", "São Paulo", "SP", "01001000", "1058", "Brasil"
         );

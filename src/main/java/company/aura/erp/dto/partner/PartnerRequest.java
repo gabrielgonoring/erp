@@ -6,6 +6,7 @@ import jakarta.validation.constraints.*;
 public record PartnerRequest(
         Boolean isCustomer,
         Boolean isSupplier,
+        Boolean isCarrier,
 
         @NotNull(message = "Tipo de pessoa (PF ou PJ) é obrigatório.")
         PersonType personType,

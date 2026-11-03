@@ -41,6 +41,7 @@ public class PartnerService {
                 .companyId(companyId)
                 .isCustomer(Boolean.TRUE.equals(request.isCustomer()))
                 .isSupplier(Boolean.TRUE.equals(request.isSupplier()))
+                .isCarrier(Boolean.TRUE.equals(request.isCarrier()))
                 .personType(request.personType())
                 .document(request.document())
                 .name(request.name())
@@ -71,6 +72,9 @@ public class PartnerService {
 
         partner.setIsCustomer(request.isCustomer());
         partner.setIsSupplier(request.isSupplier());
+        if (request.isCarrier() != null) {
+            partner.setIsCarrier(request.isCarrier());
+        }
         partner.setDocument(request.document());
         partner.setName(request.name());
         partner.setIndicatorIe(request.indicatorIe());
