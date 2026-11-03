@@ -15,11 +15,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +51,9 @@ class OrderServiceTest {
 
     @Mock
     private OrderShippingRepository orderShippingRepository;
+
+    @Mock
+    private OrderShippingService orderShippingService;
 
     @InjectMocks
     private OrderService orderService;
@@ -93,6 +102,8 @@ class OrderServiceTest {
             return order;
         });
 
+        when(orderShippingService.saveInitialShipping(eq(request), any(OrderEntity.class))).thenReturn(null);
+
         OrderItemEntity item = OrderItemEntity.builder()
                 .id(200L)
                 .orderId(100L)
@@ -114,7 +125,6 @@ class OrderServiceTest {
         assertEquals(BigDecimal.valueOf(50.00), response.servicesAmount());
         assertEquals(BigDecimal.valueOf(50.00), response.totalAmount());
         assertNull(response.shipping());
-        verify(orderShippingRepository, never()).save(any());
     }
 
     @Test
@@ -159,7 +169,7 @@ class OrderServiceTest {
                 .shippingNotes("Coleta manhã")
                 .build();
 
-        when(orderShippingRepository.save(any(OrderShippingEntity.class))).thenReturn(savedShippingEntity);
+        when(orderShippingService.saveInitialShipping(eq(request), any(OrderEntity.class))).thenReturn(savedShippingEntity);
 
         OrderItemEntity item = OrderItemEntity.builder()
                 .id(201L)
@@ -183,7 +193,6 @@ class OrderServiceTest {
         assertEquals(BigDecimal.valueOf(95.00), response.totalAmount()); // 60 + 35
         assertNotNull(response.shipping());
         assertEquals(4L, response.shipping().carrierId());
-        verify(orderShippingRepository, times(1)).save(any(OrderShippingEntity.class));
     }
 
     @Test
@@ -302,12 +311,13 @@ class OrderServiceTest {
                 shippingReq
         );
 
-        when(orderShippingRepository.findByOrderId(100L)).thenReturn(Optional.empty());
-        when(orderShippingRepository.save(any(OrderShippingEntity.class))).thenAnswer(inv -> {
-            OrderShippingEntity ent = inv.getArgument(0);
-            ent.setId(10L);
-            return ent;
-        });
+        OrderShippingEntity savedShipping = OrderShippingEntity.builder()
+                .id(10L)
+                .orderId(100L)
+                .trackingCode("TR123456789BR")
+                .build();
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(savedShipping);
 
         OrderItemEntity item = OrderItemEntity.builder()
                 .id(201L)
@@ -336,7 +346,29 @@ class OrderServiceTest {
         assertEquals(BigDecimal.valueOf(120.00), response.totalAmount()); // 100 + 20
         assertNotNull(response.shipping());
         assertEquals("TR123456789BR", response.shipping().trackingCode());
-        verify(orderShippingRepository).save(any(OrderShippingEntity.class));
         verify(orderPaymentService).processInstallments(eq(request), any(OrderEntity.class));
+    }
+
+    @Test
+    @DisplayName("GET /api/orders — Deve listar pedidos de forma simplificada e paginada no serviço")
+    void shouldListSummarizedOrders() {
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+        OrderSummaryResponse summary = new OrderSummaryResponse(
+                100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(200.00), LocalDateTime.now()
+        );
+        Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderRepository.searchSummarized(eq(companyId), eq("Teste"), any(Pageable.class)))
+                .thenReturn(page);
+
+        Page<OrderSummaryResponse> result = orderService.listSummarized("  Teste  ", companyId, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("Cliente Teste", result.getContent().get(0).customerName());
+        assertEquals("12345678901", result.getContent().get(0).customerDocument());
+        assertEquals(100L, result.getContent().get(0).id());
+        assertEquals(BigDecimal.valueOf(200.00), result.getContent().get(0).totalAmount());
+        verify(orderRepository).searchSummarized(eq(companyId), eq("Teste"), any(Pageable.class));
     }
 }

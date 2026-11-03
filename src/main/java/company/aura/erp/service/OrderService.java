@@ -6,6 +6,10 @@ import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +60,7 @@ public class OrderService {
     }
 
     private boolean isShippingProvided(OrderCreateRequest request) {
-        return request.shipping() == null;
+        return request.shipping() != null;
     }
 
     private BigDecimal resolveFreightAmount(OrderShippingRequest shipping) {
@@ -199,5 +203,11 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.OPEN) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível adicionar itens a um pedido fechado ou cancelado.");
         }
+    }
+
+    public Page<OrderSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
+        Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "o.createdAt"));
+        String searchTerm = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+        return orderRepository.searchSummarized(companyId, searchTerm, effectivePageable);
     }
 }

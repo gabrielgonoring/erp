@@ -27,7 +27,7 @@ public class OrderShippingService {
 
 
     private boolean isShippingProvided(OrderCreateRequest request) {
-        return request.shipping() == null;
+        return request.shipping() != null;
     }
 
 

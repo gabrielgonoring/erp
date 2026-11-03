@@ -5,6 +5,10 @@ import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -65,6 +69,16 @@ public class OrderController {
     ) {
         OrderResponse response = orderService.closeOrder(id, request, userPrincipal.getCompanyId());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping({"", "/search"})
+    public ResponseEntity<Page<OrderSummaryResponse>> list(
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<OrderSummaryResponse> page = orderService.listSummarized(search, userPrincipal.getCompanyId(), pageable);
+        return ResponseEntity.ok(page);
     }
 
 }

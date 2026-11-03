@@ -13,6 +13,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -167,5 +171,23 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders — Deve listar pedidos de forma simplificada e paginada")
+    void shouldListSummarizedOrders() {
+        Pageable pageable = PageRequest.of(0, 20);
+        OrderSummaryResponse summary = new OrderSummaryResponse(
+                1L, "12345678901", "Cliente Teste", BigDecimal.valueOf(150.00), LocalDateTime.now()
+        );
+        Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderService.listSummarized("Teste", 10L, pageable)).thenReturn(page);
+
+        ResponseEntity<Page<OrderSummaryResponse>> response = orderController.list("Teste", pageable, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(page, response.getBody());
+        verify(orderService).listSummarized("Teste", 10L, pageable);
     }
 }
