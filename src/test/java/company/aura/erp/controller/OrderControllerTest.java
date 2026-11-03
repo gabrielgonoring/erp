@@ -178,7 +178,7 @@ class OrderControllerTest {
     void shouldListSummarizedOrders() {
         Pageable pageable = PageRequest.of(0, 20);
         OrderSummaryResponse summary = new OrderSummaryResponse(
-                1L, "12345678901", "Cliente Teste", BigDecimal.valueOf(150.00), LocalDateTime.now()
+                1L, "12345678901", "Cliente Teste", BigDecimal.valueOf(150.00), OrderStatus.OPEN, LocalDateTime.now()
         );
         Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 

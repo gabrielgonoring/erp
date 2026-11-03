@@ -354,7 +354,7 @@ class OrderServiceTest {
     void shouldListSummarizedOrders() {
         Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
         OrderSummaryResponse summary = new OrderSummaryResponse(
-                100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(200.00), LocalDateTime.now()
+                100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(200.00), OrderStatus.OPEN, LocalDateTime.now()
         );
         Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 
@@ -369,6 +369,7 @@ class OrderServiceTest {
         assertEquals("12345678901", result.getContent().get(0).customerDocument());
         assertEquals(100L, result.getContent().get(0).id());
         assertEquals(BigDecimal.valueOf(200.00), result.getContent().get(0).totalAmount());
+        assertEquals(OrderStatus.OPEN, result.getContent().get(0).status());
         verify(orderRepository).searchSummarized(eq(companyId), eq("Teste"), any(Pageable.class));
     }
 }

@@ -71,7 +71,7 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping({"", "/search"})
+    @GetMapping
     public ResponseEntity<Page<OrderSummaryResponse>> list(
             @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,

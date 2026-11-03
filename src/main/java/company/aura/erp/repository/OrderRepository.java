@@ -28,20 +28,22 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     @Query(
             value = "SELECT new company.aura.erp.dto.order.OrderSummaryResponse(" +
-                    "o.id, p.document, p.name, o.totalAmount, o.createdAt) " +
+                    "o.id, p.document, p.name, o.totalAmount, o.status, o.createdAt) " +
                     "FROM OrderEntity o JOIN PartnerEntity p ON o.partnerId = p.id " +
                     "WHERE o.companyId = :companyId AND " +
                     "(:search IS NULL OR :search = '' OR " +
                     "CAST(o.id AS string) LIKE CONCAT('%', :search, '%') OR " +
                     "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-                    "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')))",
+                    "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(CAST(o.status AS string)) LIKE LOWER(CONCAT('%', :search, '%')))",
             countQuery = "SELECT count(o) " +
                     "FROM OrderEntity o JOIN PartnerEntity p ON o.partnerId = p.id " +
                     "WHERE o.companyId = :companyId AND " +
                     "(:search IS NULL OR :search = '' OR " +
                     "CAST(o.id AS string) LIKE CONCAT('%', :search, '%') OR " +
                     "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-                    "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')))"
+                    "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(CAST(o.status AS string)) LIKE LOWER(CONCAT('%', :search, '%')))"
     )
     Page<OrderSummaryResponse> searchSummarized(
             @Param("companyId") Long companyId,

@@ -205,8 +205,39 @@ public class OrderService {
         }
     }
 
+    @Transactional(readOnly = true)
     public Page<OrderSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
-        Pageable effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "o.createdAt"));
+        Pageable effectivePageable = pageable;
+        if (pageable != null && pageable.getSort().isSorted()) {
+            Sort mappedSort = Sort.by(
+                    pageable.getSort().stream().map(order -> {
+                        String prop = order.getProperty();
+                        if ("customerName".equalsIgnoreCase(prop) || "name".equalsIgnoreCase(prop)) {
+                            return new Sort.Order(order.getDirection(), "p.name");
+                        }
+                        if ("customerDocument".equalsIgnoreCase(prop) || "document".equalsIgnoreCase(prop)) {
+                            return new Sort.Order(order.getDirection(), "p.document");
+                        }
+                        if ("id".equalsIgnoreCase(prop)) {
+                            return new Sort.Order(order.getDirection(), "o.id");
+                        }
+                        if ("totalAmount".equalsIgnoreCase(prop)) {
+                            return new Sort.Order(order.getDirection(), "o.totalAmount");
+                        }
+                        if ("status".equalsIgnoreCase(prop)) {
+                            return new Sort.Order(order.getDirection(), "o.status");
+                        }
+                        if ("createdAt".equalsIgnoreCase(prop)) {
+                            return new Sort.Order(order.getDirection(), "o.createdAt");
+                        }
+                        return order;
+                    }).toList()
+            );
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), mappedSort);
+        } else if (pageable != null) {
+            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "o.createdAt"));
+        }
+
         String searchTerm = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
         return orderRepository.searchSummarized(companyId, searchTerm, effectivePageable);
     }
