@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -40,10 +41,15 @@ public class OrderPaymentService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (totalInstallments.compareTo(order.getTotalAmount()) != 0) {
+            BigDecimal installmentsFormatted = totalInstallments.setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalOrderFormatted = order.getTotalAmount() != null
+                    ? order.getTotalAmount().setScale(2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
+                    HttpStatus.UNPROCESSABLE_ENTITY,
                     String.format("A soma das parcelas (R$ %s) não confere com o valor total do pedido (R$ %s).",
-                            totalInstallments, order.getTotalAmount())
+                            installmentsFormatted, totalOrderFormatted)
             );
         }
     }
@@ -92,11 +98,5 @@ public class OrderPaymentService {
 
         paymentTransactionRepository.save(transaction);
     }
-
-
-
-
-
-
 
 }

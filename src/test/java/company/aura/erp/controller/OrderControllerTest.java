@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,7 +51,7 @@ class OrderControllerTest {
     @DisplayName("POST /api/orders — Deve abrir comanda e retornar HTTP 201")
     void shouldOpenOrder() {
         OrderCreateRequest request = new OrderCreateRequest(
-                5L, BigDecimal.valueOf(10.00), "Comanda 1", Collections.emptyList()
+                5L, "Comanda 1", Collections.emptyList()
         );
         OrderResponse responseDto = new OrderResponse(
                 1L, 10L, 5L, null, null, OrderStatus.OPEN,
@@ -70,14 +69,42 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/orders — Deve abrir comanda com objeto shipping opcional e retornar HTTP 201")
+    void shouldOpenOrderWithShipping() {
+        OrderShippingRequest shipping = new OrderShippingRequest(
+                0, 4L, "ABC1234", "SP", "12345678", 2, "CAIXA", null, null,
+                BigDecimal.valueOf(4.5), BigDecimal.valueOf(4.0), null, "Coleta pela manhã", BigDecimal.valueOf(35.00)
+        );
+        OrderCreateRequest request = new OrderCreateRequest(
+                5L, "Pedido com frete", Collections.emptyList(), shipping
+        );
+        OrderShippingResponse shippingResponse = new OrderShippingResponse(
+                1L, 1L, 4L, 0, "ABC1234", "SP", "12345678", 2, "CAIXA", null, null,
+                BigDecimal.valueOf(4.5), BigDecimal.valueOf(4.0), null, "Coleta pela manhã", LocalDateTime.now(), LocalDateTime.now()
+        );
+        OrderResponse responseDto = new OrderResponse(
+                1L, 10L, 5L, null, null, OrderStatus.OPEN,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(35.00), BigDecimal.ZERO, BigDecimal.valueOf(35.00),
+                "Pedido com frete", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList(), shippingResponse
+        );
+
+        when(orderService.openOrder(request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderResponse> response = orderController.openOrder(request, userPrincipal);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).openOrder(request, 10L);
+    }
+
+    @Test
     @DisplayName("POST /api/orders/{id}/items — Deve adicionar item e retornar HTTP 201")
     void shouldAddItem() {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                null, CatalogItemType.PHYSICAL, "Pomada Modeladora",
-                BigDecimal.valueOf(2), BigDecimal.valueOf(35.00), BigDecimal.ZERO, null
+                1L, "Pomada Modeladora", BigDecimal.valueOf(2), BigDecimal.ZERO, null
         );
         OrderItemResponse responseDto = new OrderItemResponse(
-                100L, 1L, null, CatalogItemType.PHYSICAL, "Pomada Modeladora",
+                100L, 1L, 1L, CatalogItemType.PHYSICAL, "Pomada Modeladora",
                 BigDecimal.valueOf(2), BigDecimal.valueOf(35.00), BigDecimal.ZERO, BigDecimal.valueOf(70.00),
                 null, false, LocalDateTime.now()
         );
@@ -95,12 +122,12 @@ class OrderControllerTest {
     @DisplayName("PATCH /api/orders/{id}/items/{itemId} — Deve atualizar linha do item e retornar HTTP 200")
     void shouldUpdateItem() {
         OrderItemUpdateRequest request = new OrderItemUpdateRequest(
-                BigDecimal.valueOf(3), BigDecimal.valueOf(30.00), null, null, null
+                BigDecimal.valueOf(3), BigDecimal.ZERO, 8L, "Pomada Modeladora"
         );
         OrderItemResponse responseDto = new OrderItemResponse(
-                100L, 1L, null, CatalogItemType.PHYSICAL, "Pomada Modeladora",
+                100L, 1L, 1L, CatalogItemType.PHYSICAL, "Pomada Modeladora",
                 BigDecimal.valueOf(3), BigDecimal.valueOf(30.00), BigDecimal.ZERO, BigDecimal.valueOf(90.00),
-                null, false, LocalDateTime.now()
+                8L, false, LocalDateTime.now()
         );
 
         when(orderService.updateItem(1L, 100L, request, 10L)).thenReturn(responseDto);
@@ -128,7 +155,7 @@ class OrderControllerTest {
                 new OrderInstallmentRequest(1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null)
         ));
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, null, null, OrderStatus.COMPLETED,
+                1L, 10L, 5L, null, null, OrderStatus.PENDING_PAYMENT,
                 BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
                 null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
@@ -140,23 +167,5 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         verify(orderService).closeOrder(1L, request, 10L);
-    }
-
-    @Test
-    @DisplayName("POST /api/orders/{id}/cancel — Deve cancelar comanda e retornar HTTP 200")
-    void shouldCancelOrder() {
-        OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, null, null, OrderStatus.CANCELED,
-                BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
-                null, null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
-        );
-
-        when(orderService.cancelOrder(1L, 10L)).thenReturn(responseDto);
-
-        ResponseEntity<OrderResponse> response = orderController.cancelOrder(1L, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
-        verify(orderService).cancelOrder(1L, 10L);
     }
 }

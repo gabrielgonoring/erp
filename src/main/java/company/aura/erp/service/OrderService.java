@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,6 +24,7 @@ public class OrderService {
     private final PartnerRepository partnerRepository;
     private final OrderPaymentService orderPaymentService;
     private final OrderItemService orderItemService;
+    private final OrderShippingService orderShippingService;
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
@@ -33,8 +35,10 @@ public class OrderService {
 
         OrderEntity savedOrder = orderRepository.save(order);
 
+        OrderShippingEntity savedShipping = orderShippingService.saveInitialShipping(request, savedOrder);
+
         if (request.items() == null || request.items().isEmpty()) {
-            return OrderResponse.fromEntity(savedOrder, Collections.emptyList(), Collections.emptyList());
+            return OrderResponse.fromEntity(savedOrder, Collections.emptyList(), Collections.emptyList(), savedShipping);
         }
 
         List<OrderItemEntity> savedItems = orderItemService.saveInitialItems(request, savedOrder);
@@ -43,7 +47,7 @@ public class OrderService {
 
         savedOrder = orderRepository.save(savedOrder);
 
-        return OrderResponse.fromEntity(savedOrder, savedItems, Collections.emptyList());
+        return OrderResponse.fromEntity(savedOrder, savedItems, Collections.emptyList(), savedShipping);
     }
 
     private void validateInitialOrder(OrderCreateRequest request, Long companyId) {
@@ -51,9 +55,24 @@ public class OrderService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado"));
     }
 
+    private boolean isShippingProvided(OrderCreateRequest request) {
+        return request.shipping() == null;
+    }
+
+    private BigDecimal resolveFreightAmount(OrderShippingRequest shipping) {
+
+        if (shipping != null && shipping.freightAmount() != null) {
+            return shipping.freightAmount();
+        }
+        return BigDecimal.ZERO;
+    }
 
     private OrderEntity buildInitialOrder(OrderCreateRequest request, Long companyId) {
-        BigDecimal freightAmount = request.freightAmount() != null ? request.freightAmount() : BigDecimal.ZERO;
+        BigDecimal freightAmount = BigDecimal.ZERO;
+
+        if (isShippingProvided(request)) {
+            freightAmount = resolveFreightAmount(request.shipping());
+        }
 
         return OrderEntity.builder()
                 .companyId(companyId)
@@ -68,6 +87,7 @@ public class OrderService {
                 .build();
     }
 
+
     @Transactional
     public OrderItemResponse addItem(Long orderId, OrderItemCreateRequest request, Long companyId) {
         OrderEntity order = findOrder(orderId, companyId);
@@ -80,7 +100,6 @@ public class OrderService {
 
         return OrderItemResponse.fromEntity(item);
     }
-
 
     @Transactional
     public OrderItemResponse updateItem(Long orderId, Long itemId, OrderItemUpdateRequest request, Long companyId) {
@@ -95,7 +114,6 @@ public class OrderService {
         return OrderItemResponse.fromEntity(updatedItem);
     }
 
-
     @Transactional
     public void removeItem(Long orderId, Long itemId, Long companyId) {
         OrderEntity order = findOrder(orderId, companyId);
@@ -107,24 +125,34 @@ public class OrderService {
         recalculateOrderTotals(order);
     }
 
-
     @Transactional
     public OrderResponse closeOrder(Long orderId, OrderCloseRequest request, Long companyId) {
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
 
+        if (isShippingProvided(request)) {
+            BigDecimal updatedFreight = resolveFreightAmount(request.shipping());
+            order.setFreightAmount(updatedFreight);
+        }
+
+        OrderShippingEntity savedShipping = orderShippingService.upsertShippingOnClose(order.getId(), request);
+
         var items = orderItemService.closeItem(orderId);
+
+        recalculateOrderTotals(order, items);
 
         var savedInstallments = orderPaymentService.processInstallments(request, order);
 
         order.setStatus(OrderStatus.PENDING_PAYMENT);
         OrderEntity savedOrder = orderRepository.save(order);
 
-        return OrderResponse.fromEntity(savedOrder, items, savedInstallments);
+        return OrderResponse.fromEntity(savedOrder, items, savedInstallments, savedShipping);
     }
 
-
+    private boolean isShippingProvided(OrderCloseRequest request) {
+        return request.shipping() != null && request.shipping().freightAmount() != null;
+    }
 
     private void recalculateOrderTotals(OrderEntity order, List<OrderItemEntity> items) {
 
@@ -155,8 +183,6 @@ public class OrderService {
 
         order.setTotalAmount(total);
     }
-
-
 
     private OrderEntity findOrder(Long orderId, Long companyId) {
         return orderRepository.findByIdAndCompanyId(orderId, companyId)

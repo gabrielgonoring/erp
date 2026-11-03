@@ -9,15 +9,18 @@ import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.repository.CatalogItemRepository;
 import company.aura.erp.repository.OrderItemRepository;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+@Service
 @RequiredArgsConstructor
 public class OrderItemService {
 

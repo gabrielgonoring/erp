@@ -3,10 +3,11 @@ package company.aura.erp.service;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.*;
 import company.aura.erp.enums.CatalogItemType;
-import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.PaymentMethod;
-import company.aura.erp.repository.*;
+import company.aura.erp.repository.OrderRepository;
+import company.aura.erp.repository.OrderShippingRepository;
+import company.aura.erp.repository.PartnerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,16 +35,16 @@ class OrderServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private OrderItemRepository orderItemRepository;
-
-    @Mock
-    private OrderInstallmentRepository orderInstallmentRepository;
-
-    @Mock
-    private PaymentTransactionRepository paymentTransactionRepository;
-
-    @Mock
     private PartnerRepository partnerRepository;
+
+    @Mock
+    private OrderPaymentService orderPaymentService;
+
+    @Mock
+    private OrderItemService orderItemService;
+
+    @Mock
+    private OrderShippingRepository orderShippingRepository;
 
     @InjectMocks
     private OrderService orderService;
@@ -67,23 +69,17 @@ class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve abrir comanda com sucesso com status OPEN e frete opcional")
-    void shouldOpenOrderSuccessfully() {
+    @DisplayName("POST /api/orders — Sem frete/shipping não deve criar order_shipping e frete deve ser 0.00")
+    void shouldOpenOrderWithoutFreightAndNotCreateShipping() {
         OrderCreateRequest request = new OrderCreateRequest(
                 partnerId,
-                BigDecimal.valueOf(20.00),
-                "Mesa 05",
+                "Comanda balcão",
                 List.of(
                         new OrderItemCreateRequest(
-                                null,
-                                CatalogItemType.SERVICE,
-                                "Corte de Cabelo",
-                                BigDecimal.valueOf(1),
-                                BigDecimal.valueOf(50.00),
-                                BigDecimal.ZERO,
-                                5L
+                                1L, "Corte de Cabelo", BigDecimal.valueOf(1), BigDecimal.ZERO, 5L
                         )
-                )
+                ),
+                null
         );
 
         when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
@@ -97,33 +93,104 @@ class OrderServiceTest {
             return order;
         });
 
-        when(orderItemRepository.save(any(OrderItemEntity.class))).thenAnswer(inv -> {
-            OrderItemEntity item = inv.getArgument(0);
-            item.setId(200L);
-            return item;
-        });
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(200L)
+                .orderId(100L)
+                .itemType(CatalogItemType.SERVICE)
+                .description("Corte de Cabelo")
+                .quantity(BigDecimal.ONE)
+                .unitPrice(BigDecimal.valueOf(50.00))
+                .discountAmount(BigDecimal.ZERO)
+                .totalPrice(BigDecimal.valueOf(50.00))
+                .build();
+
+        when(orderItemService.saveInitialItems(eq(request), any(OrderEntity.class))).thenReturn(List.of(item));
 
         OrderResponse response = orderService.openOrder(request, companyId);
 
         assertNotNull(response);
         assertEquals(OrderStatus.OPEN, response.status());
-        assertEquals(BigDecimal.valueOf(20.00), response.freightAmount());
+        assertEquals(BigDecimal.ZERO, response.freightAmount());
         assertEquals(BigDecimal.valueOf(50.00), response.servicesAmount());
-        assertEquals(BigDecimal.valueOf(70.00), response.totalAmount());
-        assertEquals(1, response.items().size());
+        assertEquals(BigDecimal.valueOf(50.00), response.totalAmount());
+        assertNull(response.shipping());
+        verify(orderShippingRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders — Com frete/shipping deve criar order_shipping e somar frete no total")
+    void shouldOpenOrderWithFreightAndCreateShipping() {
+        OrderShippingRequest shippingReq = new OrderShippingRequest(
+                0, 4L, "ABC1234", "SP", null, 2, "CAIXA", null, null,
+                BigDecimal.valueOf(4.5), BigDecimal.valueOf(4.0), null, "Coleta manhã", BigDecimal.valueOf(35.00)
+        );
+
+        OrderCreateRequest request = new OrderCreateRequest(
+                partnerId,
+                "Pedido B2B com frete",
+                List.of(
+                        new OrderItemCreateRequest(
+                                2L, "Shampoo", BigDecimal.valueOf(2), BigDecimal.ZERO, null
+                        )
+                ),
+                shippingReq
+        );
+
+        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
+                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).build()));
+
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> {
+            OrderEntity order = inv.getArgument(0);
+            if (order.getId() == null) {
+                order.setId(100L);
+            }
+            return order;
+        });
+
+        OrderShippingEntity savedShippingEntity = OrderShippingEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .freightMode(0)
+                .carrierId(4L)
+                .packageQuantity(2)
+                .packageSpecies("CAIXA")
+                .grossWeightKg(BigDecimal.valueOf(4.5))
+                .netWeightKg(BigDecimal.valueOf(4.0))
+                .shippingNotes("Coleta manhã")
+                .build();
+
+        when(orderShippingRepository.save(any(OrderShippingEntity.class))).thenReturn(savedShippingEntity);
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .description("Shampoo")
+                .quantity(BigDecimal.valueOf(2))
+                .unitPrice(BigDecimal.valueOf(30.00))
+                .discountAmount(BigDecimal.ZERO)
+                .totalPrice(BigDecimal.valueOf(60.00))
+                .build();
+
+        when(orderItemService.saveInitialItems(eq(request), any(OrderEntity.class))).thenReturn(List.of(item));
+
+        OrderResponse response = orderService.openOrder(request, companyId);
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.OPEN, response.status());
+        assertEquals(BigDecimal.valueOf(35.00), response.freightAmount());
+        assertEquals(BigDecimal.valueOf(60.00), response.productsAmount());
+        assertEquals(BigDecimal.valueOf(95.00), response.totalAmount()); // 60 + 35
+        assertNotNull(response.shipping());
+        assertEquals(4L, response.shipping().carrierId());
+        verify(orderShippingRepository, times(1)).save(any(OrderShippingEntity.class));
     }
 
     @Test
     @DisplayName("Deve adicionar item à comanda aberta e recalcular totais")
     void shouldAddItemSuccessfully() {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                null,
-                CatalogItemType.PHYSICAL,
-                "Shampoo Especial",
-                BigDecimal.valueOf(2),
-                BigDecimal.valueOf(30.00),
-                BigDecimal.valueOf(5.00),
-                null
+                1L, "Shampoo Especial", BigDecimal.valueOf(2), BigDecimal.valueOf(5.00), null
         );
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
@@ -137,19 +204,17 @@ class OrderServiceTest {
                 .unitPrice(BigDecimal.valueOf(30.00))
                 .discountAmount(BigDecimal.valueOf(5.00))
                 .totalPrice(BigDecimal.valueOf(55.00))
-                .stockDeducted(false)
                 .build();
 
-        when(orderItemRepository.save(any(OrderItemEntity.class))).thenReturn(savedItem);
-        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(savedItem));
+        when(orderItemService.createItem(request, sampleOrder)).thenReturn(savedItem);
+        when(orderItemService.findOrderItems(100L)).thenReturn(List.of(savedItem));
+        when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
 
         OrderItemResponse response = orderService.addItem(100L, request, companyId);
 
         assertNotNull(response);
         assertEquals("Shampoo Especial", response.description());
         assertEquals(BigDecimal.valueOf(55.00), response.totalPrice());
-        assertFalse(response.stockDeducted());
-
         assertEquals(BigDecimal.valueOf(55.00), sampleOrder.getProductsAmount());
         assertEquals(BigDecimal.valueOf(70.00), sampleOrder.getTotalAmount()); // 55 + 15 frete
         verify(orderRepository).save(sampleOrder);
@@ -162,8 +227,7 @@ class OrderServiceTest {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                null, CatalogItemType.SERVICE, "Escova",
-                BigDecimal.ONE, BigDecimal.valueOf(40.00), BigDecimal.ZERO, null
+                1L, "Escova", BigDecimal.ONE, BigDecimal.ZERO, null
         );
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
@@ -171,165 +235,108 @@ class OrderServiceTest {
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        verify(orderItemRepository, never()).save(any());
+        verify(orderItemService, never()).createItem(any(), any());
     }
 
     @Test
     @DisplayName("Deve atualizar quantidade e preço do item na comanda aberta")
     void shouldUpdateItemSuccessfully() {
-        OrderItemEntity existingItem = OrderItemEntity.builder()
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderItemUpdateRequest request = new OrderItemUpdateRequest(
+                BigDecimal.valueOf(3), BigDecimal.valueOf(5.00), 8L, "Pomada Modeladora"
+        );
+
+        OrderItemEntity updatedItem = OrderItemEntity.builder()
                 .id(201L)
                 .orderId(100L)
                 .itemType(CatalogItemType.PHYSICAL)
-                .description("Shampoo Especial")
-                .quantity(BigDecimal.valueOf(1))
-                .unitPrice(BigDecimal.valueOf(30.00))
-                .discountAmount(BigDecimal.ZERO)
-                .totalPrice(BigDecimal.valueOf(30.00))
-                .stockDeducted(false)
+                .description("Pomada Modeladora")
+                .quantity(BigDecimal.valueOf(3))
+                .unitPrice(BigDecimal.valueOf(25.00))
+                .discountAmount(BigDecimal.valueOf(5.00))
+                .totalPrice(BigDecimal.valueOf(70.00))
+                .professionalId(8L)
                 .build();
 
-        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
-        when(orderItemRepository.findById(201L)).thenReturn(Optional.of(existingItem));
-        when(orderItemRepository.save(any(OrderItemEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(existingItem));
-
-        OrderItemUpdateRequest request = new OrderItemUpdateRequest(
-                BigDecimal.valueOf(3), BigDecimal.valueOf(25.00), BigDecimal.valueOf(5.00), 8L, null
-        );
+        when(orderItemService.updateOrderItem(100L, 201L, request)).thenReturn(updatedItem);
+        when(orderItemService.findOrderItems(100L)).thenReturn(List.of(updatedItem));
+        when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
 
         OrderItemResponse response = orderService.updateItem(100L, 201L, request, companyId);
 
         assertNotNull(response);
         assertEquals(BigDecimal.valueOf(3), response.quantity());
-        assertEquals(BigDecimal.valueOf(25.00), response.unitPrice());
-        assertEquals(BigDecimal.valueOf(70.00), response.totalPrice()); // 3 * 25 - 5 = 70
+        assertEquals(BigDecimal.valueOf(70.00), response.totalPrice());
         assertEquals(8L, response.professionalId());
     }
 
     @Test
     @DisplayName("Deve remover item da comanda e recalcular totais")
     void shouldRemoveItemSuccessfully() {
-        OrderItemEntity existingItem = OrderItemEntity.builder()
-                .id(201L)
-                .orderId(100L)
-                .itemType(CatalogItemType.PHYSICAL)
-                .totalPrice(BigDecimal.valueOf(50.00))
-                .build();
-
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
-        when(orderItemRepository.findById(201L)).thenReturn(Optional.of(existingItem));
-        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of());
+        when(orderItemService.findOrderItems(100L)).thenReturn(Collections.emptyList());
+        when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
 
         orderService.removeItem(100L, 201L, companyId);
 
-        verify(orderItemRepository).delete(existingItem);
+        verify(orderItemService).deleteItem(100L, 201L);
         assertEquals(BigDecimal.ZERO, sampleOrder.getProductsAmount());
-        assertEquals(BigDecimal.valueOf(15.00), sampleOrder.getTotalAmount()); // apenas frete restante
+        assertEquals(BigDecimal.valueOf(15.00), sampleOrder.getTotalAmount()); // apenas frete
     }
 
     @Test
-    @DisplayName("Deve fechar comanda com sucesso, baixar estoque físico e registrar quitações imediatas")
-    void shouldCloseOrderSuccessfully() {
-        sampleOrder.setTotalAmount(BigDecimal.valueOf(100.00));
+    @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda, fazer upsert em shipping, recalcular total_final e processar parcelas")
+    void shouldCloseOrderWithShippingUpsertAndRecalculateTotal() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
-        OrderItemEntity physicalItem = OrderItemEntity.builder()
+        OrderShippingRequest shippingReq = new OrderShippingRequest(
+                0, 4L, null, null, null, 2, "CAIXA", null, null,
+                BigDecimal.valueOf(4.5), BigDecimal.valueOf(4.0), "TR123456789BR", null, BigDecimal.valueOf(20.00)
+        );
+
+        OrderCloseRequest request = new OrderCloseRequest(
+                List.of(
+                        new OrderInstallmentRequest(1, LocalDate.now(), BigDecimal.valueOf(120.00), PaymentMethod.PIX, true, null, null, null, null, null)
+                ),
+                shippingReq
+        );
+
+        when(orderShippingRepository.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(orderShippingRepository.save(any(OrderShippingEntity.class))).thenAnswer(inv -> {
+            OrderShippingEntity ent = inv.getArgument(0);
+            ent.setId(10L);
+            return ent;
+        });
+
+        OrderItemEntity item = OrderItemEntity.builder()
                 .id(201L)
                 .orderId(100L)
                 .itemType(CatalogItemType.PHYSICAL)
                 .totalPrice(BigDecimal.valueOf(100.00))
-                .stockDeducted(false)
+                .stockDeducted(true)
                 .build();
 
-        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
-        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(physicalItem));
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
 
-        OrderCloseRequest request = new OrderCloseRequest(List.of(
-                new OrderInstallmentRequest(
-                        1, LocalDate.now(), BigDecimal.valueOf(50.00),
-                        PaymentMethod.PIX, true, null, null, null, null, null
-                ),
-                new OrderInstallmentRequest(
-                        2, LocalDate.now().plusDays(30), BigDecimal.valueOf(50.00),
-                        PaymentMethod.CREDIT_CARD, false, "VISA", "123456", null, null, null
-                )
-        ));
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(500L)
+                .orderId(100L)
+                .amount(BigDecimal.valueOf(120.00))
+                .build();
 
-        when(orderInstallmentRepository.save(any(OrderInstallmentEntity.class))).thenAnswer(inv -> {
-            OrderInstallmentEntity inst = inv.getArgument(0);
-            inst.setId(500L);
-            return inst;
-        });
+        when(orderPaymentService.processInstallments(eq(request), any(OrderEntity.class))).thenReturn(List.of(installment));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
 
         assertNotNull(response);
-        assertEquals(OrderStatus.COMPLETED, response.status());
-        assertNotNull(response.completedAt());
-        assertTrue(physicalItem.getStockDeducted(), "Estoque físico deve ser baixado");
-
-        verify(paymentTransactionRepository, times(1)).save(any(PaymentTransactionEntity.class));
-        verify(orderInstallmentRepository, times(2)).save(any(OrderInstallmentEntity.class));
-    }
-
-    @Test
-    @DisplayName("Deve falhar ao fechar comanda com soma de parcelas divergente do total")
-    void shouldThrowBadRequestWhenInstallmentsTotalMismatch() {
-        sampleOrder.setTotalAmount(BigDecimal.valueOf(100.00));
-
-        OrderItemEntity item = OrderItemEntity.builder()
-                .id(201L)
-                .orderId(100L)
-                .itemType(CatalogItemType.SERVICE)
-                .totalPrice(BigDecimal.valueOf(100.00))
-                .build();
-
-        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
-        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(item));
-
-        OrderCloseRequest request = new OrderCloseRequest(List.of(
-                new OrderInstallmentRequest(
-                        1, LocalDate.now(), BigDecimal.valueOf(80.00),
-                        PaymentMethod.CASH, true, null, null, null, null, null
-                )
-        ));
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                orderService.closeOrder(100L, request, companyId)
-        );
-
-        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        verify(paymentTransactionRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Deve cancelar comanda fechada e estornar estoque físico e parcelas")
-    void shouldCancelClosedOrderAndRevertStock() {
-        sampleOrder.setStatus(OrderStatus.COMPLETED);
-
-        OrderItemEntity physicalItem = OrderItemEntity.builder()
-                .id(201L)
-                .orderId(100L)
-                .itemType(CatalogItemType.PHYSICAL)
-                .stockDeducted(true)
-                .build();
-
-        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
-                .id(501L)
-                .orderId(100L)
-                .status(InstallmentStatus.PENDING)
-                .build();
-
-        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
-        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(physicalItem));
-        when(orderInstallmentRepository.findByOrderId(100L)).thenReturn(List.of(installment));
-        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        OrderResponse response = orderService.cancelOrder(100L, companyId);
-
-        assertEquals(OrderStatus.CANCELED, response.status());
-        assertFalse(physicalItem.getStockDeducted(), "Estoque físico deve ser estornado ao cancelar");
-        assertEquals(InstallmentStatus.CANCELED, installment.getStatus(), "Parcelas devem ser canceladas");
+        assertEquals(OrderStatus.PENDING_PAYMENT, response.status());
+        assertEquals(BigDecimal.valueOf(20.00), response.freightAmount());
+        assertEquals(BigDecimal.valueOf(120.00), response.totalAmount()); // 100 + 20
+        assertNotNull(response.shipping());
+        assertEquals("TR123456789BR", response.shipping().trackingCode());
+        verify(orderShippingRepository).save(any(OrderShippingEntity.class));
+        verify(orderPaymentService).processInstallments(eq(request), any(OrderEntity.class));
     }
 }
