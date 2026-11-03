@@ -44,7 +44,7 @@ public class OrderItemService {
         OrderItemEntity item = OrderItemEntity.builder()
                 .orderId(order.getId())
                 .catalogItemId(itemRequest.catalogItemId())
-                .itemType(itemRequest.itemType())
+                .itemType(catalogItem.getType())
                 .description(itemRequest.description())
                 .quantity(itemRequest.quantity())
                 .unitPrice(catalogItem.getUnitPrice())

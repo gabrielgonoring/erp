@@ -8,9 +8,6 @@ import java.math.BigDecimal;
 public record OrderItemCreateRequest(
         Long catalogItemId,
 
-        @NotNull(message = "O tipo de item (PHYSICAL ou SERVICE) é obrigatório.")
-        CatalogItemType itemType,
-
         @NotBlank(message = "A descrição do item é obrigatória.")
         @Size(max = 255, message = "A descrição deve ter no máximo 255 caracteres.")
         String description,
