@@ -111,7 +111,7 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
-        var updatedItem = orderItemService.updateOrderItem(orderId, itemId, request);
+        var updatedItem = orderItemService.updateOrderItem(order, itemId, request);
 
         recalculateOrderTotals(order);
 

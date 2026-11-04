@@ -35,7 +35,7 @@ public class OrderItemService {
 
     public OrderItemEntity createItem(OrderItemCreateRequest itemRequest, OrderEntity order) {
 
-        CatalogItemEntity catalogItem = findCatalogItem(itemRequest.catalogItemId(), order.getId());
+        CatalogItemEntity catalogItem = findCatalogItem(itemRequest.catalogItemId(), order.getCompanyId());
 
         BigDecimal discount = itemRequest.discountAmount() != null ? itemRequest.discountAmount() : BigDecimal.ZERO;
         BigDecimal totalPrice = itemRequest.quantity().multiply(catalogItem.getUnitPrice()).subtract(discount);
@@ -62,9 +62,9 @@ public class OrderItemService {
 
 
 
-    public OrderItemEntity updateOrderItem(Long orderId, Long itemId, OrderItemUpdateRequest request){
-        OrderItemEntity item = findOrderItem(orderId, itemId);
-        CatalogItemEntity catalogItem = findCatalogItem(item.getCatalogItemId(), orderId);
+    public OrderItemEntity updateOrderItem(OrderEntity order, Long itemId, OrderItemUpdateRequest request){
+        OrderItemEntity item = findOrderItem(order.getId(), itemId);
+        CatalogItemEntity catalogItem = findCatalogItem(item.getCatalogItemId(), order.getCompanyId());
 
         item.setQuantity(request.quantity());
         item.setUnitPrice(catalogItem.getUnitPrice());
@@ -124,8 +124,8 @@ public class OrderItemService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado no pedido com ID: " + itemId));
     }
 
-    private CatalogItemEntity findCatalogItem(Long catalogItemId, Long orderId) {
-        return catalogItemRepository.findByIdAndCompanyId(catalogItemId, orderId)
+    private CatalogItemEntity findCatalogItem(Long catalogItemId, Long companyId) {
+        return catalogItemRepository.findByIdAndCompanyId(catalogItemId, companyId)
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Um dos itens do pedido não existe"));
     }
 }
