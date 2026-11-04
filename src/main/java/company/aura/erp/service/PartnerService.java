@@ -1,13 +1,11 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.partner.PartnerCreateRequest;
-import company.aura.erp.dto.partner.PartnerRequest;
 import company.aura.erp.dto.partner.PartnerResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
 import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.enums.PartnerStatus;
-import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.PartnerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,35 +15,31 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class PartnerService {
 
     private final PartnerRepository partnerRepository;
-    private final CompanyRepository companyRepository;
 
     @Transactional
     public PartnerResponse save(PartnerCreateRequest request, Long companyId) {
-        if (!companyRepository.existsById(companyId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId);
-        }
-
-        PartnerEntity partner = fromCreateRequest(request, companyId);
-
+        PartnerEntity partner = toEntity(request, companyId);
         PartnerEntity saved = partnerRepository.save(partner);
         return PartnerResponse.fromEntity(saved);
     }
 
-    private static PartnerEntity fromCreateRequest(PartnerCreateRequest request, Long companyId) {
+    private PartnerEntity toEntity(PartnerCreateRequest request, Long companyId) {
         PartnerEntity partner = PartnerEntity.builder()
                 .companyId(companyId)
-                .isCustomer(Boolean.TRUE.equals(request.isCustomer()))
-                .isSupplier(Boolean.TRUE.equals(request.isSupplier()))
-                .isCarrier(Boolean.TRUE.equals(request.isCarrier()))
+                .isCustomer(request.isCustomer())
+                .isSupplier(request.isSupplier())
+                .isCarrier(request.isCarrier() != null ? request.isCarrier() : false)
                 .personType(request.personType())
                 .document(request.document())
                 .name(request.name())
-                .indicatorIe(request.indicatorIe() != null ? request.indicatorIe() : 9)
+                .indicatorIe(request.indicatorIe())
                 .stateRegistration(request.stateRegistration())
                 .email(request.email())
                 .phone(request.phone())
@@ -97,7 +91,6 @@ public class PartnerService {
         return PartnerResponse.fromEntity(updated);
     }
 
-
     @Transactional(readOnly = true)
     public PartnerResponse findById(Long id, Long companyId) {
         PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, PartnerStatus.DELETED.name())
@@ -117,7 +110,19 @@ public class PartnerService {
 
     @Transactional(readOnly = true)
     public Page<PartnerSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
-        return partnerRepository.searchByCompanyIdAndTerm(companyId, search, pageable)
+        return listSummarized(search, null, null, null, companyId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PartnerSummaryResponse> listSummarized(
+            String search,
+            Boolean isCustomer,
+            Boolean isSupplier,
+            Boolean isCarrier,
+            Long companyId,
+            Pageable pageable
+    ) {
+        return partnerRepository.searchByCompanyIdAndTerm(companyId, search, isCustomer, isSupplier, isCarrier, pageable)
                 .map(PartnerSummaryResponse::fromEntity);
     }
 }

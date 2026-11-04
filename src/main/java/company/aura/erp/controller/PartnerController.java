@@ -55,10 +55,17 @@ public class PartnerController {
     @GetMapping
     public ResponseEntity<Page<PartnerSummaryResponse>> list(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean isCustomer,
+            @RequestParam(required = false) Boolean isPartner,
+            @RequestParam(required = false) Boolean isCarrier,
+            @RequestParam(required = false) Boolean isSupplier,
             @PageableDefault(size = 20, sort = "name") Pageable pageable,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        Page<PartnerSummaryResponse> page = partnerService.listSummarized(search, userPrincipal.getCompanyId(), pageable);
+        Boolean supplier = isPartner != null ? isPartner : isSupplier;
+        Page<PartnerSummaryResponse> page = partnerService.listSummarized(
+                search, isCustomer, supplier, isCarrier, userPrincipal.getCompanyId(), pageable
+        );
         return ResponseEntity.ok(page);
     }
 

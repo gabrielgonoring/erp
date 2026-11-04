@@ -29,6 +29,9 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
     List<PartnerEntity> findByCompanyIdAndIsCarrierTrue(Long companyId);
 
     @Query("SELECT p FROM PartnerEntity p WHERE p.companyId = :companyId AND (p.status IS NULL OR p.status <> 'DELETED') AND p.deletedAt IS NULL AND " +
+           "(:isCustomer IS NULL OR COALESCE(p.isCustomer, false) = :isCustomer) AND " +
+           "(:isSupplier IS NULL OR COALESCE(p.isSupplier, false) = :isSupplier) AND " +
+           "(:isCarrier IS NULL OR COALESCE(p.isCarrier, false) = :isCarrier) AND " +
            "(:search IS NULL OR :search = '' OR " +
            "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
@@ -36,6 +39,17 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
     Page<PartnerEntity> searchByCompanyIdAndTerm(
             @Param("companyId") Long companyId,
             @Param("search") String search,
+            @Param("isCustomer") Boolean isCustomer,
+            @Param("isSupplier") Boolean isSupplier,
+            @Param("isCarrier") Boolean isCarrier,
             Pageable pageable
     );
+
+    default Page<PartnerEntity> searchByCompanyIdAndTerm(
+            Long companyId,
+            String search,
+            Pageable pageable
+    ) {
+        return searchByCompanyIdAndTerm(companyId, search, null, null, null, pageable);
+    }
 }

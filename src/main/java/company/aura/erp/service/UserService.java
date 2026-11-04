@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -43,5 +45,15 @@ public class UserService {
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> findAllByCompanyId(Long companyId) {
+        if (companyId == null) {
+            return Collections.emptyList();
+        }
+        return userRepository.findByCompanyId(companyId).stream()
+                .map(UserResponse::fromEntity)
+                .toList();
     }
 }

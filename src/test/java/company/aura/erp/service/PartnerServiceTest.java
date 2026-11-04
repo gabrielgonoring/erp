@@ -26,6 +26,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -136,7 +137,7 @@ class PartnerServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<PartnerEntity> partnerPage = new PageImpl<>(List.of(activePartner));
 
-        when(partnerRepository.searchByCompanyIdAndTerm(eq(10L), eq("São Paulo"), eq(pageable)))
+        when(partnerRepository.searchByCompanyIdAndTerm(eq(10L), eq("São Paulo"), isNull(), isNull(), isNull(), eq(pageable)))
                 .thenReturn(partnerPage);
 
         Page<PartnerSummaryResponse> result = partnerService.listSummarized("São Paulo", 10L, pageable);
@@ -144,5 +145,21 @@ class PartnerServiceTest {
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
         assertEquals("São Paulo", result.getContent().get(0).city());
+    }
+
+    @Test
+    void shouldListSummarizedPartnersWithFiltersCallingRepository() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<PartnerEntity> partnerPage = new PageImpl<>(List.of(activePartner));
+
+        when(partnerRepository.searchByCompanyIdAndTerm(eq(10L), eq("São Paulo"), eq(true), eq(false), eq(false), eq(pageable)))
+                .thenReturn(partnerPage);
+
+        Page<PartnerSummaryResponse> result = partnerService.listSummarized("São Paulo", true, false, false, 10L, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals("São Paulo", result.getContent().get(0).city());
+        verify(partnerRepository).searchByCompanyIdAndTerm(10L, "São Paulo", true, false, false, pageable);
     }
 }
