@@ -15,6 +15,7 @@ public record OrderResponse(
         Long id,
         Long companyId,
         Long partnerId,
+        String customerName,
         Long nfseInvoiceId,
         Long nfeInvoiceId,
         OrderStatus status,
@@ -50,9 +51,59 @@ public record OrderResponse(
             List<OrderItemResponse> items,
             List<OrderInstallmentResponse> installments
     ) {
-        this(id, companyId, partnerId, nfseInvoiceId, nfeInvoiceId, status,
+        this(id, companyId, partnerId, null, nfseInvoiceId, nfeInvoiceId, status,
                 servicesAmount, productsAmount, freightAmount, discountAmount,
                 totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, null);
+    }
+
+    public OrderResponse(
+            Long id,
+            Long companyId,
+            Long partnerId,
+            String customerName,
+            Long nfseInvoiceId,
+            Long nfeInvoiceId,
+            OrderStatus status,
+            BigDecimal servicesAmount,
+            BigDecimal productsAmount,
+            BigDecimal freightAmount,
+            BigDecimal discountAmount,
+            BigDecimal totalAmount,
+            String notes,
+            LocalDateTime completedAt,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            List<OrderItemResponse> items,
+            List<OrderInstallmentResponse> installments
+    ) {
+        this(id, companyId, partnerId, customerName, nfseInvoiceId, nfeInvoiceId, status,
+                servicesAmount, productsAmount, freightAmount, discountAmount,
+                totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, null);
+    }
+
+    public OrderResponse(
+            Long id,
+            Long companyId,
+            Long partnerId,
+            Long nfseInvoiceId,
+            Long nfeInvoiceId,
+            OrderStatus status,
+            BigDecimal servicesAmount,
+            BigDecimal productsAmount,
+            BigDecimal freightAmount,
+            BigDecimal discountAmount,
+            BigDecimal totalAmount,
+            String notes,
+            LocalDateTime completedAt,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            List<OrderItemResponse> items,
+            List<OrderInstallmentResponse> installments,
+            OrderShippingResponse shipping
+    ) {
+        this(id, companyId, partnerId, null, nfseInvoiceId, nfeInvoiceId, status,
+                servicesAmount, productsAmount, freightAmount, discountAmount,
+                totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, shipping);
     }
 
     public static OrderResponse fromEntity(
@@ -60,11 +111,21 @@ public record OrderResponse(
             List<OrderItemEntity> items,
             List<OrderInstallmentEntity> installments
     ) {
-        return fromEntity(order, items, installments, null);
+        return fromEntity(order, null, items, installments, null);
     }
 
     public static OrderResponse fromEntity(
             OrderEntity order,
+            List<OrderItemEntity> items,
+            List<OrderInstallmentEntity> installments,
+            OrderShippingEntity shipping
+    ) {
+        return fromEntity(order, null, items, installments, shipping);
+    }
+
+    public static OrderResponse fromEntity(
+            OrderEntity order,
+            String customerName,
             List<OrderItemEntity> items,
             List<OrderInstallmentEntity> installments,
             OrderShippingEntity shipping
@@ -83,6 +144,7 @@ public record OrderResponse(
                 order.getId(),
                 order.getCompanyId(),
                 order.getPartnerId(),
+                customerName,
                 order.getNfseInvoiceId(),
                 order.getNfeInvoiceId(),
                 order.getStatus(),

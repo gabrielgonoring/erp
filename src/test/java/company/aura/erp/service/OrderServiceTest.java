@@ -92,7 +92,7 @@ class OrderServiceTest {
         );
 
         when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).build()));
+                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente Teste").build()));
 
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> {
             OrderEntity order = inv.getArgument(0);
@@ -147,7 +147,7 @@ class OrderServiceTest {
         );
 
         when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).build()));
+                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente Teste").build()));
 
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> {
             OrderEntity order = inv.getArgument(0);
@@ -402,6 +402,8 @@ class OrderServiceTest {
                 .build();
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
+                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente Teste").build()));
         when(orderItemService.findOrderItems(100L)).thenReturn(List.of(item));
         when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
         when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.of(shipping));
@@ -410,10 +412,12 @@ class OrderServiceTest {
 
         assertNotNull(response);
         assertEquals(100L, response.id());
+        assertEquals("Cliente Teste", response.customerName());
         assertEquals(1, response.items().size());
         assertNotNull(response.shipping());
         assertEquals("ABC1234", response.shipping().vehiclePlate());
         verify(orderRepository).findByIdAndCompanyId(100L, companyId);
+        verify(partnerRepository).findByIdAndCompanyId(partnerId, companyId);
     }
 
     @Test
@@ -446,7 +450,7 @@ class OrderServiceTest {
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
         when(partnerRepository.findByIdAndCompanyId(newPartnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(newPartnerId).companyId(companyId).build()));
+                .thenReturn(Optional.of(PartnerEntity.builder().id(newPartnerId).companyId(companyId).name("Novo Cliente").build()));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(orderItemService.findOrderItems(100L)).thenReturn(Collections.emptyList());
         when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
@@ -457,6 +461,7 @@ class OrderServiceTest {
         assertNotNull(response);
         assertEquals(newPartnerId, response.partnerId());
         assertEquals("Nota atualizada", response.notes());
+        assertEquals("Novo Cliente", response.customerName());
         verify(orderRepository).save(order);
     }
 

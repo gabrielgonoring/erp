@@ -33,7 +33,7 @@ public class OrderService {
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
 
-        validateInitialOrder(request, companyId);
+        PartnerEntity partner = validateInitialOrder(request, companyId);
 
         OrderEntity order = buildInitialOrder(request, companyId);
 
@@ -41,8 +41,10 @@ public class OrderService {
 
         OrderShippingEntity savedShipping = orderShippingService.saveInitialShipping(request, savedOrder);
 
+        String customerName = partner != null ? partner.getName() : null;
+
         if (request.items() == null || request.items().isEmpty()) {
-            return OrderResponse.fromEntity(savedOrder, Collections.emptyList(), Collections.emptyList(), savedShipping);
+            return OrderResponse.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
         }
 
         List<OrderItemEntity> savedItems = orderItemService.saveInitialItems(request, savedOrder);
@@ -51,11 +53,11 @@ public class OrderService {
 
         savedOrder = orderRepository.save(savedOrder);
 
-        return OrderResponse.fromEntity(savedOrder, savedItems, Collections.emptyList(), savedShipping);
+        return OrderResponse.fromEntity(savedOrder, customerName, savedItems, Collections.emptyList(), savedShipping);
     }
 
-    private void validateInitialOrder(OrderCreateRequest request, Long companyId) {
-        partnerRepository.findByIdAndCompanyId(request.partnerId(), companyId)
+    private PartnerEntity validateInitialOrder(OrderCreateRequest request, Long companyId) {
+        return partnerRepository.findByIdAndCompanyId(request.partnerId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado"));
     }
 
@@ -111,11 +113,11 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
-        var updatedItem = orderItemService.updateOrderItem(order, itemId, request);
+        OrderItemEntity item = orderItemService.updateOrderItem(order, itemId, request);
 
         recalculateOrderTotals(order);
 
-        return OrderItemResponse.fromEntity(updatedItem);
+        return OrderItemResponse.fromEntity(item);
     }
 
     @Transactional
@@ -147,11 +149,17 @@ public class OrderService {
 
         OrderEntity savedOrder = orderRepository.save(order);
 
+        String customerName = savedOrder.getPartnerId() != null
+                ? partnerRepository.findByIdAndCompanyId(savedOrder.getPartnerId(), companyId)
+                        .map(PartnerEntity::getName)
+                        .orElse(null)
+                : null;
+
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
         List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        return OrderResponse.fromEntity(savedOrder, items, installments, shipping);
+        return OrderResponse.fromEntity(savedOrder, customerName, items, installments, shipping);
     }
 
     @Transactional
@@ -186,11 +194,17 @@ public class OrderService {
     public OrderResponse findById(Long orderId, Long companyId) {
         OrderEntity order = findOrder(orderId, companyId);
 
+        String customerName = order.getPartnerId() != null
+                ? partnerRepository.findByIdAndCompanyId(order.getPartnerId(), companyId)
+                        .map(PartnerEntity::getName)
+                        .orElse(null)
+                : null;
+
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
         List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        return OrderResponse.fromEntity(order, items, installments, shipping);
+        return OrderResponse.fromEntity(order, customerName, items, installments, shipping);
     }
 
     @Transactional
@@ -215,7 +229,13 @@ public class OrderService {
         order.setStatus(OrderStatus.PENDING_PAYMENT);
         OrderEntity savedOrder = orderRepository.save(order);
 
-        return OrderResponse.fromEntity(savedOrder, items, savedInstallments, savedShipping);
+        String customerName = savedOrder.getPartnerId() != null
+                ? partnerRepository.findByIdAndCompanyId(savedOrder.getPartnerId(), companyId)
+                        .map(PartnerEntity::getName)
+                        .orElse(null)
+                : null;
+
+        return OrderResponse.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping);
     }
 
     private boolean isShippingProvided(OrderCloseRequest request) {

@@ -104,9 +104,10 @@ class OrderControllerTest {
     @DisplayName("GET /api/orders/{id} — Deve retornar pedido por ID")
     void shouldFindOrderById() {
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, null, null, OrderStatus.OPEN,
+                1L, 10L, 5L, "Cliente Teste", null, null, OrderStatus.OPEN,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                "Comanda mesa 2", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
+                "Comanda mesa 2", null, LocalDateTime.now(), LocalDateTime.now(),
+                Collections.emptyList(), Collections.emptyList()
         );
 
         when(orderService.findById(1L, 10L)).thenReturn(responseDto);
@@ -115,6 +116,7 @@ class OrderControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
+        assertEquals("Cliente Teste", response.getBody().customerName());
         verify(orderService).findById(1L, 10L);
     }
 
