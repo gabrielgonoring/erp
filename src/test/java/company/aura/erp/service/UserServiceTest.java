@@ -7,6 +7,7 @@ import company.aura.erp.entity.UserEntity;
 import company.aura.erp.enums.UserStatus;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
+import company.aura.erp.security.UserPrincipal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -258,6 +260,12 @@ class UserServiceTest {
     @Test
     @DisplayName("Deve apagar usuário alterando status para DELETED")
     void shouldDeleteUserSuccessfully() {
+        UserPrincipal currentUser = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .authorities(Collections.emptyList())
+                .build();
+
         UserEntity user = UserEntity.builder()
                 .id(2L)
                 .companyId(10L)
@@ -267,7 +275,7 @@ class UserServiceTest {
 
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
 
-        userService.deleteUser(2L, 1L);
+        userService.deleteUser(2L, currentUser);
 
         assertEquals(UserStatus.DELETED.name(), user.getStatus());
         verify(userRepository).save(user);
@@ -276,9 +284,15 @@ class UserServiceTest {
     @Test
     @DisplayName("Deve lançar BAD_REQUEST ao tentar apagar o próprio usuário")
     void shouldThrowBadRequestWhenDeletingSelf() {
+        UserPrincipal currentUser = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .authorities(Collections.emptyList())
+                .build();
+
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> userService.deleteUser(1L, 1L)
+                () -> userService.deleteUser(1L, currentUser)
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
@@ -287,16 +301,68 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("Deve lançar BAD_REQUEST quando o usuário logado não possui empresa vinculada")
+    void shouldThrowBadRequestWhenCurrentUserHasNoCompany() {
+        UserPrincipal currentUser = UserPrincipal.builder()
+                .id(1L)
+                .companyId(null)
+                .authorities(Collections.emptyList())
+                .build();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.deleteUser(2L, currentUser)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Seu usuário não está vinculado a uma empresa.", ex.getReason());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Deve lançar NOT_FOUND quando usuário a ser apagado não existir")
     void shouldThrowNotFoundWhenUserDoesNotExistOnDelete() {
+        UserPrincipal currentUser = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .authorities(Collections.emptyList())
+                .build();
+
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
-                () -> userService.deleteUser(999L, 1L)
+                () -> userService.deleteUser(999L, currentUser)
         );
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar BAD_REQUEST quando o usuário pertencer a outra empresa")
+    void shouldThrowBadRequestWhenUserBelongsToDifferentCompany() {
+        UserPrincipal currentUser = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .authorities(Collections.emptyList())
+                .build();
+
+        UserEntity userFromOtherCompany = UserEntity.builder()
+                .id(2L)
+                .companyId(20L)
+                .status("ACTIVE")
+                .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(userFromOtherCompany));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.deleteUser(2L, currentUser)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Esse usuário não pertence a sua empresa", ex.getReason());
         verify(userRepository, never()).save(any());
     }
 

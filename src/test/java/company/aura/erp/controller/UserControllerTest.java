@@ -104,17 +104,20 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("DELETE /api/users/{id} — Deve apagar outro usuário com sucesso")
+    @DisplayName("DELETE /api/users/{id} — Deve apagar outro usuário com sucesso chamando o serviço")
     void shouldDeleteOtherUserSuccessfully() {
         ResponseEntity<Void> response = userController.deleteUser(2L, userPrincipal);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(userService).deleteUser(2L, 1L);
+        verify(userService).deleteUser(2L, userPrincipal);
     }
 
     @Test
-    @DisplayName("DELETE /api/users/{id} — Não deve permitir apagar o próprio usuário logado")
-    void shouldThrowBadRequestWhenDeletingSelf() {
+    @DisplayName("DELETE /api/users/{id} — Deve propagar exceção quando o serviço lançar ResponseStatusException")
+    void shouldPropagateExceptionWhenUserServiceFails() {
+        doThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é permitido apagar o próprio usuário logado."))
+                .when(userService).deleteUser(1L, userPrincipal);
+
         ResponseStatusException ex = assertThrows(
                 ResponseStatusException.class,
                 () -> userController.deleteUser(1L, userPrincipal)
@@ -122,27 +125,6 @@ class UserControllerTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("Não é permitido apagar o próprio usuário logado.", ex.getReason());
-        verify(userService, never()).deleteUser(any(), any());
-    }
-
-    @Test
-    @DisplayName("DELETE /api/users/{id} — Não deve permitir ação por usuário inativo")
-    void shouldThrowForbiddenWhenInactiveUserTriesToDelete() {
-        UserPrincipal inactivePrincipal = UserPrincipal.builder()
-                .id(1L)
-                .companyId(10L)
-                .email("inativo@empresa.com")
-                .name("Inativo")
-                .status("DELETED")
-                .authorities(Collections.emptyList())
-                .build();
-
-        ResponseStatusException ex = assertThrows(
-                ResponseStatusException.class,
-                () -> userController.deleteUser(2L, inactivePrincipal)
-        );
-
-        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        verify(userService, never()).deleteUser(any(), any());
+        verify(userService).deleteUser(1L, userPrincipal);
     }
 }
