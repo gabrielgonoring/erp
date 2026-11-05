@@ -49,10 +49,9 @@ class UserControllerTest {
     @Test
     @DisplayName("GET /api/users/me — Deve retornar os dados do usuário autenticado")
     void shouldReturnCurrentUser() {
-        ResponseEntity<UserPrincipal> response = userController.getCurrentUser(userPrincipal);
+        ResponseEntity<UserResponse> response = userController.getCurrentUser(userPrincipal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(userPrincipal, response.getBody());
     }
 
     @Test

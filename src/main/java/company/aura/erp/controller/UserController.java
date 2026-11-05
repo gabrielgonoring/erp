@@ -24,20 +24,16 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/me")
-    public ResponseEntity<UserPrincipal> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
-        log.info("getCurrentUser() - START - userId={}", currentUser != null ? currentUser.getId() : null);
-        log.info("getCurrentUser() = END - userId={}", currentUser != null ? currentUser.getId() : null);
-        return ResponseEntity.ok(currentUser);
+    public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.ok(userService.findUserById(currentUser.getId()));
     }
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> findAllByCompany(@AuthenticationPrincipal UserPrincipal currentUser) {
         Long companyId = currentUser != null ? currentUser.getCompanyId() : null;
-        log.info("findAllByCompany() - START - companyId={}", companyId);
 
         List<UserResponse> users = userService.findAllByCompanyId(companyId);
 
-        log.info("findAllByCompany() = END - companyId={}, total={}", companyId, users.size());
         return ResponseEntity.ok(users);
     }
 
@@ -47,28 +43,21 @@ public class UserController {
             @AuthenticationPrincipal UserPrincipal currentUser
     ) {
         Long companyId = currentUser != null ? currentUser.getCompanyId() : null;
-        log.info("createUser() - START - companyId={}, email={}", companyId, request != null ? request.email() : null);
 
         UserResponse response = userService.createUserForCompany(request, companyId);
 
-        log.info("createUser() = END - userId={}, email={}", response.id(), response.email());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @RequestMapping(
-            value = {"/me/password", "/change-password"},
-            method = {RequestMethod.PUT, RequestMethod.PATCH}
-    )
+    @PutMapping("/me/change-password")
     public ResponseEntity<Void> changePassword(
             @RequestBody @Valid ChangePasswordRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser
     ) {
         Long userId = currentUser != null ? currentUser.getId() : null;
-        log.info("changePassword() - START - userId={}", userId);
 
         userService.changePassword(userId, request);
 
-        log.info("changePassword() = END - userId={}", userId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -7,6 +7,7 @@ import company.aura.erp.dto.UserResponse;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
+import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,7 +26,6 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -131,5 +131,16 @@ public class UserService {
 
         log.info("findAllByCompanyId() = END - companyId={}, totalUsers={}", companyId, users.size());
         return users;
+    }
+
+    public UserResponse findUserById(Long userId) {
+        log.info("findAllByCompanyId() - START - userId={}", userId);
+
+        var user = UserResponse.fromEntity(
+                userRepository.findById(userId).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"))
+        );
+
+        log.info("findAllByCompanyId() = END - userId={}, user: {}", userId, user);
+        return user;
     }
 }
