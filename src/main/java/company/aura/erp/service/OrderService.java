@@ -3,9 +3,11 @@ package company.aura.erp.service;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.*;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -226,7 +228,7 @@ public class OrderService {
 
         var savedInstallments = orderPaymentService.processInstallments(request, order);
 
-        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        order.setStatus(getOrderFinalStatus(savedInstallments));
         OrderEntity savedOrder = orderRepository.save(order);
 
         String customerName = savedOrder.getPartnerId() != null
@@ -236,6 +238,17 @@ public class OrderService {
                 : null;
 
         return OrderResponse.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping);
+    }
+
+    private static OrderStatus getOrderFinalStatus(List<OrderInstallmentEntity> savedInstallments) {
+
+        boolean paymentCompleted = savedInstallments.stream().map(OrderInstallmentEntity::getStatus).allMatch(InstallmentStatus.PAID::equals);
+
+        if(paymentCompleted) {
+            return OrderStatus.COMPLETED;
+        }
+
+        return OrderStatus.PENDING_PAYMENT;
     }
 
     private boolean isShippingProvided(OrderCloseRequest request) {
