@@ -34,6 +34,10 @@ public class OrderPaymentService {
         
     }
 
+    public List<OrderInstallmentEntity> findInstallments(Long orderId) {
+        return orderInstallmentRepository.findByOrderId(orderId);
+    }
+
     private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {
 
         BigDecimal totalInstallments = request.installments().stream()

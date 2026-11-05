@@ -130,6 +130,70 @@ public class OrderService {
     }
 
     @Transactional
+    public OrderResponse updateOrder(Long orderId, OrderUpdateRequest request, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+
+        validateIfOrderIsEditable(order);
+
+        if (request != null && request.partnerId() != null) {
+            partnerRepository.findByIdAndCompanyId(request.partnerId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado"));
+            order.setPartnerId(request.partnerId());
+        }
+
+        if (request != null && request.notes() != null) {
+            order.setNotes(request.notes());
+        }
+
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
+        List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
+        OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
+
+        return OrderResponse.fromEntity(savedOrder, items, installments, shipping);
+    }
+
+    @Transactional
+    public void deleteShipping(Long orderId, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+
+        validateIfOrderIsEditable(order);
+
+        orderShippingService.deleteShipping(orderId);
+
+        order.setFreightAmount(BigDecimal.ZERO);
+        recalculateOrderTotals(order);
+    }
+
+    @Transactional
+    public OrderShippingResponse updateShipping(Long orderId, OrderShippingRequest request, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+
+        validateIfOrderIsEditable(order);
+
+        OrderShippingEntity shipping = orderShippingService.updateShipping(orderId, request);
+
+        if (request != null && request.freightAmount() != null) {
+            order.setFreightAmount(request.freightAmount());
+        }
+        recalculateOrderTotals(order);
+
+        return OrderShippingResponse.fromEntity(shipping);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse findById(Long orderId, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+
+        List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
+        List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
+        OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
+
+        return OrderResponse.fromEntity(order, items, installments, shipping);
+    }
+
+    @Transactional
     public OrderResponse closeOrder(Long orderId, OrderCloseRequest request, Long companyId) {
         OrderEntity order = findOrder(orderId, companyId);
 
@@ -201,7 +265,7 @@ public class OrderService {
 
     private void validateIfOrderIsEditable(OrderEntity order) {
         if (order.getStatus() != OrderStatus.OPEN) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível adicionar itens a um pedido fechado ou cancelado.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O pedido não pode ser alterado pois não está aberto.");
         }
     }
 

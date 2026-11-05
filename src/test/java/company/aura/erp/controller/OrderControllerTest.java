@@ -46,21 +46,20 @@ class OrderControllerTest {
         userPrincipal = UserPrincipal.builder()
                 .id(1L)
                 .companyId(10L)
-                .email("user@empresa.com")
+                .email("admin@empresa.com")
+                .name("Admin")
                 .authorities(Collections.emptyList())
                 .build();
     }
 
     @Test
-    @DisplayName("POST /api/orders — Deve abrir comanda e retornar HTTP 201")
+    @DisplayName("POST /api/orders — Deve abrir comanda sem frete e retornar HTTP 201")
     void shouldOpenOrder() {
-        OrderCreateRequest request = new OrderCreateRequest(
-                5L, "Comanda 1", Collections.emptyList()
-        );
+        OrderCreateRequest request = new OrderCreateRequest(5L, "Comanda mesa 2", Collections.emptyList());
         OrderResponse responseDto = new OrderResponse(
                 1L, 10L, 5L, null, null, OrderStatus.OPEN,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(10.00), BigDecimal.ZERO, BigDecimal.valueOf(10.00),
-                "Comanda 1", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                "Comanda mesa 2", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
 
         when(orderService.openOrder(request, 10L)).thenReturn(responseDto);
@@ -102,50 +101,117 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/orders/{id}/items — Deve adicionar item e retornar HTTP 201")
-    void shouldAddItem() {
-        OrderItemCreateRequest request = new OrderItemCreateRequest(
-                1L, "Pomada Modeladora", BigDecimal.valueOf(2), BigDecimal.ZERO, null
+    @DisplayName("GET /api/orders/{id} — Deve retornar pedido por ID")
+    void shouldFindOrderById() {
+        OrderResponse responseDto = new OrderResponse(
+                1L, 10L, 5L, null, null, OrderStatus.OPEN,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                "Comanda mesa 2", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
-        OrderItemResponse responseDto = new OrderItemResponse(
-                100L, 1L, 1L, CatalogItemType.PHYSICAL, "Pomada Modeladora",
-                BigDecimal.valueOf(2), BigDecimal.valueOf(35.00), BigDecimal.ZERO, BigDecimal.valueOf(70.00),
+
+        when(orderService.findById(1L, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderResponse> response = orderController.findById(1L, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).findById(1L, 10L);
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id} — Deve atualizar dados do cabeçalho do pedido")
+    void shouldUpdateOrderHeader() {
+        OrderUpdateRequest request = new OrderUpdateRequest(8L, "Observação atualizada");
+        OrderResponse responseDto = new OrderResponse(
+                1L, 10L, 8L, null, null, OrderStatus.OPEN,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                "Observação atualizada", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
+        );
+
+        when(orderService.updateOrder(1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderResponse> response = orderController.updateOrder(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).updateOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id}/shipping — Deve alterar as informações de frete do pedido")
+    void shouldUpdateOrderShipping() {
+        OrderShippingRequest request = new OrderShippingRequest(
+                1, 2L, "XYZ9999", "RJ", "98765432", 3, "PACOTE", null, null,
+                BigDecimal.valueOf(10.0), BigDecimal.valueOf(9.0), "TRACK123", "Frete rápido", BigDecimal.valueOf(50.00)
+        );
+        OrderShippingResponse shippingResponse = new OrderShippingResponse(
+                1L, 1L, 2L, 1, "XYZ9999", "RJ", "98765432", 3, "PACOTE", null, null,
+                BigDecimal.valueOf(10.0), BigDecimal.valueOf(9.0), "TRACK123", "Frete rápido", LocalDateTime.now(), LocalDateTime.now()
+        );
+
+        when(orderService.updateShipping(1L, request, 10L)).thenReturn(shippingResponse);
+
+        ResponseEntity<OrderShippingResponse> response = orderController.updateShipping(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(shippingResponse, response.getBody());
+        verify(orderService).updateShipping(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id}/shipping — Deve apagar as informações de frete do pedido")
+    void shouldDeleteOrderShipping() {
+        ResponseEntity<Void> response = orderController.deleteShipping(1L, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(orderService).deleteShipping(1L, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/items — Deve adicionar item à comanda e retornar HTTP 201")
+    void shouldAddItemToOrder() {
+        OrderItemCreateRequest request = new OrderItemCreateRequest(
+                2L, "Refrigerante Cola", BigDecimal.valueOf(2), BigDecimal.ZERO, null
+        );
+        OrderItemResponse itemResponse = new OrderItemResponse(
+                100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante Cola",
+                BigDecimal.valueOf(2), BigDecimal.valueOf(8.00), BigDecimal.ZERO, BigDecimal.valueOf(16.00),
                 null, false, LocalDateTime.now()
         );
 
-        when(orderService.addItem(1L, request, 10L)).thenReturn(responseDto);
+        when(orderService.addItem(1L, request, 10L)).thenReturn(itemResponse);
 
         ResponseEntity<OrderItemResponse> response = orderController.addItem(1L, request, userPrincipal);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
+        assertEquals(itemResponse, response.getBody());
         verify(orderService).addItem(1L, request, 10L);
     }
 
     @Test
-    @DisplayName("PATCH /api/orders/{id}/items/{itemId} — Deve atualizar linha do item e retornar HTTP 200")
-    void shouldUpdateItem() {
+    @DisplayName("PATCH /api/orders/{id}/items/{itemId} — Deve atualizar item da comanda e retornar HTTP 200")
+    void shouldUpdateItemInOrder() {
         OrderItemUpdateRequest request = new OrderItemUpdateRequest(
-                BigDecimal.valueOf(3), BigDecimal.ZERO, 8L, "Pomada Modeladora"
+                BigDecimal.valueOf(3), BigDecimal.valueOf(2.00), null, "Refrigerante com desconto"
         );
-        OrderItemResponse responseDto = new OrderItemResponse(
-                100L, 1L, 1L, CatalogItemType.PHYSICAL, "Pomada Modeladora",
-                BigDecimal.valueOf(3), BigDecimal.valueOf(30.00), BigDecimal.ZERO, BigDecimal.valueOf(90.00),
-                8L, false, LocalDateTime.now()
+        OrderItemResponse itemResponse = new OrderItemResponse(
+                100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante com desconto",
+                BigDecimal.valueOf(3), BigDecimal.valueOf(8.00), BigDecimal.valueOf(2.00), BigDecimal.valueOf(22.00),
+                null, false, LocalDateTime.now()
         );
 
-        when(orderService.updateItem(1L, 100L, request, 10L)).thenReturn(responseDto);
+        when(orderService.updateItem(1L, 100L, request, 10L)).thenReturn(itemResponse);
 
         ResponseEntity<OrderItemResponse> response = orderController.updateItem(1L, 100L, request, userPrincipal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
+        assertEquals(itemResponse, response.getBody());
         verify(orderService).updateItem(1L, 100L, request, 10L);
     }
 
     @Test
-    @DisplayName("DELETE /api/orders/{id}/items/{itemId} — Deve remover item e retornar HTTP 204")
-    void shouldRemoveItem() {
+    @DisplayName("DELETE /api/orders/{id}/items/{itemId} — Deve remover item da comanda e retornar HTTP 204")
+    void shouldRemoveItemFromOrder() {
         ResponseEntity<Void> response = orderController.removeItem(1L, 100L, userPrincipal);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());

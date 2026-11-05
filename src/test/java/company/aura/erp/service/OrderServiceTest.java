@@ -372,4 +372,222 @@ class OrderServiceTest {
         assertEquals(OrderStatus.OPEN, result.getContent().get(0).status());
         verify(orderRepository).searchSummarized(eq(companyId), eq("Teste"), any(Pageable.class));
     }
+
+    @Test
+    @DisplayName("GET /api/orders/{id} — Deve retornar pedido completo com itens, frete e parcelas")
+    void shouldFindOrderByIdSuccessfully() {
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.OPEN)
+                .totalAmount(BigDecimal.valueOf(150.00))
+                .freightAmount(BigDecimal.valueOf(20.00))
+                .build();
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(200L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .description("Produto A")
+                .quantity(BigDecimal.ONE)
+                .unitPrice(BigDecimal.valueOf(130.00))
+                .totalPrice(BigDecimal.valueOf(130.00))
+                .build();
+
+        OrderShippingEntity shipping = OrderShippingEntity.builder()
+                .id(300L)
+                .orderId(100L)
+                .vehiclePlate("ABC1234")
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(orderItemService.findOrderItems(100L)).thenReturn(List.of(item));
+        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
+        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.of(shipping));
+
+        OrderResponse response = orderService.findById(100L, companyId);
+
+        assertNotNull(response);
+        assertEquals(100L, response.id());
+        assertEquals(1, response.items().size());
+        assertNotNull(response.shipping());
+        assertEquals("ABC1234", response.shipping().vehiclePlate());
+        verify(orderRepository).findByIdAndCompanyId(100L, companyId);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders/{id} — Deve lançar NOT_FOUND quando pedido não pertencer à empresa")
+    void shouldThrowNotFoundWhenOrderNotFoundOnFindById() {
+        when(orderRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> orderService.findById(999L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id} — Deve atualizar cabeçalho do pedido quando aberto")
+    void shouldUpdateOrderHeaderSuccessfully() {
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.OPEN)
+                .notes("Nota antiga")
+                .totalAmount(BigDecimal.valueOf(100.00))
+                .build();
+
+        Long newPartnerId = 99L;
+        OrderUpdateRequest request = new OrderUpdateRequest(newPartnerId, "Nota atualizada");
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(partnerRepository.findByIdAndCompanyId(newPartnerId, companyId))
+                .thenReturn(Optional.of(PartnerEntity.builder().id(newPartnerId).companyId(companyId).build()));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderItemService.findOrderItems(100L)).thenReturn(Collections.emptyList());
+        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
+        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
+
+        OrderResponse response = orderService.updateOrder(100L, request, companyId);
+
+        assertNotNull(response);
+        assertEquals(newPartnerId, response.partnerId());
+        assertEquals("Nota atualizada", response.notes());
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id} — Deve lançar BAD_REQUEST se pedido não estiver aberto")
+    void shouldThrowBadRequestWhenUpdatingNonOpenOrder() {
+        OrderEntity closedOrder = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.COMPLETED)
+                .build();
+
+        OrderUpdateRequest request = new OrderUpdateRequest(partnerId, "Tentativa de alteração");
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(closedOrder));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> orderService.updateOrder(100L, request, companyId)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id}/shipping — Deve apagar informações de frete e zerar valor de frete quando aberto")
+    void shouldDeleteShippingSuccessfully() {
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.OPEN)
+                .freightAmount(BigDecimal.valueOf(30.00))
+                .productsAmount(BigDecimal.valueOf(100.00))
+                .totalAmount(BigDecimal.valueOf(130.00))
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(orderItemService.findOrderItems(100L)).thenReturn(Collections.emptyList());
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.deleteShipping(100L, companyId);
+
+        assertEquals(BigDecimal.ZERO, order.getFreightAmount());
+        assertEquals(BigDecimal.ZERO, order.getTotalAmount());
+        verify(orderShippingService).deleteShipping(100L);
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id}/shipping — Deve lançar BAD_REQUEST se pedido não estiver aberto")
+    void shouldThrowBadRequestWhenDeletingShippingOfNonOpenOrder() {
+        OrderEntity closedOrder = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(closedOrder));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> orderService.deleteShipping(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(orderShippingService, never()).deleteShipping(any());
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id}/shipping — Deve alterar informações de frete e recalcular totais quando aberto")
+    void shouldUpdateShippingSuccessfully() {
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.OPEN)
+                .freightAmount(BigDecimal.valueOf(10.00))
+                .productsAmount(BigDecimal.valueOf(100.00))
+                .totalAmount(BigDecimal.valueOf(110.00))
+                .build();
+
+        OrderShippingRequest request = new OrderShippingRequest(
+                1, 2L, "XYZ9999", "RJ", "98765432", 3, "PACOTE", null, null,
+                BigDecimal.valueOf(10.0), BigDecimal.valueOf(9.0), "TRACK123", "Frete rápido", BigDecimal.valueOf(40.00)
+        );
+
+        OrderShippingEntity updatedShipping = OrderShippingEntity.builder()
+                .id(300L)
+                .orderId(100L)
+                .trackingCode("TRACK123")
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(orderShippingService.updateShipping(100L, request)).thenReturn(updatedShipping);
+        when(orderItemService.findOrderItems(100L)).thenReturn(Collections.emptyList());
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderShippingResponse response = orderService.updateShipping(100L, request, companyId);
+
+        assertNotNull(response);
+        assertEquals("TRACK123", response.trackingCode());
+        assertEquals(BigDecimal.valueOf(40.00), order.getFreightAmount());
+        assertEquals(BigDecimal.valueOf(40.00), order.getTotalAmount());
+        verify(orderShippingService).updateShipping(100L, request);
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id}/shipping — Deve lançar BAD_REQUEST ao tentar alterar frete de pedido não aberto")
+    void shouldThrowBadRequestWhenUpdatingShippingOfNonOpenOrder() {
+        OrderEntity closedOrder = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .status(OrderStatus.CANCELED)
+                .build();
+
+        OrderShippingRequest request = new OrderShippingRequest(
+                null, null, null, null, null, null, null, null, null, null, null, null, null, BigDecimal.TEN
+        );
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(closedOrder));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> orderService.updateShipping(100L, request, companyId)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(orderShippingService, never()).updateShipping(any(), any());
+    }
 }

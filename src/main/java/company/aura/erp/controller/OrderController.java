@@ -30,6 +30,44 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<OrderResponse> findById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderResponse response = orderService.findById(id, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<OrderResponse> updateOrder(
+            @PathVariable Long id,
+            @RequestBody @Valid OrderUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderResponse response = orderService.updateOrder(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/shipping")
+    public ResponseEntity<OrderShippingResponse> updateShipping(
+            @PathVariable Long id,
+            @RequestBody @Valid OrderShippingRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderShippingResponse response = orderService.updateShipping(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}/shipping")
+    public ResponseEntity<Void> deleteShipping(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        orderService.deleteShipping(id, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/items")
     public ResponseEntity<OrderItemResponse> addItem(
             @PathVariable Long id,
