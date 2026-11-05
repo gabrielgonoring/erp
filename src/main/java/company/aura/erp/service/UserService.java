@@ -1,19 +1,25 @@
 package company.aura.erp.service;
 
+import company.aura.erp.dto.ChangePasswordRequest;
+import company.aura.erp.dto.UserCreateRequest;
 import company.aura.erp.dto.UserRegistrationRequest;
 import company.aura.erp.dto.UserResponse;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -24,6 +30,8 @@ public class UserService {
 
     @Transactional
     public UserResponse registerUser(UserRegistrationRequest request) {
+        log.info("registerUser() - START - email={}, name={}", request != null ? request.email() : null, request != null ? request.name() : null);
+
         if (userRepository.existsByEmail(request.email())) {
             throw new IllegalArgumentException("E-mail já cadastrado: " + request.email());
         }
@@ -33,27 +41,95 @@ public class UserService {
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .status("ACTIVE")
+                .temporaryPassword(false)
                 .build();
 
         UserEntity savedUser = userRepository.save(user);
-        return UserResponse.fromEntity(savedUser);
+        UserResponse response = UserResponse.fromEntity(savedUser);
+
+        log.info("registerUser() = END - userId={}, email={}", response.id(), response.email());
+        return response;
+    }
+
+    @Transactional
+    public UserResponse createUserForCompany(UserCreateRequest request, Long companyId) {
+        log.info("createUserForCompany() - START - companyId={}, email={}", companyId, request != null ? request.email() : null);
+
+        if (companyId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O usuário logado não possui uma empresa vinculada.");
+        }
+
+        if (userRepository.existsByEmail(request.email())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "E-mail já cadastrado: " + request.email());
+        }
+
+        boolean isTemp = request.temporaryPassword() != null ? request.temporaryPassword() : true;
+
+        UserEntity user = UserEntity.builder()
+                .companyId(companyId)
+                .name(request.name())
+                .email(request.email())
+                .passwordHash(passwordEncoder.encode(request.password()))
+                .status("ACTIVE")
+                .temporaryPassword(isTemp)
+                .build();
+
+        UserEntity savedUser = userRepository.save(user);
+        UserResponse response = UserResponse.fromEntity(savedUser);
+
+        log.info("createUserForCompany() = END - userId={}, email={}, temporaryPassword={}", response.id(), response.email(), isTemp);
+        return response;
+    }
+
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        log.info("changePassword() - START - userId={}", userId);
+
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Usuário não autenticado.");
+        }
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado."));
+
+        if (request.currentPassword() != null && !request.currentPassword().isBlank()) {
+            if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A senha atual informada está incorreta.");
+            }
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setTemporaryPassword(false);
+        userRepository.save(user);
+
+        log.info("changePassword() = END - userId={}", userId);
     }
 
     @Transactional
     public void recordLogin(String email) {
+        log.info("recordLogin() - START - email={}", email);
+
         userRepository.findByEmail(email).ifPresent(user -> {
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
         });
+
+        log.info("recordLogin() = END - email={}", email);
     }
 
     @Transactional(readOnly = true)
     public List<UserResponse> findAllByCompanyId(Long companyId) {
+        log.info("findAllByCompanyId() - START - companyId={}", companyId);
+
         if (companyId == null) {
+            log.info("findAllByCompanyId() = END - totalUsers=0");
             return Collections.emptyList();
         }
-        return userRepository.findByCompanyId(companyId).stream()
+        List<UserResponse> users = userRepository.findByCompanyId(companyId).stream()
                 .map(UserResponse::fromEntity)
                 .toList();
+
+        log.info("findAllByCompanyId() = END - companyId={}, totalUsers={}", companyId, users.size());
+        return users;
     }
 }

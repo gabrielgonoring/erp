@@ -268,7 +268,7 @@ class OrderServiceTest {
                 .professionalId(8L)
                 .build();
 
-        when(orderItemService.updateOrderItem(100L, 201L, request)).thenReturn(updatedItem);
+        when(orderItemService.updateOrderItem(sampleOrder, 201L, request)).thenReturn(updatedItem);
         when(orderItemService.findOrderItems(100L)).thenReturn(List.of(updatedItem));
         when(orderRepository.save(sampleOrder)).thenReturn(sampleOrder);
 

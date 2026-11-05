@@ -1,5 +1,7 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.ChangePasswordRequest;
+import company.aura.erp.dto.UserCreateRequest;
 import company.aura.erp.dto.UserResponse;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.UserService;
@@ -57,10 +59,10 @@ class UserControllerTest {
     @DisplayName("GET /api/users — Deve retornar todos os usuários da companhia do usuário autenticado")
     void shouldReturnAllUsersFromCompany() {
         UserResponse user1 = new UserResponse(
-                1L, 10L, "Admin", "admin@empresa.com", "ACTIVE", LocalDateTime.now(), LocalDateTime.now()
+                1L, 10L, "Admin", "admin@empresa.com", "ACTIVE", false, LocalDateTime.now(), LocalDateTime.now()
         );
         UserResponse user2 = new UserResponse(
-                2L, 10L, "Colaborador", "colab@empresa.com", "ACTIVE", null, LocalDateTime.now()
+                2L, 10L, "Colaborador", "colab@empresa.com", "ACTIVE", true, null, LocalDateTime.now()
         );
         List<UserResponse> expectedUsers = List.of(user1, user2);
 
@@ -73,5 +75,33 @@ class UserControllerTest {
         assertEquals(2, response.getBody().size());
         assertEquals(expectedUsers, response.getBody());
         verify(userService).findAllByCompanyId(10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/users — Deve criar novo usuário vinculado à companhia do usuário autenticado")
+    void shouldCreateUserForCompany() {
+        UserCreateRequest request = new UserCreateRequest("Novo Colaborador", "novo@empresa.com", "senha123", true);
+        UserResponse expectedResponse = new UserResponse(
+                3L, 10L, "Novo Colaborador", "novo@empresa.com", "ACTIVE", true, null, LocalDateTime.now()
+        );
+
+        when(userService.createUserForCompany(request, 10L)).thenReturn(expectedResponse);
+
+        ResponseEntity<UserResponse> response = userController.createUser(request, userPrincipal);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(expectedResponse, response.getBody());
+        verify(userService).createUserForCompany(request, 10L);
+    }
+
+    @Test
+    @DisplayName("PUT/PATCH /api/users/me/password — Deve alterar a senha do usuário autenticado")
+    void shouldChangePasswordForCurrentUser() {
+        ChangePasswordRequest request = new ChangePasswordRequest("senhaAntiga123", "novaSenha456");
+
+        ResponseEntity<Void> response = userController.changePassword(request, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(userService).changePassword(1L, request);
     }
 }

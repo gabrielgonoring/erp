@@ -36,6 +36,10 @@ public class UserEntity {
     @Column(name = "status", nullable = false, length = 45)
     private String status;
 
+    @Builder.Default
+    @Column(name = "temporary_password", nullable = false)
+    private Boolean temporaryPassword = false;
+
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
@@ -52,4 +56,12 @@ public class UserEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public Boolean getTemporaryPassword() {
+        return temporaryPassword != null ? temporaryPassword : false;
+    }
+
+    public boolean isTemporaryPassword() {
+        return Boolean.TRUE.equals(temporaryPassword);
+    }
 }

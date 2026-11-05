@@ -23,6 +23,7 @@ public class UserPrincipal implements UserDetails {
     private final String email;
     private final String password;
     private final String status;
+    private final Boolean temporaryPassword;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public static UserPrincipal create(UserEntity user) {
@@ -37,6 +38,7 @@ public class UserPrincipal implements UserDetails {
                 .email(user.getEmail())
                 .password(user.getPasswordHash())
                 .status(user.getStatus())
+                .temporaryPassword(user.getTemporaryPassword())
                 .authorities(authorities)
                 .build();
     }
