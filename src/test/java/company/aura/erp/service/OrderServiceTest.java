@@ -3,6 +3,7 @@ package company.aura.erp.service;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.*;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.repository.OrderRepository;
@@ -295,7 +296,7 @@ class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda, fazer upsert em shipping, recalcular total_final e processar parcelas")
+    @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda com status COMPLETED quando todas as parcelas forem pagas")
     void shouldCloseOrderWithShippingUpsertAndRecalculateTotal() {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
@@ -332,6 +333,7 @@ class OrderServiceTest {
         OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
                 .id(500L)
                 .orderId(100L)
+                .status(InstallmentStatus.PAID)
                 .amount(BigDecimal.valueOf(120.00))
                 .build();
 
@@ -341,11 +343,100 @@ class OrderServiceTest {
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
 
         assertNotNull(response);
-        assertEquals(OrderStatus.PENDING_PAYMENT, response.status());
+        assertEquals(OrderStatus.COMPLETED, response.status());
         assertEquals(BigDecimal.valueOf(20.00), response.freightAmount());
         assertEquals(BigDecimal.valueOf(120.00), response.totalAmount()); // 100 + 20
         assertNotNull(response.shipping());
         assertEquals("TR123456789BR", response.shipping().trackingCode());
+        verify(orderPaymentService).processInstallments(eq(request), any(OrderEntity.class));
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda com status PENDING_PAYMENT quando houver parcela pendente")
+    void shouldCloseOrderWithPendingPaymentStatusWhenInstallmentsPending() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = new OrderCloseRequest(
+                List.of(
+                        new OrderInstallmentRequest(1, LocalDate.now(), BigDecimal.valueOf(15.00), PaymentMethod.BOLETO, false, null, null, null, null, null)
+                ),
+                null
+        );
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .totalPrice(BigDecimal.valueOf(15.00))
+                .stockDeducted(true)
+                .build();
+
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
+
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(500L)
+                .orderId(100L)
+                .status(InstallmentStatus.PENDING)
+                .amount(BigDecimal.valueOf(15.00))
+                .build();
+
+        when(orderPaymentService.processInstallments(eq(request), any(OrderEntity.class))).thenReturn(List.of(installment));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.PENDING_PAYMENT, response.status());
+        verify(orderPaymentService).processInstallments(eq(request), any(OrderEntity.class));
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda com status PENDING_PAYMENT quando parcelas forem mistas")
+    void shouldCloseOrderWithPendingPaymentStatusWhenMixedInstallments() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = new OrderCloseRequest(
+                List.of(
+                        new OrderInstallmentRequest(1, LocalDate.now(), BigDecimal.valueOf(10.00), PaymentMethod.CASH, true, null, null, null, null, null),
+                        new OrderInstallmentRequest(2, LocalDate.now().plusMonths(1), BigDecimal.valueOf(5.00), PaymentMethod.BOLETO, false, null, null, null, null, null)
+                ),
+                null
+        );
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .totalPrice(BigDecimal.valueOf(15.00))
+                .stockDeducted(true)
+                .build();
+
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
+
+        OrderInstallmentEntity inst1 = OrderInstallmentEntity.builder()
+                .id(501L)
+                .orderId(100L)
+                .status(InstallmentStatus.PAID)
+                .amount(BigDecimal.valueOf(10.00))
+                .build();
+        OrderInstallmentEntity inst2 = OrderInstallmentEntity.builder()
+                .id(502L)
+                .orderId(100L)
+                .status(InstallmentStatus.PENDING)
+                .amount(BigDecimal.valueOf(5.00))
+                .build();
+
+        when(orderPaymentService.processInstallments(eq(request), any(OrderEntity.class))).thenReturn(List.of(inst1, inst2));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.PENDING_PAYMENT, response.status());
         verify(orderPaymentService).processInstallments(eq(request), any(OrderEntity.class));
     }
 
