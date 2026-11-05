@@ -5,6 +5,7 @@ import company.aura.erp.dto.UserCreateRequest;
 import company.aura.erp.dto.UserRegistrationRequest;
 import company.aura.erp.dto.UserResponse;
 import company.aura.erp.entity.UserEntity;
+import company.aura.erp.enums.UserStatus;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
 import company.aura.erp.security.UserPrincipal;
@@ -40,7 +41,7 @@ public class UserService {
                 .name(request.name())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .status("ACTIVE")
+                .status(UserStatus.ACTIVE.name())
                 .temporaryPassword(false)
                 .build();
 
@@ -70,7 +71,7 @@ public class UserService {
                 .name(request.name())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .status("ACTIVE")
+                .status(UserStatus.ACTIVE.name())
                 .temporaryPassword(isTemp)
                 .build();
 
