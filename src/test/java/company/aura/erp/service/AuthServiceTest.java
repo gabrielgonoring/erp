@@ -97,6 +97,27 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Deve lançar Forbidden 403 quando usuário inativo/deletado tentar login")
+    void shouldThrowForbiddenWhenInactiveUserTriesToLogin() {
+        LoginRequest request = new LoginRequest("inativo@empresa.com", "senha123");
+        UserEntity user = UserEntity.builder()
+                .id(1L)
+                .email(request.email())
+                .name("Usuario Teste")
+                .passwordHash("senha_hash")
+                .status("DELETED")
+                .build();
+
+        when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.login(request));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
+        verify(userService, never()).recordLogin(anyString());
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
     @DisplayName("Deve gerar código de 255 caracteres, salvar expiração e disparar e-mail com sucesso")
     void shouldRequestPasswordResetSuccessfully() {
         String email = "usuario@empresa.com";
@@ -147,6 +168,24 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Deve lançar Forbidden 403 ao solicitar redefinição de senha para usuário inativo")
+    void shouldThrowForbiddenWhenInactiveUserRequestsPasswordReset() {
+        String email = "inativo@empresa.com";
+        ForgotPasswordRequest request = new ForgotPasswordRequest(email);
+        UserEntity user = UserEntity.builder()
+                .id(1L)
+                .email(email)
+                .status("DELETED")
+                .build();
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.requestPasswordReset(request));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(emailService, never()).sendPasswordResetEmail(any(), anyString());
+    }
+
+    @Test
     @DisplayName("Deve redefinir senha com sucesso quando o código for válido e não expirado")
     void shouldResetPasswordSuccessfully() {
         String code = "a".repeat(255);
@@ -157,6 +196,7 @@ class AuthServiceTest {
                 .id(1L)
                 .email("usuario@empresa.com")
                 .passwordHash("senha_antiga")
+                .status("ACTIVE")
                 .resetPasswordToken(code)
                 .resetPasswordExpires(LocalDateTime.now().plusMinutes(30))
                 .build();
@@ -195,6 +235,7 @@ class AuthServiceTest {
                 .id(1L)
                 .email("usuario@empresa.com")
                 .passwordHash("senha_antiga")
+                .status("ACTIVE")
                 .resetPasswordToken(code)
                 .resetPasswordExpires(LocalDateTime.now().minusMinutes(5))
                 .build();
@@ -204,6 +245,27 @@ class AuthServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.resetPassword(request));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verify(passwordEncoder, never()).encode(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar Forbidden 403 ao tentar redefinir senha de usuário inativo")
+    void shouldThrowForbiddenWhenResetPasswordForInactiveUser() {
+        String code = "d".repeat(255);
+        ResetPasswordRequest request = new ResetPasswordRequest(code, "novaSenha123");
+
+        UserEntity user = UserEntity.builder()
+                .id(1L)
+                .email("inativo@empresa.com")
+                .status("DELETED")
+                .resetPasswordToken(code)
+                .resetPasswordExpires(LocalDateTime.now().plusMinutes(10))
+                .build();
+
+        when(userRepository.findByResetPasswordToken(code)).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.resetPassword(request));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         verify(userRepository, never()).save(any());
     }
 }

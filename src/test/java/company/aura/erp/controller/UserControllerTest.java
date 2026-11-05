@@ -14,15 +14,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserControllerTest {
@@ -102,5 +101,48 @@ class UserControllerTest {
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(userService).changePassword(1L, request);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/{id} — Deve apagar outro usuário com sucesso")
+    void shouldDeleteOtherUserSuccessfully() {
+        ResponseEntity<Void> response = userController.deleteUser(2L, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(userService).deleteUser(2L, 1L);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/{id} — Não deve permitir apagar o próprio usuário logado")
+    void shouldThrowBadRequestWhenDeletingSelf() {
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userController.deleteUser(1L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Não é permitido apagar o próprio usuário logado.", ex.getReason());
+        verify(userService, never()).deleteUser(any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/{id} — Não deve permitir ação por usuário inativo")
+    void shouldThrowForbiddenWhenInactiveUserTriesToDelete() {
+        UserPrincipal inactivePrincipal = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .email("inativo@empresa.com")
+                .name("Inativo")
+                .status("DELETED")
+                .authorities(Collections.emptyList())
+                .build();
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userController.deleteUser(2L, inactivePrincipal)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(userService, never()).deleteUser(any(), any());
     }
 }

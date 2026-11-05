@@ -7,6 +7,7 @@ import company.aura.erp.dto.auth.LoginRequest;
 import company.aura.erp.dto.auth.LoginResponse;
 import company.aura.erp.dto.auth.ResetPasswordRequest;
 import company.aura.erp.entity.UserEntity;
+import company.aura.erp.enums.UserStatus;
 import company.aura.erp.repository.UserRepository;
 import company.aura.erp.security.JwtService;
 import company.aura.erp.security.UserPrincipal;
@@ -26,7 +27,6 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuthService {
 
-
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final UserService userService;
@@ -34,7 +34,6 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final AuthConstants authConstants;
-
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -44,6 +43,10 @@ public class AuthService {
 
         UserEntity user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado: " + request.email()));
+
+        if (user.getStatus() != null && !UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário inativo ou desativado.");
+        }
 
         userService.recordLogin(user.getEmail());
 
@@ -57,6 +60,10 @@ public class AuthService {
     public void requestPasswordReset(ForgotPasswordRequest request) {
         UserEntity user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado: " + request.email()));
+
+        if (user.getStatus() != null && !UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário inativo ou desativado.");
+        }
 
         String code = SecurityUtil.generateResetCode();
         user.setResetPasswordToken(code);
@@ -72,6 +79,10 @@ public class AuthService {
         UserEntity user = userRepository.findByResetPasswordToken(request.code())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código de redefinição de senha inválido ou inexistente."));
 
+        if (user.getStatus() != null && !UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário inativo ou desativado.");
+        }
+
         if (user.getResetPasswordExpires() == null || user.getResetPasswordExpires().isBefore(LocalDateTime.now())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código de redefinição de senha expirado.");
         }
@@ -81,6 +92,4 @@ public class AuthService {
         user.setResetPasswordExpires(null);
         userRepository.save(user);
     }
-
-
 }

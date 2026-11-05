@@ -6,7 +6,6 @@ import company.aura.erp.dto.UserRegistrationRequest;
 import company.aura.erp.dto.UserResponse;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.enums.UserStatus;
-import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -83,6 +82,32 @@ public class UserService {
     }
 
     @Transactional
+    public void deleteUser(Long id, UserPrincipal currentUser) {
+        log.info("deleteUser() - START - id={}, currentUserId={}", id, currentUser.getId());
+
+        if (id.equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é permitido apagar o próprio usuário logado.");
+        }
+
+        if (currentUser.getCompanyId()==null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Seu usuário não está vinculado a uma empresa.");
+        }
+
+
+        UserEntity user = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado."));
+
+        if (!user.getCompanyId().equals(currentUser.getCompanyId())){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esse usuário não pertence a sua empresa");
+        }
+
+        user.setStatus(UserStatus.DELETED.name());
+        userRepository.save(user);
+
+        log.info("deleteUser() = END - id={}, status={}", id, user.getStatus());
+    }
+
+    @Transactional
     public void changePassword(Long userId, ChangePasswordRequest request) {
         log.info("changePassword() - START - userId={}", userId);
 
@@ -92,6 +117,10 @@ public class UserService {
 
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado."));
+
+        if (user.getStatus() != null && !UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário inativo ou desativado.");
+        }
 
         if (request.currentPassword() != null && !request.currentPassword().isBlank()) {
             if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
@@ -111,8 +140,10 @@ public class UserService {
         log.info("recordLogin() - START - email={}", email);
 
         userRepository.findByEmail(email).ifPresent(user -> {
-            user.setLastLogin(LocalDateTime.now());
-            userRepository.save(user);
+            if (user.getStatus() == null || UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus())) {
+                user.setLastLogin(LocalDateTime.now());
+                userRepository.save(user);
+            }
         });
 
         log.info("recordLogin() = END - email={}", email);
@@ -127,6 +158,7 @@ public class UserService {
             return Collections.emptyList();
         }
         List<UserResponse> users = userRepository.findByCompanyId(companyId).stream()
+                .filter(user -> user.getStatus() == null || UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus()))
                 .map(UserResponse::fromEntity)
                 .toList();
 
@@ -134,14 +166,20 @@ public class UserService {
         return users;
     }
 
+    @Transactional(readOnly = true)
     public UserResponse findUserById(Long userId) {
-        log.info("findAllByCompanyId() - START - userId={}", userId);
+        log.info("findUserById() - START - userId={}", userId);
 
-        var user = UserResponse.fromEntity(
-                userRepository.findById(userId).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"))
-        );
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        log.info("findAllByCompanyId() = END - userId={}, user: {}", userId, user);
-        return user;
+        if (user.getStatus() != null && !UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+
+        UserResponse userResponse = UserResponse.fromEntity(user);
+
+        log.info("findUserById() = END - userId={}, user: {}", userId, userResponse);
+        return userResponse;
     }
 }

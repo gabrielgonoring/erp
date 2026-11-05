@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -25,11 +26,13 @@ public class UserController {
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal UserPrincipal currentUser) {
+
         return ResponseEntity.ok(userService.findUserById(currentUser.getId()));
     }
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> findAllByCompany(@AuthenticationPrincipal UserPrincipal currentUser) {
+
         Long companyId = currentUser != null ? currentUser.getCompanyId() : null;
 
         List<UserResponse> users = userService.findAllByCompanyId(companyId);
@@ -42,6 +45,7 @@ public class UserController {
             @RequestBody @Valid UserCreateRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser
     ) {
+
         Long companyId = currentUser != null ? currentUser.getCompanyId() : null;
 
         UserResponse response = userService.createUserForCompany(request, companyId);
@@ -54,10 +58,24 @@ public class UserController {
             @RequestBody @Valid ChangePasswordRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser
     ) {
+
         Long userId = currentUser != null ? currentUser.getId() : null;
 
         userService.changePassword(userId, request);
 
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal currentUser
+    ) {
+
+        userService.deleteUser(id, currentUser);
+
+        return ResponseEntity.noContent().build();
+    }
+
+
 }

@@ -1,6 +1,7 @@
 package company.aura.erp.security;
 
 import company.aura.erp.entity.UserEntity;
+import company.aura.erp.enums.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,7 +23,8 @@ public class UserPrincipal implements UserDetails {
     private final String name;
     private final String email;
     private final String password;
-    private final String status;
+    @Builder.Default
+    private final String status = "ACTIVE";
     private final Boolean temporaryPassword;
     private final Collection<? extends GrantedAuthority> authorities;
 
@@ -65,7 +67,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return !"BLOCKED".equalsIgnoreCase(status);
+        return !"BLOCKED".equalsIgnoreCase(status) && !UserStatus.DELETED.name().equalsIgnoreCase(status);
     }
 
     @Override
@@ -75,6 +77,6 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return !"INACTIVE".equalsIgnoreCase(status);
+        return UserStatus.ACTIVE.name().equalsIgnoreCase(status);
     }
 }

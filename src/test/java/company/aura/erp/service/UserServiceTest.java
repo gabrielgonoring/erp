@@ -4,6 +4,7 @@ import company.aura.erp.dto.ChangePasswordRequest;
 import company.aura.erp.dto.UserCreateRequest;
 import company.aura.erp.dto.UserResponse;
 import company.aura.erp.entity.UserEntity;
+import company.aura.erp.enums.UserStatus;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -72,6 +73,34 @@ class UserServiceTest {
         assertEquals("Admin", result.get(0).name());
         assertEquals("Funcionario", result.get(1).name());
         verify(userRepository).findByCompanyId(10L);
+    }
+
+    @Test
+    @DisplayName("Deve ignorar usuários deletados ao buscar por companhia")
+    void shouldIgnoreDeletedUsersInFindAllByCompanyId() {
+        UserEntity activeUser = UserEntity.builder()
+                .id(1L)
+                .companyId(10L)
+                .name("Admin")
+                .email("admin@empresa.com")
+                .status("ACTIVE")
+                .build();
+
+        UserEntity deletedUser = UserEntity.builder()
+                .id(2L)
+                .companyId(10L)
+                .name("Excluido")
+                .email("excluido@empresa.com")
+                .status("DELETED")
+                .build();
+
+        when(userRepository.findByCompanyId(10L)).thenReturn(List.of(activeUser, deletedUser));
+
+        List<UserResponse> result = userService.findAllByCompanyId(10L);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("Admin", result.get(0).name());
     }
 
     @Test
@@ -153,6 +182,7 @@ class UserServiceTest {
                 .id(1L)
                 .companyId(10L)
                 .email("user@empresa.com")
+                .status("ACTIVE")
                 .passwordHash("oldEncodedHash")
                 .temporaryPassword(true)
                 .build();
@@ -174,6 +204,7 @@ class UserServiceTest {
     void shouldThrowIfCurrentPasswordIsIncorrect() {
         UserEntity user = UserEntity.builder()
                 .id(1L)
+                .status("ACTIVE")
                 .passwordHash("oldEncodedHash")
                 .build();
 
@@ -201,6 +232,89 @@ class UserServiceTest {
                 ResponseStatusException.class,
                 () -> userService.changePassword(999L, request)
         );
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Deve lançar Forbidden ao alterar senha de usuário inativo")
+    void shouldThrowForbiddenWhenChangingPasswordOfInactiveUser() {
+        UserEntity user = UserEntity.builder()
+                .id(1L)
+                .status("DELETED")
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        ChangePasswordRequest request = new ChangePasswordRequest("currentPass", "newPass123");
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.changePassword(1L, request)
+        );
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve apagar usuário alterando status para DELETED")
+    void shouldDeleteUserSuccessfully() {
+        UserEntity user = UserEntity.builder()
+                .id(2L)
+                .companyId(10L)
+                .email("outro@empresa.com")
+                .status("ACTIVE")
+                .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        userService.deleteUser(2L, 1L);
+
+        assertEquals(UserStatus.DELETED.name(), user.getStatus());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("Deve lançar BAD_REQUEST ao tentar apagar o próprio usuário")
+    void shouldThrowBadRequestWhenDeletingSelf() {
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.deleteUser(1L, 1L)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Não é permitido apagar o próprio usuário logado.", ex.getReason());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar NOT_FOUND quando usuário a ser apagado não existir")
+    void shouldThrowNotFoundWhenUserDoesNotExistOnDelete() {
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.deleteUser(999L, 1L)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar NOT_FOUND ao buscar usuário inativo por ID")
+    void shouldThrowNotFoundWhenFindingInactiveUserById() {
+        UserEntity user = UserEntity.builder()
+                .id(2L)
+                .status("DELETED")
+                .build();
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.findUserById(2L)
+        );
+
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
 }
