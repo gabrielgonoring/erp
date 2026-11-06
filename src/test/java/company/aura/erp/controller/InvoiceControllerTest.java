@@ -86,9 +86,9 @@ class InvoiceControllerTest {
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(1L, response.getBody().id());
-        assertEquals("https://r2/danfe.pdf", response.getBody().pdfUrl());
-        assertEquals("https://r2/nfe.xml", response.getBody().xmlUrl());
+        assertEquals(1L, response.getBody().getId());
+        assertEquals("https://r2/danfe.pdf", response.getBody().getPdfUrl());
+        assertEquals("https://r2/nfe.xml", response.getBody().getXmlUrl());
 
         verify(invoiceService, times(1)).createExternalInvoice(eq(request), eq(xmlFile), eq(danfePdf), eq(userPrincipal));
     }
@@ -110,7 +110,7 @@ class InvoiceControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(1L, response.getBody().id());
+        assertEquals(1L, response.getBody().getId());
         verify(invoiceService, times(1)).findById(1L, 10L);
     }
 
@@ -132,7 +132,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
-        assertEquals(1L, response.getBody().get(0).id());
+        assertEquals(1L, response.getBody().get(0).getId());
         verify(invoiceService, times(1)).list(10L);
     }
 }

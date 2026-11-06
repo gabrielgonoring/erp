@@ -3,6 +3,7 @@ package company.aura.erp.service;
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.entity.InvoiceEntity;
+import company.aura.erp.mapper.InvoiceMapper;
 import company.aura.erp.repository.InvoiceRepository;
 import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
@@ -40,9 +41,9 @@ public class InvoiceService {
 
         InvoiceEntity saved = saveInvoiceInDatabase(request, uploadedInvoice.xmlUrl(), uploadedInvoice.pdfUrl(), currentUser);
 
-        InvoiceResponse response = InvoiceResponse.fromEntity(saved);
+        InvoiceResponse response = InvoiceMapper.fromEntity(saved);
 
-        log.info("createExternalInvoice() - END - invoiceId={}, accessKey={}", response.id(), response.accessKey());
+        log.info("createExternalInvoice() - END - invoiceId={}, accessKey={}", response.getId(), response.getAccessKey());
         return response;
     }
 
@@ -121,28 +122,4 @@ public class InvoiceService {
         return r2Service.getFileUrl(fileKey);
     }
 
-    public InvoiceResponse findById(Long id, Long companyId) {
-        log.info("findById() - START - id={}, companyId={}", id, companyId);
-
-        InvoiceEntity invoice = invoiceRepository.findByIdAndCompanyId(id, companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + id));
-
-        InvoiceResponse response = InvoiceResponse.fromEntity(invoice);
-
-        log.info("findById() - END - id={}, companyId={}, invoice: {}", id, companyId, response);
-        return response;
-    }
-
-
-    public List<InvoiceResponse> list(Long companyId) {
-        log.info("list() - START - companyId={}", companyId);
-
-        List<InvoiceResponse> responses = invoiceRepository.findByCompanyId(companyId)
-                .stream()
-                .map(InvoiceResponse::fromEntity)
-                .toList();
-
-        log.info("list() - END - companyId={}, totalInvoices={}", companyId, responses.size());
-        return responses;
-    }
 }

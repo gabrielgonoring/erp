@@ -729,7 +729,7 @@ class OrderServiceTest {
                 .productsAmount(BigDecimal.valueOf(230.00))
                 .additionalInformation("Obs do pedido")
                 .build();
-        InvoiceResponse invoiceResponse = InvoiceResponse.fromEntity(invoiceEntity);
+        InvoiceResponse invoiceResponse = company.aura.erp.mapper.InvoiceMapper.fromEntity(invoiceEntity);
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
         when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
@@ -741,7 +741,7 @@ class OrderServiceTest {
         InvoiceResponse response = orderService.linkExternalInvoice(100L, DocumentType.NFE, request, xmlFile, pdfFile, user);
 
         assertNotNull(response);
-        assertEquals(555L, response.id());
+        assertEquals(555L, response.getId());
         assertEquals(555L, order.getNfeInvoiceId());
         assertNull(order.getNfseInvoiceId());
         verify(orderRepository).save(order);
@@ -771,7 +771,7 @@ class OrderServiceTest {
                 .status("ISSUED")
                 .totalAmount(BigDecimal.valueOf(100.00))
                 .build();
-        InvoiceResponse invoiceResponse = InvoiceResponse.fromEntity(invoiceEntity);
+        InvoiceResponse invoiceResponse = company.aura.erp.mapper.InvoiceMapper.fromEntity(invoiceEntity);
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
         when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
@@ -783,7 +783,7 @@ class OrderServiceTest {
         InvoiceResponse response = orderService.linkExternalInvoice(100L, DocumentType.NFSE, null, xmlFile, pdfFile, user);
 
         assertNotNull(response);
-        assertEquals(777L, response.id());
+        assertEquals(777L, response.getId());
         assertEquals(777L, order.getNfseInvoiceId());
         assertNull(order.getNfeInvoiceId());
         verify(orderRepository).save(order);

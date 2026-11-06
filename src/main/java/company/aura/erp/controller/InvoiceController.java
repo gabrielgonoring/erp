@@ -35,20 +35,4 @@ public class InvoiceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<InvoiceResponse> findById(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        InvoiceResponse response = invoiceService.findById(id, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping
-    public ResponseEntity<List<InvoiceResponse>> list(
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        List<InvoiceResponse> responses = invoiceService.list(userPrincipal.getCompanyId());
-        return ResponseEntity.ok(responses);
-    }
 }

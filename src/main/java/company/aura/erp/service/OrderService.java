@@ -315,9 +315,9 @@ public class OrderService {
         InvoiceResponse invoiceResponse = invoiceService.createExternalInvoice(invoiceRequest, xmlFile, pdfFile, currentUser);
 
         if (request.getDocumentType() == DocumentType.NFSE) {
-            order.setNfseInvoiceId(invoiceResponse.id());
+            order.setNfseInvoiceId(invoiceResponse.getId());
         } else {
-            order.setNfeInvoiceId(invoiceResponse.id());
+            order.setNfeInvoiceId(invoiceResponse.getId());
         }
         orderRepository.save(order);
 

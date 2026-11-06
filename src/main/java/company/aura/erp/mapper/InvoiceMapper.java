@@ -1,6 +1,7 @@
 package company.aura.erp.mapper;
 
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
+import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.entity.InvoiceEntity;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
@@ -11,7 +12,7 @@ import java.time.LocalDateTime;
 
 public class InvoiceMapper {
 
-    public static InvoiceEntity buildInvoiceEntity(UserPrincipal currentUser, InvoiceCreateRequest request, String xmlUrl, String pdfUrl){
+    public static InvoiceEntity buildInvoiceEntity(UserPrincipal currentUser, InvoiceCreateRequest request, String xmlUrl, String pdfUrl) {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .companyId(currentUser.getCompanyId())
                 .partnerId(request.getPartnerId())
@@ -39,5 +40,39 @@ public class InvoiceMapper {
                 .build();
 
         return invoice;
+    }
+
+    public static InvoiceResponse fromEntity(InvoiceEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return InvoiceResponse.builder()
+                .id(entity.getId())
+                .companyId(entity.getCompanyId())
+                .partnerId(entity.getPartnerId())
+                .externalReference(entity.getExternalReference())
+                .operationType(entity.getOperationType())
+                .documentType(entity.getDocumentType())
+                .environment(entity.getEnvironment())
+                .status(entity.getStatus())
+                .invoiceNumber(entity.getInvoiceNumber())
+                .series(entity.getSeries())
+                .accessKey(entity.getAccessKey())
+                .authorizationProtocol(entity.getAuthorizationProtocol())
+                .paymentMethod(entity.getPaymentMethod())
+                .dueDate(entity.getDueDate())
+                .freightMode(entity.getFreightMode())
+                .freightAmount(entity.getFreightAmount())
+                .additionalExpenses(entity.getAdditionalExpenses())
+                .productsAmount(entity.getProductsAmount())
+                .discountAmount(entity.getDiscountAmount())
+                .totalAmount(entity.getTotalAmount())
+                .additionalInformation(entity.getAdditionalInformation())
+                .pdfUrl(entity.getPdfUrl())
+                .xmlUrl(entity.getXmlUrl())
+                .issuedAt(entity.getIssuedAt())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }

@@ -351,7 +351,7 @@ class OrderControllerTest {
                 .status("ISSUED")
                 .totalAmount(BigDecimal.valueOf(150.00))
                 .build();
-        InvoiceResponse invoiceResponse = InvoiceResponse.fromEntity(invoiceEntity);
+        InvoiceResponse invoiceResponse = company.aura.erp.mapper.InvoiceMapper.fromEntity(invoiceEntity);
 
         when(orderService.linkExternalInvoice(orderId, documentType, formRequest, xmlFile, pdfFile, userPrincipal))
                 .thenReturn(invoiceResponse);

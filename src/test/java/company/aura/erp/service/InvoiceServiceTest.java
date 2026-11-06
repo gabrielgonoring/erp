@@ -124,12 +124,12 @@ class InvoiceServiceTest {
         InvoiceResponse response = invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal);
 
         assertNotNull(response);
-        assertEquals(1L, response.id());
-        assertEquals(companyId, response.companyId());
-        assertEquals(partnerId, response.partnerId());
-        assertEquals(new BigDecimal("1500.00"), response.totalAmount());
-        assertEquals("https://r2.aura.company/invoices/10/xml/nfe.xml", response.xmlUrl());
-        assertEquals("https://r2.aura.company/invoices/10/pdf/danfe.pdf", response.pdfUrl());
+        assertEquals(1L, response.getId());
+        assertEquals(companyId, response.getCompanyId());
+        assertEquals(partnerId, response.getPartnerId());
+        assertEquals(new BigDecimal("1500.00"), response.getTotalAmount());
+        assertEquals("https://r2.aura.company/invoices/10/xml/nfe.xml", response.getXmlUrl());
+        assertEquals("https://r2.aura.company/invoices/10/pdf/danfe.pdf", response.getPdfUrl());
 
         verify(r2Service, times(2)).upload(anyString(), any(InputStream.class), anyLong(), anyString());
         verify(invoiceRepository, times(1)).save(any(InvoiceEntity.class));
@@ -228,8 +228,8 @@ class InvoiceServiceTest {
         InvoiceResponse response = invoiceService.findById(1L, companyId);
 
         assertNotNull(response);
-        assertEquals(1L, response.id());
-        assertEquals("https://r2/xml", response.xmlUrl());
+        assertEquals(1L, response.getId());
+        assertEquals("https://r2/xml", response.getXmlUrl());
     }
 
     @Test
@@ -250,6 +250,6 @@ class InvoiceServiceTest {
         List<InvoiceResponse> list = invoiceService.list(companyId);
 
         assertEquals(1, list.size());
-        assertEquals(1L, list.get(0).id());
+        assertEquals(1L, list.get(0).getId());
     }
 }
