@@ -496,7 +496,7 @@ class OrderServiceTest {
         when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
                 .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente Teste").build()));
         when(orderItemService.findOrderItems(100L)).thenReturn(List.of(item));
-        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
+        when(orderPaymentService.findInstallmentResponses(100L)).thenReturn(Collections.emptyList());
         when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.of(shipping));
 
         OrderResponse response = orderService.findById(100L, companyId);

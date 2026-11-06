@@ -99,6 +99,58 @@ public class OrderController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/installments")
+    public ResponseEntity<OrderInstallmentResponse> addInstallment(
+            @PathVariable Long id,
+            @RequestBody @Valid OrderInstallmentCreateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderInstallmentResponse response = orderService.addInstallment(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/{id}/installments/{installmentId}/payments")
+    public ResponseEntity<OrderInstallmentResponse> payInstallment(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @RequestBody @Valid PaymentTransactionRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderInstallmentResponse response = orderService.payInstallment(id, installmentId, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/installments/{installmentId}")
+    public ResponseEntity<OrderInstallmentResponse> updateInstallment(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @RequestBody @Valid PaymentTransactionRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderInstallmentResponse response = orderService.payInstallment(id, installmentId, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}/installments/{installmentId}")
+    public ResponseEntity<Void> cancelInstallment(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        orderService.cancelInstallment(id, installmentId, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/installments/{installmentId}/cancel")
+    public ResponseEntity<OrderInstallmentResponse> cancelInstallmentPatch(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderInstallmentResponse response = orderService.cancelInstallment(id, installmentId, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{id}/close")
     public ResponseEntity<OrderResponse> closeOrder(
             @PathVariable Long id,

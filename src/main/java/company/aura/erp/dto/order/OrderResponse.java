@@ -162,4 +162,49 @@ public record OrderResponse(
                 shippingResponse
         );
     }
+
+    public static OrderResponse fromEntityWithResponses(
+            OrderEntity order,
+            List<OrderItemEntity> items,
+            List<OrderInstallmentResponse> installments,
+            OrderShippingEntity shipping
+    ) {
+        return fromEntityWithResponses(order, null, items, installments, shipping);
+    }
+
+    public static OrderResponse fromEntityWithResponses(
+            OrderEntity order,
+            String customerName,
+            List<OrderItemEntity> items,
+            List<OrderInstallmentResponse> installments,
+            OrderShippingEntity shipping
+    ) {
+        List<OrderItemResponse> itemResponses = items != null
+                ? items.stream().map(OrderItemResponse::fromEntity).toList()
+                : Collections.emptyList();
+
+        OrderShippingResponse shippingResponse = OrderShippingResponse.fromEntity(shipping);
+
+        return new OrderResponse(
+                order.getId(),
+                order.getCompanyId(),
+                order.getPartnerId(),
+                customerName,
+                order.getNfseInvoiceId(),
+                order.getNfeInvoiceId(),
+                order.getStatus(),
+                order.getServicesAmount(),
+                order.getProductsAmount(),
+                order.getFreightAmount(),
+                order.getDiscountAmount(),
+                order.getTotalAmount(),
+                order.getNotes(),
+                order.getCompletedAt(),
+                order.getCreatedAt(),
+                order.getUpdatedAt(),
+                itemResponses,
+                installments != null ? installments : Collections.emptyList(),
+                shippingResponse
+        );
+    }
 }

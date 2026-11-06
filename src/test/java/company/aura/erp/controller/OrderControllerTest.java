@@ -2,6 +2,7 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.order.*;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.security.UserPrincipal;
@@ -218,6 +219,96 @@ class OrderControllerTest {
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(orderService).removeItem(1L, 100L, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/installments — Deve adicionar parcela ao pedido e retornar HTTP 201")
+    void shouldAddInstallment() {
+        OrderInstallmentCreateRequest request = new OrderInstallmentCreateRequest(
+                1, LocalDate.now(), BigDecimal.valueOf(50.00), PaymentMethod.PIX, false, null, null, null, null, null
+        );
+        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
+                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
+                PaymentMethod.PIX, InstallmentStatus.PENDING, null, null, null, null, null,
+                BigDecimal.ZERO, BigDecimal.valueOf(50.00), Collections.emptyList()
+        );
+
+        when(orderService.addInstallment(1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderInstallmentResponse> response = orderController.addInstallment(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).addInstallment(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/installments/{installmentId}/payments — Deve registrar pagamento da parcela")
+    void shouldPayInstallment() {
+        PaymentTransactionRequest request = new PaymentTransactionRequest(
+                BigDecimal.valueOf(25.00), PaymentMethod.PIX, null, null, null, "Parcial"
+        );
+        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
+                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
+                PaymentMethod.PIX, InstallmentStatus.PARTIALLY_PAID, null, null, null, null, null,
+                BigDecimal.valueOf(25.00), BigDecimal.valueOf(25.00), Collections.emptyList()
+        );
+
+        when(orderService.payInstallment(1L, 1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderInstallmentResponse> response = orderController.payInstallment(1L, 1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).payInstallment(1L, 1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("PUT /api/orders/{id}/installments/{installmentId} — Deve registrar pagamento via PUT")
+    void shouldUpdateInstallmentPayment() {
+        PaymentTransactionRequest request = new PaymentTransactionRequest(
+                BigDecimal.valueOf(50.00), PaymentMethod.PIX, null, null, null, "Quitação"
+        );
+        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
+                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
+                PaymentMethod.PIX, InstallmentStatus.PAID, null, null, null, null, null,
+                BigDecimal.valueOf(50.00), BigDecimal.ZERO, Collections.emptyList()
+        );
+
+        when(orderService.payInstallment(1L, 1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderInstallmentResponse> response = orderController.updateInstallment(1L, 1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).payInstallment(1L, 1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id}/installments/{installmentId} — Deve cancelar parcela e retornar HTTP 204")
+    void shouldCancelInstallment() {
+        ResponseEntity<Void> response = orderController.cancelInstallment(1L, 1L, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(orderService).cancelInstallment(1L, 1L, 10L);
+    }
+
+    @Test
+    @DisplayName("PATCH /api/orders/{id}/installments/{installmentId}/cancel — Deve cancelar parcela e retornar HTTP 200")
+    void shouldCancelInstallmentPatch() {
+        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
+                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
+                PaymentMethod.PIX, InstallmentStatus.CANCELED, null, null, null, null, null,
+                BigDecimal.ZERO, BigDecimal.valueOf(50.00), Collections.emptyList()
+        );
+
+        when(orderService.cancelInstallment(1L, 1L, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderInstallmentResponse> response = orderController.cancelInstallmentPatch(1L, 1L, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).cancelInstallment(1L, 1L, 10L);
     }
 
     @Test

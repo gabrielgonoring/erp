@@ -192,7 +192,7 @@ public class OrderService {
         return OrderShippingResponse.fromEntity(shipping);
     }
 
-    @Transactional(readOnly = true)
+
     public OrderResponse findById(Long orderId, Long companyId) {
         OrderEntity order = findOrder(orderId, companyId);
 
@@ -203,10 +203,56 @@ public class OrderService {
                 : null;
 
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
-        List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
+        List<OrderInstallmentResponse> installments = orderPaymentService.findInstallmentResponses(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        return OrderResponse.fromEntity(order, customerName, items, installments, shipping);
+        return OrderResponse.fromEntityWithResponses(order, customerName, items, installments, shipping);
+    }
+
+    @Transactional
+    public OrderInstallmentResponse payInstallment(Long orderId, Long installmentId, PaymentTransactionRequest request, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+        OrderInstallmentResponse response = orderPaymentService.payInstallment(order, installmentId, request);
+        syncOrderStatusAfterInstallmentChange(order);
+        return response;
+    }
+
+    @Transactional
+    public OrderInstallmentResponse addInstallment(Long orderId, OrderInstallmentCreateRequest request, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+        OrderInstallmentResponse response = orderPaymentService.addInstallment(order, request);
+        syncOrderStatusAfterInstallmentChange(order);
+        return response;
+    }
+
+    @Transactional
+    public OrderInstallmentResponse cancelInstallment(Long orderId, Long installmentId, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+        OrderInstallmentResponse response = orderPaymentService.cancelInstallment(order, installmentId);
+        syncOrderStatusAfterInstallmentChange(order);
+        return response;
+    }
+
+    private void syncOrderStatusAfterInstallmentChange(OrderEntity order) {
+        if (order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.CANCELED) {
+            return;
+        }
+
+        List<OrderInstallmentEntity> activeInstallments = orderPaymentService.findInstallments(order.getId())
+                .stream()
+                .filter(i -> i.getStatus() != InstallmentStatus.CANCELED)
+                .toList();
+
+        if (!activeInstallments.isEmpty() && activeInstallments.stream().allMatch(i -> i.getStatus() == InstallmentStatus.PAID)) {
+            order.setStatus(OrderStatus.COMPLETED);
+            if (order.getCompletedAt() == null) {
+                order.setCompletedAt(LocalDateTime.now());
+            }
+        } else {
+            order.setStatus(OrderStatus.PENDING_PAYMENT);
+            order.setCompletedAt(null);
+        }
+        orderRepository.save(order);
     }
 
     @Transactional
