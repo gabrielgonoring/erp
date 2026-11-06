@@ -29,12 +29,6 @@ public class OrderEntity {
     @Column(name = "partner_id", nullable = false)
     private Long partnerId;
 
-    @Column(name = "nfse_invoice_id", unique = true)
-    private Long nfseInvoiceId;
-
-    @Column(name = "nfe_invoice_id", unique = true)
-    private Long nfeInvoiceId;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private OrderStatus status;

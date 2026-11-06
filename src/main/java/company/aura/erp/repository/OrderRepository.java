@@ -18,13 +18,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     Optional<OrderEntity> findByIdAndCompanyId(Long id, Long companyId);
 
-    List<OrderEntity> findByCompanyId(Long companyId);
-
-    Page<OrderEntity> findByCompanyId(Long companyId, Pageable pageable);
-
-    Page<OrderEntity> findByCompanyIdAndStatus(Long companyId, OrderStatus status, Pageable pageable);
-
-    List<OrderEntity> findByCompanyIdAndPartnerId(Long companyId, Long partnerId);
+    boolean existsByIdAndCompanyId(Long id, Long companyId);
 
     @Query(
             value = "SELECT new company.aura.erp.dto.order.OrderSummaryResponse(" +

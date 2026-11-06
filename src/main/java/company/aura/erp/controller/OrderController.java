@@ -18,6 +18,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
@@ -82,7 +84,7 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PatchMapping("/{id}/items/{itemId}")
+    @PutMapping("/{id}/items/{itemId}")
     public ResponseEntity<OrderItemResponse> updateItem(
             @PathVariable Long id,
             @PathVariable Long itemId,
@@ -113,7 +115,7 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PostMapping("/{id}/installments/{installmentId}/payments")
+    @PostMapping("/{id}/installments/{installmentId}/pay")
     public ResponseEntity<OrderInstallmentResponse> payInstallment(
             @PathVariable Long id,
             @PathVariable Long installmentId,
@@ -181,6 +183,31 @@ public class OrderController {
                 userPrincipal
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping(value = "/{orderId}/invoice/{invoiceId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OrderInvoiceResponse> linkInvoice(
+            @PathVariable Long orderId,
+            @PathVariable Long invoiceId,
+            @ModelAttribute @Valid LinkOrderInvoice request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderInvoiceResponse response = orderService.linkInvoice(
+                orderId,
+                invoiceId,
+                request,
+                userPrincipal
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{orderId}/invoices")
+    public ResponseEntity<List<OrderInvoiceResponse>> getOrderInvoices(
+            @PathVariable Long orderId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        List<OrderInvoiceResponse> response = orderService.findInvoicesByOrderId(orderId, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping

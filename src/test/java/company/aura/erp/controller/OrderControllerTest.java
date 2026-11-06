@@ -58,7 +58,7 @@ class OrderControllerTest {
     void shouldOpenOrder() {
         OrderCreateRequest request = new OrderCreateRequest(5L, "Comanda mesa 2", Collections.emptyList());
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, null, null, OrderStatus.OPEN,
+                1L, 10L, 5L, OrderStatus.OPEN,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 "Comanda mesa 2", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
@@ -87,7 +87,7 @@ class OrderControllerTest {
                 BigDecimal.valueOf(4.5), BigDecimal.valueOf(4.0), null, "Coleta pela manhã", LocalDateTime.now(), LocalDateTime.now()
         );
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, null, null, OrderStatus.OPEN,
+                1L, 10L, 5L, OrderStatus.OPEN,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(35.00), BigDecimal.ZERO, BigDecimal.valueOf(35.00),
                 "Pedido com frete", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList(), shippingResponse
         );
@@ -105,7 +105,7 @@ class OrderControllerTest {
     @DisplayName("GET /api/orders/{id} — Deve retornar pedido por ID")
     void shouldFindOrderById() {
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, "Cliente Teste", null, null, OrderStatus.OPEN,
+                1L, 10L, 5L, "Cliente Teste", OrderStatus.OPEN,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 "Comanda mesa 2", null, LocalDateTime.now(), LocalDateTime.now(),
                 Collections.emptyList(), Collections.emptyList()
@@ -126,7 +126,7 @@ class OrderControllerTest {
     void shouldUpdateOrderHeader() {
         OrderUpdateRequest request = new OrderUpdateRequest(8L, "Observação atualizada");
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 8L, null, null, OrderStatus.OPEN,
+                1L, 10L, 8L, OrderStatus.OPEN,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 "Observação atualizada", null, LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
@@ -318,7 +318,7 @@ class OrderControllerTest {
                 new OrderInstallmentRequest(1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null)
         ));
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, null, null, OrderStatus.PENDING_PAYMENT,
+                1L, 10L, 5L, OrderStatus.PENDING_PAYMENT,
                 BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
                 null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
@@ -364,6 +364,24 @@ class OrderControllerTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(invoiceResponse, response.getBody());
         verify(orderService).linkExternalInvoice(orderId, formRequest, xmlFile, pdfFile, userPrincipal);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders/{orderId}/invoices — Deve listar notas vinculadas ao pedido")
+    void shouldGetOrderInvoices() {
+        Long orderId = 1L;
+        OrderInvoiceResponse invoiceDto = new OrderInvoiceResponse(
+                10L, 10L, orderId, 100L, InvoicePurpose.PRODUCT, "Nota vinculada", LocalDateTime.now()
+        );
+
+        when(orderService.findInvoicesByOrderId(orderId, 10L)).thenReturn(List.of(invoiceDto));
+
+        ResponseEntity<List<OrderInvoiceResponse>> response = orderController.getOrderInvoices(orderId, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().size());
+        assertEquals(100L, response.getBody().get(0).invoiceId());
+        verify(orderService).findInvoicesByOrderId(orderId, 10L);
     }
 
     @Test

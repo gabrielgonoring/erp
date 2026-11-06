@@ -34,7 +34,9 @@ public class OrderService {
     private final OrderPaymentService orderPaymentService;
     private final OrderItemService orderItemService;
     private final OrderShippingService orderShippingService;
-    private final InvoiceService invoiceService;
+
+
+    private final OrderInvoiceService orderInvoiceService;
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
@@ -165,7 +167,7 @@ public class OrderService {
         List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        return OrderResponse.fromEntity(savedOrder, customerName, items, installments, shipping);
+        return OrderResponse.fromEntity(savedOrder, customerName, items, installments, shipping, null);
     }
 
     @Transactional
@@ -175,7 +177,6 @@ public class OrderService {
         validateIfOrderIsEditable(order);
 
         orderShippingService.deleteShipping(orderId);
-
         order.setFreightAmount(BigDecimal.ZERO);
         recalculateOrderTotals(order);
     }
@@ -188,9 +189,12 @@ public class OrderService {
 
         OrderShippingEntity shipping = orderShippingService.updateShipping(orderId, request);
 
-        if (request.freightAmount() != null) {
+        if (shipping != null && request.freightAmount() != null) {
             order.setFreightAmount(request.freightAmount());
+        } else if (shipping == null) {
+            order.setFreightAmount(BigDecimal.ZERO);
         }
+
         recalculateOrderTotals(order);
 
         return OrderShippingResponse.fromEntity(shipping);
@@ -209,8 +213,9 @@ public class OrderService {
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
         List<OrderInstallmentResponse> installments = orderPaymentService.findInstallmentResponses(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
+        List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(companyId, order.getId());
 
-        return OrderResponse.fromEntityWithResponses(order, customerName, items, installments, shipping);
+        return OrderResponse.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
     }
 
     @Transactional
@@ -287,13 +292,11 @@ public class OrderService {
                         .orElse(null)
                 : null;
 
-        return OrderResponse.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping);
+        return OrderResponse.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping, null);
     }
 
     @Transactional
     public InvoiceResponse linkExternalInvoice(Long orderId, OrderExternalInvoiceRequest request, MultipartFile xmlFile, MultipartFile pdfFile, UserPrincipal currentUser) {
-
-        validateExternalInvoiceRequest(request);
 
         OrderEntity order = findOrder(orderId, currentUser.getCompanyId());
 
@@ -301,53 +304,27 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível vincular nota fiscal a um pedido cancelado.");
         }
 
-        if (request.getDocumentType() == DocumentType.NFE && order.getNfeInvoiceId() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido já possui uma nota fiscal NF-e vinculada.");
-        }
-        if (request.getDocumentType() == DocumentType.NFSE && order.getNfseInvoiceId() != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido já possui uma nota fiscal NFS-e vinculada.");
-        }
-
-        //todo: implementar a leitura do pdf ou xml para recuperar as informaçoes
-        InvoiceCreateRequest invoiceRequest = InvoiceCreateRequest.builder()
-                        .partnerId(order.getPartnerId())
-                        .totalAmount(request.getTotalAmount() != null ? request.getTotalAmount() : order.getTotalAmount())
-                        .documentType(request.getDocumentType())
-                        .environment(EnvironmentType.PRD)
-                        .status(InvoiceStatus.ISSUED.name())
-                        .operationType(request.getOperationType())
-                        .externalReference(request.getExternalReference() != null ? request.getExternalReference() : "ORDER-" + order.getId())
-                        .build();
-
-        InvoiceResponse invoiceResponse = invoiceService.createExternalInvoice(invoiceRequest, xmlFile, pdfFile, currentUser);
-
-        if (request.getDocumentType() == DocumentType.NFSE) {
-            order.setNfseInvoiceId(invoiceResponse.getId());
-        } else {
-            order.setNfeInvoiceId(invoiceResponse.getId());
-        }
-        orderRepository.save(order);
-
-        return invoiceResponse;
+        return orderInvoiceService.linkExternalInvoice(order, request, xmlFile, pdfFile, currentUser);
     }
 
-    private void validateExternalInvoiceRequest(OrderExternalInvoiceRequest request) {
-        if (request == null || request.getDocumentType() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de nota fiscal é obrigatório.");
+    @Transactional
+    public OrderInvoiceResponse linkInvoice(Long orderId, Long invoiceId, LinkOrderInvoice request, UserPrincipal currentUser) {
+        OrderEntity order = findOrder(orderId, currentUser.getCompanyId());
+
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível vincular nota fiscal a um pedido cancelado.");
         }
 
-        if (request.getDocumentType() != DocumentType.NFE && request.getDocumentType() != DocumentType.NFSE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tipo de nota fiscal não suportado para vinculação ao pedido. Utilize NFE ou NFSE.");
-        }
-
-        if (request.getOperationType()  == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de operação é obrigatório");
-        }
-
-        if (request.getTotalAmount() != null && request.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O valor total da nota fiscal deve ser maior que zero.");
-        }
+        return orderInvoiceService.linkInvoice(invoiceId, request, currentUser, order);
     }
+
+
+    public List<OrderInvoiceResponse> findInvoicesByOrderId(Long orderId, Long companyId) {
+        validIfIsCompanyOrder(orderId, companyId);
+        return orderInvoiceService.findInvoicesByOrderId(companyId, orderId);
+    }
+
+
 
     private static OrderStatus getOrderFinalStatus(List<OrderInstallmentEntity> savedInstallments) {
 
@@ -397,6 +374,12 @@ public class OrderService {
     private OrderEntity findOrder(Long orderId, Long companyId) {
         return orderRepository.findByIdAndCompanyId(orderId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com ID: " + orderId));
+    }
+
+    private void validIfIsCompanyOrder(Long orderId, Long companyId) {
+        if (orderRepository.existsByIdAndCompanyId(orderId, companyId)){
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com ID: " + orderId);
+        }
     }
 
     private void recalculateOrderTotals(OrderEntity order) {

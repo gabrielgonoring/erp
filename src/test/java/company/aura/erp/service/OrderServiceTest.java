@@ -5,6 +5,7 @@ import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
+import company.aura.erp.enums.InvoicePurpose;
 import company.aura.erp.enums.InvoiceStatus;
 import company.aura.erp.security.UserPrincipal;
 import org.springframework.mock.web.MockMultipartFile;
@@ -14,6 +15,7 @@ import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.repository.OrderInvoiceRepository;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.repository.OrderShippingRepository;
 import company.aura.erp.repository.PartnerRepository;
@@ -63,9 +65,12 @@ class OrderServiceTest {
 
     @Mock
     private OrderShippingService orderShippingService;
+
     @Mock
     private InvoiceService invoiceService;
 
+    @Mock
+    private OrderInvoiceRepository orderInvoiceRepository;
 
     @InjectMocks
     private OrderService orderService;
@@ -350,6 +355,7 @@ class OrderServiceTest {
 
         when(orderPaymentService.processInstallments(eq(request), any(OrderEntity.class))).thenReturn(List.of(installment));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, 100L)).thenReturn(Collections.emptyList());
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
 
@@ -395,6 +401,7 @@ class OrderServiceTest {
 
         when(orderPaymentService.processInstallments(eq(request), any(OrderEntity.class))).thenReturn(List.of(installment));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, 100L)).thenReturn(Collections.emptyList());
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
 
@@ -443,6 +450,7 @@ class OrderServiceTest {
 
         when(orderPaymentService.processInstallments(eq(request), any(OrderEntity.class))).thenReturn(List.of(inst1, inst2));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, 100L)).thenReturn(Collections.emptyList());
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
 
@@ -509,6 +517,7 @@ class OrderServiceTest {
         when(orderItemService.findOrderItems(100L)).thenReturn(List.of(item));
         when(orderPaymentService.findInstallmentResponses(100L)).thenReturn(Collections.emptyList());
         when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.of(shipping));
+        when(orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, 100L)).thenReturn(Collections.emptyList());
 
         OrderResponse response = orderService.findById(100L, companyId);
 
@@ -518,6 +527,7 @@ class OrderServiceTest {
         assertEquals(1, response.items().size());
         assertNotNull(response.shipping());
         assertEquals("ABC1234", response.shipping().vehiclePlate());
+        assertNotNull(response.invoices());
         verify(orderRepository).findByIdAndCompanyId(100L, companyId);
         verify(partnerRepository).findByIdAndCompanyId(partnerId, companyId);
     }
@@ -557,6 +567,7 @@ class OrderServiceTest {
         when(orderItemService.findOrderItems(100L)).thenReturn(Collections.emptyList());
         when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
         when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, 100L)).thenReturn(Collections.emptyList());
 
         OrderResponse response = orderService.updateOrder(100L, request, companyId);
 
@@ -738,15 +749,14 @@ class OrderServiceTest {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
         when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user)))
                 .thenReturn(invoiceResponse);
-        when(orderRepository.save(order)).thenReturn(order);
+        when(orderInvoiceRepository.existsByOrderIdAndInvoiceIdAndInvoicePurpose(100L, 555L, InvoicePurpose.PRODUCT))
+                .thenReturn(false);
 
         InvoiceResponse response = orderService.linkExternalInvoice(100L, request, xmlFile, pdfFile, user);
 
         assertNotNull(response);
         assertEquals(555L, response.getId());
-        assertEquals(555L, order.getNfeInvoiceId());
-        assertNull(order.getNfseInvoiceId());
-        verify(orderRepository).save(order);
+        verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
         verify(invoiceService).createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user));
     }
 
@@ -784,27 +794,25 @@ class OrderServiceTest {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
         when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user)))
                 .thenReturn(invoiceResponse);
-        when(orderRepository.save(order)).thenReturn(order);
+        when(orderInvoiceRepository.existsByOrderIdAndInvoiceIdAndInvoicePurpose(100L, 777L, InvoicePurpose.SERVICE))
+                .thenReturn(false);
 
         InvoiceResponse response = orderService.linkExternalInvoice(100L, request, xmlFile, pdfFile, user);
 
         assertNotNull(response);
         assertEquals(777L, response.getId());
-        assertEquals(777L, order.getNfseInvoiceId());
-        assertNull(order.getNfeInvoiceId());
-        verify(orderRepository).save(order);
+        verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
     }
 
     @Test
-    @DisplayName("linkExternalInvoice - Deve lancar CONFLICT se pedido ja possui nota NFE vinculada")
-    void shouldThrowConflictWhenNfeAlreadyLinked() {
+    @DisplayName("linkExternalInvoice - Deve lancar CONFLICT se nota ja vinculada com o mesmo proposito")
+    void shouldThrowConflictWhenInvoiceAlreadyLinkedWithSamePurpose() {
         UserPrincipal user = UserPrincipal.builder().id(1L).companyId(companyId).build();
         OrderEntity order = OrderEntity.builder()
                 .id(100L)
                 .companyId(companyId)
                 .partnerId(partnerId)
                 .status(OrderStatus.OPEN)
-                .nfeInvoiceId(999L)
                 .totalAmount(BigDecimal.valueOf(100.00))
                 .build();
 
@@ -813,14 +821,20 @@ class OrderServiceTest {
                 .operationType(1)
                 .build();
 
+        InvoiceResponse invoiceResponse = InvoiceResponse.builder().id(999L).build();
+
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), any(), any(), eq(user)))
+                .thenReturn(invoiceResponse);
+        when(orderInvoiceRepository.existsByOrderIdAndInvoiceIdAndInvoicePurpose(100L, 999L, InvoicePurpose.PRODUCT))
+                .thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 orderService.linkExternalInvoice(100L, request, null, null, user)
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        verifyNoInteractions(invoiceService);
+        verify(orderInvoiceRepository, never()).save(any());
     }
 
     @Test
@@ -848,5 +862,45 @@ class OrderServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verifyNoInteractions(invoiceService);
+    }
+
+    @Test
+    @DisplayName("linkInvoice - Deve vincular nota fiscal existente ao pedido com sucesso")
+    void shouldLinkExistingInvoiceSuccess() {
+        UserPrincipal user = UserPrincipal.builder().id(1L).companyId(companyId).build();
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceRepository.existsByOrderIdAndInvoiceIdAndInvoicePurpose(100L, 200L, InvoicePurpose.PRODUCT)).thenReturn(false);
+        when(orderInvoiceRepository.save(any(OrderInvoiceEntity.class))).thenAnswer(inv -> {
+            OrderInvoiceEntity entity = inv.getArgument(0);
+            entity.setId(1L);
+            return entity;
+        });
+
+        OrderInvoiceResponse response = orderService.linkInvoice(100L, 200L, InvoicePurpose.PRODUCT, "Obs", user);
+
+        assertNotNull(response);
+        assertEquals(200L, response.invoiceId());
+        assertEquals(InvoicePurpose.PRODUCT, response.invoicePurpose());
+        verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
+    }
+
+    @Test
+    @DisplayName("findInvoicesByOrderId - Deve retornar lista de notas do pedido")
+    void shouldFindInvoicesByOrderId() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        OrderInvoiceEntity entity = OrderInvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .orderId(100L)
+                .invoiceId(200L)
+                .invoicePurpose(InvoicePurpose.PRODUCT)
+                .build();
+        when(orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, 100L)).thenReturn(List.of(entity));
+
+        List<OrderInvoiceResponse> list = orderService.findInvoicesByOrderId(100L, companyId);
+
+        assertNotNull(list);
+        assertEquals(1, list.size());
+        assertEquals(200L, list.get(0).invoiceId());
     }
 }
