@@ -12,6 +12,8 @@ import company.aura.erp.specification.InvoiceSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -106,41 +108,29 @@ public class InvoiceService {
         return response;
     }
 
-    @Transactional(readOnly = true)
-    public List<InvoiceResponse> list(Long companyId) {
-        log.info("list() - START - companyId={}", companyId);
 
-        List<InvoiceResponse> responses = invoiceRepository.findByCompanyId(companyId)
-                .stream()
-                .map(InvoiceMapper::fromEntity)
-                .toList();
 
-        log.info("list() - END - companyId={}, totalInvoices={}", companyId, responses.size());
-        return responses;
-    }
 
-    @Transactional(readOnly = true)
-    public List<InvoiceResponse> list(
+    public Page<InvoiceResponse> list(
             Long companyId,
             List<Long> partnerIds,
             String externalReference,
             Integer operationType,
             DocumentType documentType,
-            String status
+            String status,
+            Pageable pageable
     ) {
-        log.info("list() - START - companyId={}, partnerIds={}, externalReference={}, operationType={}, documentType={}, status={}",
-                companyId, partnerIds, externalReference, operationType, documentType, status);
+        log.info("list() - START - companyId={}, partnerIds={}, externalReference={}, operationType={}, documentType={}, status={}, pageable={}",
+                companyId, partnerIds, externalReference, operationType, documentType, status, pageable);
 
         Specification<InvoiceEntity> spec = InvoiceSpecification.filter(
                 companyId, partnerIds, externalReference, operationType, documentType, status
         );
 
-        List<InvoiceResponse> responses = invoiceRepository.findAll(spec)
-                .stream()
-                .map(InvoiceMapper::fromEntity)
-                .toList();
+        Page<InvoiceResponse> responses = invoiceRepository.findAll(spec, pageable)
+                .map(InvoiceMapper::fromEntity);
 
-        log.info("list() - END - companyId={}, totalInvoices={}", companyId, responses.size());
+        log.info("list() - END - companyId={}, totalInvoices={}, totalPages={}", companyId, responses.getTotalElements(), responses.getTotalPages());
         return responses;
     }
 

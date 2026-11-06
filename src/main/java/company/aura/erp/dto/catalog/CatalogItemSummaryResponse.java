@@ -13,6 +13,10 @@ public record CatalogItemSummaryResponse(
         String description,
         BigDecimal unitPrice
 ) {
+    public CatalogItemSummaryResponse(Long id, String internalCode, String name, String description, BigDecimal unitPrice) {
+        this(id, internalCode, name, null, description, unitPrice);
+    }
+
     public static CatalogItemSummaryResponse fromEntity(CatalogItemEntity entity) {
         return new CatalogItemSummaryResponse(
                 entity.getId(),

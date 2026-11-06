@@ -13,6 +13,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
@@ -116,50 +120,38 @@ class InvoiceControllerTest {
     }
 
     @Test
-    @DisplayName("Deve listar notas fiscais da empresa via controller")
+    @DisplayName("Deve listar notas fiscais via controller")
     void listSuccess() {
         InvoiceResponse responseDto = new InvoiceResponse(
-                1L, 10L, 5L, null, 1, DocumentType.NFE, EnvironmentType.STG,
-                "ISSUED", 10, 1, null, null, null, null, 9,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("500.00"),
-                null, "https://r2/danfe.pdf", "https://r2/nfe.xml",
+                1L, 10L, 5L, "EXT-1", 1, DocumentType.NFE, EnvironmentType.PRD,
+                "AUTHORIZED", 101, 1, "35261100000000000000550010000001011000000001",
+                "135260000000001", "PIX", null, 9, BigDecimal.ZERO, BigDecimal.ZERO,
+                new BigDecimal("1000.00"), BigDecimal.ZERO, new BigDecimal("1000.00"),
+                "Obs", "https://r2/danfe.pdf", "https://r2/nfe.xml",
                 LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now()
         );
 
-        when(invoiceService.list(10L)).thenReturn(List.of(responseDto));
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<InvoiceResponse> pageResult = new PageImpl<>(List.of(responseDto));
 
-        ResponseEntity<List<InvoiceResponse>> response = invoiceController.list(userPrincipal);
+        when(invoiceService.list(10L, List.of(5L), "EXT-1", 1, DocumentType.NFE, "AUTHORIZED", pageable))
+                .thenReturn(pageResult);
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(1, response.getBody().size());
-        assertEquals(1L, response.getBody().get(0).getId());
-        verify(invoiceService, times(1)).list(10L);
-    }
-
-    @Test
-    @DisplayName("Deve listar notas fiscais filtradas da empresa via controller")
-    void listWithFiltersSuccess() {
-        InvoiceResponse responseDto = new InvoiceResponse(
-                1L, 10L, 5L, "EXT-123", 1, DocumentType.NFE, EnvironmentType.STG,
-                "ISSUED", 10, 1, null, null, null, null, 9,
-                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("500.00"),
-                null, "https://r2/danfe.pdf", "https://r2/nfe.xml",
-                LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now()
-        );
-
-        when(invoiceService.list(10L, List.of(5L), "EXT-123", 1, DocumentType.NFE, "ISSUED"))
-                .thenReturn(List.of(responseDto));
-
-        ResponseEntity<List<InvoiceResponse>> response = invoiceController.list(
-                List.of(5L), null, "EXT-123", 1, DocumentType.NFE, "ISSUED", userPrincipal
+        ResponseEntity<Page<InvoiceResponse>> response = invoiceController.list(
+                List.of(5L),
+                "EXT-1",
+                1,
+                DocumentType.NFE,
+                "AUTHORIZED",
+                pageable,
+                userPrincipal
         );
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(1, response.getBody().size());
-        assertEquals("EXT-123", response.getBody().get(0).getExternalReference());
-        verify(invoiceService, times(1)).list(10L, List.of(5L), "EXT-123", 1, DocumentType.NFE, "ISSUED");
+        assertEquals(1, response.getBody().getTotalElements());
+        assertEquals(1L, response.getBody().getContent().get(0).getId());
+        verify(invoiceService, times(1)).list(10L, List.of(5L), "EXT-1", 1, DocumentType.NFE, "AUTHORIZED", pageable);
     }
 
     @Test

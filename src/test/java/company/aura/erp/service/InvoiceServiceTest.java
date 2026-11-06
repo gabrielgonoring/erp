@@ -16,6 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
@@ -246,29 +250,8 @@ class InvoiceServiceTest {
     }
 
     @Test
-    @DisplayName("Deve listar notas fiscais da empresa com sucesso")
-    void listSuccess() {
-        InvoiceEntity invoice = InvoiceEntity.builder()
-                .id(1L)
-                .companyId(companyId)
-                .partnerId(partnerId)
-                .totalAmount(new BigDecimal("100.00"))
-                .documentType(DocumentType.NFE)
-                .environment(EnvironmentType.STG)
-                .status("ISSUED")
-                .build();
-
-        when(invoiceRepository.findByCompanyId(companyId)).thenReturn(List.of(invoice));
-
-        List<InvoiceResponse> list = invoiceService.list(companyId);
-
-        assertEquals(1, list.size());
-        assertEquals(1L, list.get(0).getId());
-    }
-
-    @Test
-    @DisplayName("Deve listar notas fiscais filtradas com sucesso")
-    void listWithFiltersSuccess() {
+    @DisplayName("Deve listar notas fiscais filtradas e paginadas com sucesso")
+    void listWithFiltersAndPageableSuccess() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(companyId)
@@ -281,14 +264,18 @@ class InvoiceServiceTest {
                 .totalAmount(new BigDecimal("100.00"))
                 .build();
 
-        when(invoiceRepository.findAll(any(Specification.class))).thenReturn(List.of(invoice));
+        Page<InvoiceEntity> invoicePage = new PageImpl<>(List.of(invoice));
+        Pageable pageable = PageRequest.of(0, 20);
 
-        List<InvoiceResponse> list = invoiceService.list(companyId, List.of(partnerId), "EXT-123", 1, DocumentType.NFE, "ISSUED");
+        when(invoiceRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(invoicePage);
 
-        assertEquals(1, list.size());
-        assertEquals(1L, list.get(0).getId());
-        assertEquals("EXT-123", list.get(0).getExternalReference());
-        verify(invoiceRepository, times(1)).findAll(any(Specification.class));
+        Page<InvoiceResponse> page = invoiceService.list(companyId, List.of(partnerId), "EXT-123", 1, DocumentType.NFE, "ISSUED", pageable);
+
+        assertNotNull(page);
+        assertEquals(1, page.getTotalElements());
+        assertEquals(1L, page.getContent().get(0).getId());
+        assertEquals("EXT-123", page.getContent().get(0).getExternalReference());
+        verify(invoiceRepository, times(1)).findAll(any(Specification.class), eq(pageable));
     }
 
     @Test

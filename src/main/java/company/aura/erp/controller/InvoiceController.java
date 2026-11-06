@@ -7,6 +7,10 @@ import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.InvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -47,38 +51,25 @@ public class InvoiceController {
     }
 
     @GetMapping
-    public ResponseEntity<List<InvoiceResponse>> list(
-            @RequestParam(name = "partnerId", required = false) List<Long> partnerId,
-            @RequestParam(name = "partnerIds", required = false) List<Long> partnerIds,
+    public ResponseEntity<Page<InvoiceResponse>> list(
+            @RequestParam(required = false) List<Long> partnerIds,
             @RequestParam(required = false) String externalReference,
             @RequestParam(required = false) Integer operationType,
             @RequestParam(required = false) DocumentType documentType,
             @RequestParam(required = false) String status,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        List<Long> effectivePartnerIds = partnerIds != null && !partnerIds.isEmpty() ? partnerIds : partnerId;
-        List<InvoiceResponse> responses;
-        if ((effectivePartnerIds == null || effectivePartnerIds.isEmpty())
-                && (externalReference == null || externalReference.isBlank())
-                && operationType == null
-                && documentType == null
-                && (status == null || status.isBlank())) {
-            responses = invoiceService.list(userPrincipal.getCompanyId());
-        } else {
-            responses = invoiceService.list(
-                    userPrincipal.getCompanyId(),
-                    effectivePartnerIds,
-                    externalReference,
-                    operationType,
-                    documentType,
-                    status
-            );
-        }
-        return ResponseEntity.ok(responses);
-    }
-
-    public ResponseEntity<List<InvoiceResponse>> list(UserPrincipal userPrincipal) {
-        return list(null, null, null, null, null, null, userPrincipal);
+        Page<InvoiceResponse> response = invoiceService.list(
+                userPrincipal.getCompanyId(),
+                partnerIds,
+                externalReference,
+                operationType,
+                documentType,
+                status,
+                pageable
+        );
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/pdf")
