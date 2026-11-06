@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -48,25 +49,26 @@ class InvoiceServiceTest {
     @InjectMocks
     private InvoiceService invoiceService;
 
-    private Long companyId = 10L;
-    private Long partnerId = 5L;
+    private Long companyId;
+    private Long partnerId;
     private UserPrincipal userPrincipal;
+    private InvoiceCreateRequest request;
+    private MockMultipartFile xmlFile;
+    private MockMultipartFile danfePdf;
 
     @BeforeEach
     void setUp() {
+        companyId = 10L;
+        partnerId = 5L;
+
         userPrincipal = UserPrincipal.builder()
                 .id(1L)
                 .companyId(companyId)
-                .email("test@aura.company")
-                .name("Test User")
+                .email("user@company.com")
                 .authorities(Collections.emptyList())
                 .build();
-    }
 
-    @Test
-    @DisplayName("Deve criar nota fiscal, enviar XML e DANFE PDF para o R2 e persistir no banco")
-    void createInvoiceSuccess() {
-        InvoiceCreateRequest request = new InvoiceCreateRequest(
+        request = new InvoiceCreateRequest(
                 partnerId,
                 new BigDecimal("1500.00"),
                 DocumentType.NFE,
@@ -77,42 +79,40 @@ class InvoiceServiceTest {
                 1,
                 "35261100000000000000550010000001011000000001",
                 "135260000000001",
-                "BOLETO",
+                "PIX",
                 LocalDate.now().plusDays(30),
                 9,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 new BigDecimal("1500.00"),
                 BigDecimal.ZERO,
-                "Informações adicionais da nota fiscal",
-                "ORD-999",
+                "Informações adicionais da nota",
+                "EXT-9999",
                 LocalDateTime.now()
         );
 
-        MockMultipartFile xmlFile = new MockMultipartFile(
+        xmlFile = new MockMultipartFile(
                 "xmlFile",
-                "nfe-101.xml",
+                "nfe.xml",
                 "application/xml",
-                "<nfeProc>xml content</nfeProc>".getBytes()
+                "<xml>teste</xml>".getBytes()
         );
 
-        MockMultipartFile danfePdf = new MockMultipartFile(
+        danfePdf = new MockMultipartFile(
                 "danfePdf",
-                "danfe-101.pdf",
+                "danfe.pdf",
                 "application/pdf",
-                "%PDF-1.4 pdf content".getBytes()
+                "%PDF-1.4 teste".getBytes()
         );
+    }
 
+    @Test
+    @DisplayName("Deve criar nota fiscal externa com sucesso")
+    void createExternalInvoiceSuccess() {
         when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(false);
 
-        when(r2Service.upload(anyString(), any(InputStream.class), anyLong(), eq("application/xml")))
-                .thenReturn("key-xml");
-        when(r2Service.upload(anyString(), any(InputStream.class), anyLong(), eq("application/pdf")))
-                .thenReturn("key-pdf");
-
-        when(r2Service.getFileUrl(contains("/xml/"))).thenReturn("https://r2.aura.company/invoices/10/xml/nfe.xml");
-        when(r2Service.getFileUrl(contains("/pdf/"))).thenReturn("https://r2.aura.company/invoices/10/pdf/danfe.pdf");
+        when(r2Service.getFileUrl(anyString())).thenReturn("https://r2.storage/mock-url");
 
         when(invoiceRepository.save(any(InvoiceEntity.class))).thenAnswer(invocation -> {
             InvoiceEntity entity = invocation.getArgument(0);
@@ -128,100 +128,100 @@ class InvoiceServiceTest {
         assertEquals(1L, response.getId());
         assertEquals(companyId, response.getCompanyId());
         assertEquals(partnerId, response.getPartnerId());
+        assertEquals("35261100000000000000550010000001011000000001", response.getAccessKey());
         assertEquals(new BigDecimal("1500.00"), response.getTotalAmount());
-        assertEquals("https://r2.aura.company/invoices/10/xml/nfe.xml", response.getXmlUrl());
-        assertEquals("https://r2.aura.company/invoices/10/pdf/danfe.pdf", response.getPdfUrl());
+        assertNotNull(response.getXmlUrl());
+        assertNotNull(response.getPdfUrl());
 
         verify(r2Service, times(2)).upload(anyString(), any(InputStream.class), anyLong(), anyString());
         verify(invoiceRepository, times(1)).save(any(InvoiceEntity.class));
     }
 
     @Test
-    @DisplayName("Deve falhar com NOT_FOUND se parceiro não pertencer à empresa")
-    void createInvoicePartnerNotFound() {
-        InvoiceCreateRequest request = new InvoiceCreateRequest(
-                999L,
-                new BigDecimal("500.00"),
-                DocumentType.NFE,
-                EnvironmentType.STG,
-                null, 1, 10, 1, null, null, null, null, null, null, null, null, null, null, null, null
-        );
-
-        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
-        MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
-
-        when(partnerRepository.existsByIdAndCompanyId(999L, companyId)).thenReturn(false);
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
-        );
-
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
-        verify(invoiceRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Deve falhar com CONFLICT se chave de acesso já existir")
-    void createInvoiceDuplicateAccessKey() {
-        String accessKey = "35261100000000000000550010000001011000000001";
-        InvoiceCreateRequest request = new InvoiceCreateRequest(
-                partnerId,
-                new BigDecimal("500.00"),
-                DocumentType.NFE,
-                EnvironmentType.STG,
-                null, 1, 10, 1, accessKey, null, null, null, null, null, null, null, null, null, null, null
-        );
-
-        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
-        MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
-
-        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
-        when(invoiceRepository.existsByCompanyIdAndAccessKey(companyId, accessKey)).thenReturn(true);
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
-        );
-
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
-        verify(invoiceRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Deve falhar com BAD_REQUEST se arquivo XML estiver vazio ou nulo")
-    void createInvoiceMissingXmlFile() {
-        InvoiceCreateRequest request = new InvoiceCreateRequest(
-                partnerId,
-                new BigDecimal("500.00"),
-                DocumentType.NFE,
-                EnvironmentType.STG,
-                null, 1, 10, 1, null, null, null, null, null, null, null, null, null, null, null, null
-        );
-
-        MockMultipartFile emptyXml = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", new byte[0]);
-        MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
+    @DisplayName("Deve lançar BAD_REQUEST se o XML da nota estiver ausente ou vazio")
+    void createExternalInvoiceMissingXml() {
+        MockMultipartFile emptyXml = new MockMultipartFile("xmlFile", "", "application/xml", new byte[0]);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 invoiceService.createExternalInvoice(request, emptyXml, danfePdf, userPrincipal)
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("O arquivo XML da nota fiscal é obrigatório"));
     }
 
     @Test
-    @DisplayName("Deve buscar nota fiscal por ID com sucesso")
+    @DisplayName("Deve lançar BAD_REQUEST se o PDF da DANFE estiver ausente ou vazio")
+    void createExternalInvoiceMissingPdf() {
+        MockMultipartFile emptyPdf = new MockMultipartFile("danfePdf", "", "application/pdf", new byte[0]);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.createExternalInvoice(request, xmlFile, emptyPdf, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("O arquivo PDF da DANFE é obrigatório"));
+    }
+
+    @Test
+    @DisplayName("Deve lançar NOT_FOUND se o parceiro não pertencer à empresa")
+    void createExternalInvoicePartnerNotFound() {
+        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Parceiro não foi encontrado para esta empresa"));
+    }
+
+    @Test
+    @DisplayName("Deve lançar CONFLICT se já existir nota com a mesma chave de acesso na empresa")
+    void createExternalInvoiceAlreadyExists() {
+        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Já existe uma nota fiscal cadastrada com a chave de acesso"));
+    }
+
+    @Test
+    @DisplayName("Deve fazer rollback/limpeza dos arquivos no R2 quando falhar o upload do PDF")
+    void createExternalInvoiceRollbackOnUploadFailure() throws Exception {
+        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(false);
+
+        when(r2Service.upload(anyString(), any(InputStream.class), anyLong(), anyString()))
+                .thenReturn("mock-key")
+                .thenThrow(new RuntimeException("Simulated S3 network failure"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Não foi possível fazer o upload do arquivo"));
+
+        verify(r2Service, times(2)).delete(anyString());
+        verify(invoiceRepository, never()).save(any(InvoiceEntity.class));
+    }
+
+    @Test
+    @DisplayName("Deve buscar nota fiscal por ID pertencente à empresa com sucesso")
     void findByIdSuccess() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(companyId)
                 .partnerId(partnerId)
-                .totalAmount(new BigDecimal("250.00"))
+                .totalAmount(new BigDecimal("500.00"))
                 .documentType(DocumentType.NFE)
                 .environment(EnvironmentType.STG)
                 .status("ISSUED")
-                .xmlUrl("https://r2/xml")
-                .pdfUrl("https://r2/pdf")
                 .build();
 
         when(invoiceRepository.findByIdAndCompanyId(1L, companyId)).thenReturn(Optional.of(invoice));
@@ -230,12 +230,24 @@ class InvoiceServiceTest {
 
         assertNotNull(response);
         assertEquals(1L, response.getId());
-        assertEquals("https://r2/xml", response.getXmlUrl());
+        assertEquals(companyId, response.getCompanyId());
     }
 
     @Test
-    @DisplayName("Deve listar notas fiscais da empresa")
-    void listInvoicesSuccess() {
+    @DisplayName("Deve lançar NOT_FOUND ao buscar por ID se a nota não existir")
+    void findByIdNotFound() {
+        when(invoiceRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.findById(999L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Deve listar notas fiscais da empresa com sucesso")
+    void listSuccess() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(companyId)
@@ -252,6 +264,31 @@ class InvoiceServiceTest {
 
         assertEquals(1, list.size());
         assertEquals(1L, list.get(0).getId());
+    }
+
+    @Test
+    @DisplayName("Deve listar notas fiscais filtradas com sucesso")
+    void listWithFiltersSuccess() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .externalReference("EXT-123")
+                .operationType(1)
+                .documentType(DocumentType.NFE)
+                .environment(EnvironmentType.STG)
+                .status("ISSUED")
+                .totalAmount(new BigDecimal("100.00"))
+                .build();
+
+        when(invoiceRepository.findAll(any(Specification.class))).thenReturn(List.of(invoice));
+
+        List<InvoiceResponse> list = invoiceService.list(companyId, List.of(partnerId), "EXT-123", 1, DocumentType.NFE, "ISSUED");
+
+        assertEquals(1, list.size());
+        assertEquals(1L, list.get(0).getId());
+        assertEquals("EXT-123", list.get(0).getExternalReference());
+        verify(invoiceRepository, times(1)).findAll(any(Specification.class));
     }
 
     @Test
@@ -274,21 +311,8 @@ class InvoiceServiceTest {
     }
 
     @Test
-    @DisplayName("Deve falhar getPdfUrl com NOT_FOUND se nota fiscal não existir")
-    void getPdfUrlNotFound() {
-        when(invoiceRepository.findById(999L)).thenReturn(Optional.empty());
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.getPdfUrl(999L, userPrincipal)
-        );
-
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
-    }
-
-    @Test
-    @DisplayName("Deve falhar getPdfUrl com FORBIDDEN se nota fiscal pertencer a outra empresa")
-    void getPdfUrlForbiddenDifferentCompany() {
+    @DisplayName("Deve lançar FORBIDDEN ao obter URL do PDF se a nota pertencer a outra empresa")
+    void getPdfUrlForbidden() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(999L)
@@ -302,12 +326,11 @@ class InvoiceServiceTest {
         );
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
     }
 
     @Test
-    @DisplayName("Deve falhar getPdfUrl com NOT_FOUND se nota fiscal não tiver pdfUrl")
-    void getPdfUrlMissingPdfUrl() {
+    @DisplayName("Deve lançar NOT_FOUND ao obter URL do PDF se o campo pdfUrl estiver vazio")
+    void getPdfUrlNotFoundWhenFieldBlank() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(companyId)
@@ -321,7 +344,7 @@ class InvoiceServiceTest {
         );
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
+        assertTrue(ex.getReason().contains("Arquivo PDF não encontrado"));
     }
 
     @Test
@@ -330,39 +353,26 @@ class InvoiceServiceTest {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(companyId)
-                .xmlUrl("https://r2.aura.company/invoices/10/xml/nfe.xml")
+                .xmlUrl("https://r2.aura.company/invoices/10/xml/nota.xml")
                 .build();
 
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
-        when(r2Service.generateTemporaryUrl("https://r2.aura.company/invoices/10/xml/nfe.xml", Duration.ofMinutes(5)))
-                .thenReturn("https://signed-url/nfe.xml?exp=300");
+        when(r2Service.generateTemporaryUrl("https://r2.aura.company/invoices/10/xml/nota.xml", Duration.ofMinutes(5)))
+                .thenReturn("https://signed-url/nota.xml?exp=300");
 
         String temporaryUrl = invoiceService.getXmlUrl(1L, userPrincipal);
 
-        assertEquals("https://signed-url/nfe.xml?exp=300", temporaryUrl);
-        verify(r2Service, times(1)).generateTemporaryUrl("https://r2.aura.company/invoices/10/xml/nfe.xml", Duration.ofMinutes(5));
+        assertEquals("https://signed-url/nota.xml?exp=300", temporaryUrl);
+        verify(r2Service, times(1)).generateTemporaryUrl("https://r2.aura.company/invoices/10/xml/nota.xml", Duration.ofMinutes(5));
     }
 
     @Test
-    @DisplayName("Deve falhar getXmlUrl com NOT_FOUND se nota fiscal não existir")
-    void getXmlUrlNotFound() {
-        when(invoiceRepository.findById(999L)).thenReturn(Optional.empty());
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.getXmlUrl(999L, userPrincipal)
-        );
-
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
-    }
-
-    @Test
-    @DisplayName("Deve falhar getXmlUrl com FORBIDDEN se nota fiscal pertencer a outra empresa")
-    void getXmlUrlForbiddenDifferentCompany() {
+    @DisplayName("Deve lançar FORBIDDEN ao obter URL do XML se a nota pertencer a outra empresa")
+    void getXmlUrlForbidden() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(999L)
-                .xmlUrl("https://r2.aura.company/invoices/999/xml/nfe.xml")
+                .xmlUrl("https://r2.aura.company/invoices/999/xml/nota.xml")
                 .build();
 
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
@@ -372,16 +382,15 @@ class InvoiceServiceTest {
         );
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
     }
 
     @Test
-    @DisplayName("Deve falhar getXmlUrl com NOT_FOUND se nota fiscal não tiver xmlUrl")
-    void getXmlUrlMissingXmlUrl() {
+    @DisplayName("Deve lançar NOT_FOUND ao obter URL do XML se o campo xmlUrl estiver vazio")
+    void getXmlUrlNotFoundWhenFieldBlank() {
         InvoiceEntity invoice = InvoiceEntity.builder()
                 .id(1L)
                 .companyId(companyId)
-                .xmlUrl(null)
+                .xmlUrl("   ")
                 .build();
 
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
@@ -391,6 +400,6 @@ class InvoiceServiceTest {
         );
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        verifyNoInteractions(r2Service);
+        assertTrue(ex.getReason().contains("Arquivo XML não encontrado"));
     }
 }

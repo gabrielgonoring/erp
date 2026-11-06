@@ -1,6 +1,7 @@
 package company.aura.erp.dto.catalog;
 
 import company.aura.erp.entity.CatalogItemEntity;
+import company.aura.erp.enums.CatalogItemType;
 
 import java.math.BigDecimal;
 
@@ -8,6 +9,7 @@ public record CatalogItemSummaryResponse(
         Long id,
         String internalCode,
         String name,
+        CatalogItemType type,
         String description,
         BigDecimal unitPrice
 ) {
@@ -16,6 +18,7 @@ public record CatalogItemSummaryResponse(
                 entity.getId(),
                 entity.getInternalCode(),
                 entity.getDescription(),
+                entity.getType(),
                 entity.getDescription(),
                 entity.getUnitPrice()
         );

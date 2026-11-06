@@ -2,6 +2,7 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
+import company.aura.erp.enums.DocumentType;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.InvoiceService;
 import jakarta.validation.Valid;
@@ -47,10 +48,37 @@ public class InvoiceController {
 
     @GetMapping
     public ResponseEntity<List<InvoiceResponse>> list(
+            @RequestParam(name = "partnerId", required = false) List<Long> partnerId,
+            @RequestParam(name = "partnerIds", required = false) List<Long> partnerIds,
+            @RequestParam(required = false) String externalReference,
+            @RequestParam(required = false) Integer operationType,
+            @RequestParam(required = false) DocumentType documentType,
+            @RequestParam(required = false) String status,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        List<InvoiceResponse> responses = invoiceService.list(userPrincipal.getCompanyId());
+        List<Long> effectivePartnerIds = partnerIds != null && !partnerIds.isEmpty() ? partnerIds : partnerId;
+        List<InvoiceResponse> responses;
+        if ((effectivePartnerIds == null || effectivePartnerIds.isEmpty())
+                && (externalReference == null || externalReference.isBlank())
+                && operationType == null
+                && documentType == null
+                && (status == null || status.isBlank())) {
+            responses = invoiceService.list(userPrincipal.getCompanyId());
+        } else {
+            responses = invoiceService.list(
+                    userPrincipal.getCompanyId(),
+                    effectivePartnerIds,
+                    externalReference,
+                    operationType,
+                    documentType,
+                    status
+            );
+        }
         return ResponseEntity.ok(responses);
+    }
+
+    public ResponseEntity<List<InvoiceResponse>> list(UserPrincipal userPrincipal) {
+        return list(null, null, null, null, null, null, userPrincipal);
     }
 
     @GetMapping("/{id}/pdf")

@@ -138,6 +138,31 @@ class InvoiceControllerTest {
     }
 
     @Test
+    @DisplayName("Deve listar notas fiscais filtradas da empresa via controller")
+    void listWithFiltersSuccess() {
+        InvoiceResponse responseDto = new InvoiceResponse(
+                1L, 10L, 5L, "EXT-123", 1, DocumentType.NFE, EnvironmentType.STG,
+                "ISSUED", 10, 1, null, null, null, null, 9,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("500.00"),
+                null, "https://r2/danfe.pdf", "https://r2/nfe.xml",
+                LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now()
+        );
+
+        when(invoiceService.list(10L, List.of(5L), "EXT-123", 1, DocumentType.NFE, "ISSUED"))
+                .thenReturn(List.of(responseDto));
+
+        ResponseEntity<List<InvoiceResponse>> response = invoiceController.list(
+                List.of(5L), null, "EXT-123", 1, DocumentType.NFE, "ISSUED", userPrincipal
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals("EXT-123", response.getBody().get(0).getExternalReference());
+        verify(invoiceService, times(1)).list(10L, List.of(5L), "EXT-123", 1, DocumentType.NFE, "ISSUED");
+    }
+
+    @Test
     @DisplayName("Deve redirecionar 302 FOUND para URL temporária do PDF")
     void getPdfSuccess() {
         String temporaryUrl = "https://r2.aura.company/signed/danfe.pdf?token=xyz";

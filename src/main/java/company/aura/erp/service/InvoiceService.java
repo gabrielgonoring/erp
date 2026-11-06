@@ -3,13 +3,16 @@ package company.aura.erp.service;
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.entity.InvoiceEntity;
+import company.aura.erp.enums.DocumentType;
 import company.aura.erp.mapper.InvoiceMapper;
 import company.aura.erp.repository.InvoiceRepository;
 import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
+import company.aura.erp.specification.InvoiceSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -108,6 +111,31 @@ public class InvoiceService {
         log.info("list() - START - companyId={}", companyId);
 
         List<InvoiceResponse> responses = invoiceRepository.findByCompanyId(companyId)
+                .stream()
+                .map(InvoiceMapper::fromEntity)
+                .toList();
+
+        log.info("list() - END - companyId={}, totalInvoices={}", companyId, responses.size());
+        return responses;
+    }
+
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> list(
+            Long companyId,
+            List<Long> partnerIds,
+            String externalReference,
+            Integer operationType,
+            DocumentType documentType,
+            String status
+    ) {
+        log.info("list() - START - companyId={}, partnerIds={}, externalReference={}, operationType={}, documentType={}, status={}",
+                companyId, partnerIds, externalReference, operationType, documentType, status);
+
+        Specification<InvoiceEntity> spec = InvoiceSpecification.filter(
+                companyId, partnerIds, externalReference, operationType, documentType, status
+        );
+
+        List<InvoiceResponse> responses = invoiceRepository.findAll(spec)
                 .stream()
                 .map(InvoiceMapper::fromEntity)
                 .toList();
