@@ -117,7 +117,7 @@ class OrderControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
-        assertEquals("Cliente Teste", response.getBody().customerName());
+        assertEquals("Cliente Teste", response.getBody().getCustomerName());
         verify(orderService).findById(1L, 10L);
     }
 
@@ -380,7 +380,7 @@ class OrderControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().size());
-        assertEquals(100L, response.getBody().get(0).invoiceId());
+        assertEquals(100L, response.getBody().get(0).getInvoiceId());
         verify(orderService).findInvoicesByOrderId(orderId, 10L);
     }
 

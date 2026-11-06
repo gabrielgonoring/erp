@@ -5,6 +5,7 @@ import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderInstallmentEntity;
 import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.enums.InstallmentStatus;
+import company.aura.erp.mapper.OrderInstallmentMapper;
 import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +47,7 @@ public class OrderPaymentService {
         return installments.stream()
                 .map(installment -> {
                     List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByInstallmentId(installment.getId());
-                    return OrderInstallmentResponse.fromEntity(installment, transactions);
+                    return OrderInstallmentMapper.fromEntity(installment, transactions);
                 })
                 .toList();
     }
@@ -110,7 +111,7 @@ public class OrderPaymentService {
         List<PaymentTransactionEntity> allTransactions = new ArrayList<>(existingTransactions);
         allTransactions.add(savedTransaction);
 
-        return OrderInstallmentResponse.fromEntity(savedInstallment, allTransactions);
+        return OrderInstallmentMapper.fromEntity(savedInstallment, allTransactions);
     }
 
     public OrderInstallmentResponse addInstallment(OrderEntity order, OrderInstallmentCreateRequest request) {
@@ -155,10 +156,10 @@ public class OrderPaymentService {
                     .notes(request.notes())
                     .build();
             PaymentTransactionEntity savedTx = paymentTransactionRepository.save(transaction);
-            return OrderInstallmentResponse.fromEntity(saved, List.of(savedTx));
+            return OrderInstallmentMapper.fromEntity(saved, List.of(savedTx));
         }
 
-        return OrderInstallmentResponse.fromEntity(saved, Collections.emptyList());
+        return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
     }
 
     public OrderInstallmentResponse cancelInstallment(OrderEntity order, Long installmentId) {
@@ -181,7 +182,7 @@ public class OrderPaymentService {
         installment.setStatus(InstallmentStatus.CANCELED);
         OrderInstallmentEntity saved = orderInstallmentRepository.save(installment);
 
-        return OrderInstallmentResponse.fromEntity(saved, Collections.emptyList());
+        return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
     }
 
     private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {

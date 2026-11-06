@@ -5,6 +5,9 @@ import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.*;
 import company.aura.erp.enums.*;
+import company.aura.erp.mapper.OrderItemMapper;
+import company.aura.erp.mapper.OrderMapper;
+import company.aura.erp.mapper.OrderShippingMapper;
 import company.aura.erp.repository.*;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +55,7 @@ public class OrderService {
         String customerName = partner != null ? partner.getName() : null;
 
         if (request.items() == null || request.items().isEmpty()) {
-            return OrderResponse.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
+            return OrderMapper.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
         }
 
         List<OrderItemEntity> savedItems = orderItemService.saveInitialItems(request, savedOrder);
@@ -61,7 +64,7 @@ public class OrderService {
 
         savedOrder = orderRepository.save(savedOrder);
 
-        return OrderResponse.fromEntity(savedOrder, customerName, savedItems, Collections.emptyList(), savedShipping);
+        return OrderMapper.fromEntity(savedOrder, customerName, savedItems, Collections.emptyList(), savedShipping);
     }
 
     private PartnerEntity validateInitialOrder(OrderCreateRequest request, Long companyId) {
@@ -112,7 +115,7 @@ public class OrderService {
 
         recalculateOrderTotals(order);
 
-        return OrderItemResponse.fromEntity(item);
+        return OrderItemMapper.fromEntity(item);
     }
 
     @Transactional
@@ -125,7 +128,7 @@ public class OrderService {
 
         recalculateOrderTotals(order);
 
-        return OrderItemResponse.fromEntity(item);
+        return OrderItemMapper.fromEntity(item);
     }
 
     @Transactional
@@ -167,7 +170,7 @@ public class OrderService {
         List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        return OrderResponse.fromEntity(savedOrder, customerName, items, installments, shipping, null);
+        return OrderMapper.fromEntity(savedOrder, customerName, items, installments, shipping, null);
     }
 
     @Transactional
@@ -197,7 +200,7 @@ public class OrderService {
 
         recalculateOrderTotals(order);
 
-        return OrderShippingResponse.fromEntity(shipping);
+        return OrderShippingMapper.fromEntity(shipping);
     }
 
 
@@ -215,7 +218,7 @@ public class OrderService {
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
         List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(companyId, order.getId());
 
-        return OrderResponse.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
+        return OrderMapper.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
     }
 
     @Transactional
@@ -292,7 +295,7 @@ public class OrderService {
                         .orElse(null)
                 : null;
 
-        return OrderResponse.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping, null);
+        return OrderMapper.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping, null);
     }
 
     @Transactional
@@ -377,7 +380,7 @@ public class OrderService {
     }
 
     private void validIfIsCompanyOrder(Long orderId, Long companyId) {
-        if (orderRepository.existsByIdAndCompanyId(orderId, companyId)){
+        if (!orderRepository.existsByIdAndCompanyId(orderId, companyId)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com ID: " + orderId);
         }
     }

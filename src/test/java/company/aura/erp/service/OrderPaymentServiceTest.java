@@ -136,9 +136,9 @@ class OrderPaymentServiceTest {
         assertNotNull(responses);
         assertEquals(1, responses.size());
         OrderInstallmentResponse resp = responses.get(0);
-        assertEquals(BigDecimal.valueOf(40.00), resp.paidAmount());
-        assertEquals(BigDecimal.valueOf(60.00), resp.remainingAmount());
-        assertEquals(1, resp.transactions().size());
+        assertEquals(BigDecimal.valueOf(40.00), resp.getPaidAmount());
+        assertEquals(BigDecimal.valueOf(60.00), resp.getRemainingAmount());
+        assertEquals(1, resp.getTransactions().size());
     }
 
     @Test
@@ -170,10 +170,10 @@ class OrderPaymentServiceTest {
         OrderInstallmentResponse response = orderPaymentService.payInstallment(sampleOrder, 1L, request);
 
         assertNotNull(response);
-        assertEquals(InstallmentStatus.PARTIALLY_PAID, response.status());
-        assertEquals(BigDecimal.valueOf(40.00), response.paidAmount());
-        assertEquals(BigDecimal.valueOf(60.00), response.remainingAmount());
-        assertEquals(1, response.transactions().size());
+        assertEquals(InstallmentStatus.PARTIALLY_PAID, response.getStatus());
+        assertEquals(BigDecimal.valueOf(40.00), response.getPaidAmount());
+        assertEquals(BigDecimal.valueOf(60.00), response.getRemainingAmount());
+        assertEquals(1, response.getTransactions().size());
         verify(paymentTransactionRepository).save(any(PaymentTransactionEntity.class));
     }
 
@@ -208,10 +208,10 @@ class OrderPaymentServiceTest {
         OrderInstallmentResponse response = orderPaymentService.payInstallment(sampleOrder, 1L, request);
 
         assertNotNull(response);
-        assertEquals(InstallmentStatus.PAID, response.status());
-        assertEquals(BigDecimal.valueOf(100.00), response.paidAmount());
-        assertEquals(0, BigDecimal.ZERO.compareTo(response.remainingAmount()));
-        assertEquals(2, response.transactions().size());
+        assertEquals(InstallmentStatus.PAID, response.getStatus());
+        assertEquals(BigDecimal.valueOf(100.00), response.getPaidAmount());
+        assertEquals(0, BigDecimal.ZERO.compareTo(response.getRemainingAmount()));
+        assertEquals(2, response.getTransactions().size());
     }
 
     @Test
@@ -292,8 +292,8 @@ class OrderPaymentServiceTest {
         OrderInstallmentResponse response = orderPaymentService.addInstallment(sampleOrder, request);
 
         assertNotNull(response);
-        assertEquals(2, response.installmentNumber());
-        assertEquals(InstallmentStatus.PENDING, response.status());
+        assertEquals(2, response.getInstallmentNumber());
+        assertEquals(InstallmentStatus.PENDING, response.getStatus());
         verify(paymentTransactionRepository, never()).save(any());
     }
 
@@ -320,9 +320,9 @@ class OrderPaymentServiceTest {
         OrderInstallmentResponse response = orderPaymentService.addInstallment(sampleOrder, request);
 
         assertNotNull(response);
-        assertEquals(InstallmentStatus.PAID, response.status());
-        assertEquals(BigDecimal.valueOf(80.00), response.paidAmount());
-        assertEquals(1, response.transactions().size());
+        assertEquals(InstallmentStatus.PAID, response.getStatus());
+        assertEquals(BigDecimal.valueOf(80.00), response.getPaidAmount());
+        assertEquals(1, response.getTransactions().size());
         verify(paymentTransactionRepository).save(any(PaymentTransactionEntity.class));
     }
 
@@ -344,7 +344,7 @@ class OrderPaymentServiceTest {
         OrderInstallmentResponse response = orderPaymentService.cancelInstallment(sampleOrder, 1L);
 
         assertNotNull(response);
-        assertEquals(InstallmentStatus.CANCELED, response.status());
+        assertEquals(InstallmentStatus.CANCELED, response.getStatus());
         verify(orderInstallmentRepository).save(installment);
     }
 

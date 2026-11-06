@@ -1,38 +1,27 @@
 package company.aura.erp.dto.order;
 
-import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.enums.PaymentMethod;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record PaymentTransactionResponse(
-        Long id,
-        Long installmentId,
-        Long companyId,
-        LocalDateTime paidAt,
-        BigDecimal amountPaid,
-        PaymentMethod paymentMethod,
-        String cardBrand,
-        String nsuAuthorization,
-        String notes,
-        LocalDateTime createdAt
-) {
-    public static PaymentTransactionResponse fromEntity(PaymentTransactionEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-        return new PaymentTransactionResponse(
-                entity.getId(),
-                entity.getInstallmentId(),
-                entity.getCompanyId(),
-                entity.getPaidAt(),
-                entity.getAmountPaid(),
-                entity.getPaymentMethod(),
-                entity.getCardBrand(),
-                entity.getNsuAuthorization(),
-                entity.getNotes(),
-                entity.getCreatedAt()
-        );
-    }
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class PaymentTransactionResponse {
+    private Long id;
+    private Long installmentId;
+    private Long companyId;
+    private LocalDateTime paidAt;
+    private BigDecimal amountPaid;
+    private PaymentMethod paymentMethod;
+    private String cardBrand;
+    private String nsuAuthorization;
+    private String notes;
+    private LocalDateTime createdAt;
 }

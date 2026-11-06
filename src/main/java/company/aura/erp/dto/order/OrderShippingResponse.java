@@ -1,51 +1,33 @@
 package company.aura.erp.dto.order;
 
-import company.aura.erp.entity.OrderShippingEntity;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record OrderShippingResponse(
-        Long id,
-        Long orderId,
-        Long carrierId,
-        Integer freightMode,
-        String vehiclePlate,
-        String vehicleState,
-        String rntrcCode,
-        Integer packageQuantity,
-        String packageSpecies,
-        String packageBrand,
-        String packageNumbering,
-        BigDecimal grossWeightKg,
-        BigDecimal netWeightKg,
-        String trackingCode,
-        String shippingNotes,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
-) {
-    public static OrderShippingResponse fromEntity(OrderShippingEntity entity) {
-        if (entity == null) {
-            return null;
-        }
-        return new OrderShippingResponse(
-                entity.getId(),
-                entity.getOrderId(),
-                entity.getCarrierId(),
-                entity.getFreightMode(),
-                entity.getVehiclePlate(),
-                entity.getVehicleState(),
-                entity.getRntrcCode(),
-                entity.getPackageQuantity(),
-                entity.getPackageSpecies(),
-                entity.getPackageBrand(),
-                entity.getPackageNumbering(),
-                entity.getGrossWeightKg(),
-                entity.getNetWeightKg(),
-                entity.getTrackingCode(),
-                entity.getShippingNotes(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
-    }
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class OrderShippingResponse {
+    private Long id;
+    private Long orderId;
+    private Long carrierId;
+    private Integer freightMode;
+    private String vehiclePlate;
+    private String vehicleState;
+    private String rntrcCode;
+    private Integer packageQuantity;
+    private String packageSpecies;
+    private String packageBrand;
+    private String packageNumbering;
+    private BigDecimal grossWeightKg;
+    private BigDecimal netWeightKg;
+    private String trackingCode;
+    private String shippingNotes;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

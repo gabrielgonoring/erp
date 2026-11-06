@@ -8,10 +8,10 @@ import company.aura.erp.dto.order.OrderInvoiceResponse;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderInvoiceEntity;
 import company.aura.erp.enums.*;
+import company.aura.erp.mapper.OrderInvoiceMapper;
 import company.aura.erp.repository.OrderInvoiceRepository;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.query.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +42,7 @@ public class OrderInvoiceService {
                 .notes(request.getNotes())
                 .build();
 
-        return OrderInvoiceResponse.fromEntity(orderInvoiceRepository.save(orderInvoice));
+        return OrderInvoiceMapper.fromEntity(orderInvoiceRepository.save(orderInvoice));
     }
 
     @Transactional
@@ -100,7 +100,7 @@ public class OrderInvoiceService {
     public List<OrderInvoiceResponse> findInvoicesByOrderId(Long orderId, Long companyId) {
         return orderInvoiceRepository.findByCompanyIdAndOrderId(companyId, orderId)
                 .stream()
-                .map(OrderInvoiceResponse::fromEntity)
+                .map(OrderInvoiceMapper::fromEntity)
                 .toList();
     }
 
