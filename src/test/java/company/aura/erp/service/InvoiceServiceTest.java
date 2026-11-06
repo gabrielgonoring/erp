@@ -8,6 +8,7 @@ import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
 import company.aura.erp.repository.InvoiceRepository;
 import company.aura.erp.repository.PartnerRepository;
+import company.aura.erp.security.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,9 +49,17 @@ class InvoiceServiceTest {
 
     private Long companyId = 10L;
     private Long partnerId = 5L;
+    private UserPrincipal userPrincipal;
 
     @BeforeEach
     void setUp() {
+        userPrincipal = UserPrincipal.builder()
+                .id(1L)
+                .companyId(companyId)
+                .email("test@aura.company")
+                .name("Test User")
+                .authorities(Collections.emptyList())
+                .build();
     }
 
     @Test
@@ -92,13 +102,7 @@ class InvoiceServiceTest {
                 "%PDF-1.4 pdf content".getBytes()
         );
 
-        PartnerEntity partner = PartnerEntity.builder()
-                .id(partnerId)
-                .companyId(companyId)
-                .name("Cliente Teste")
-                .build();
-
-        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId)).thenReturn(Optional.of(partner));
+        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(false);
 
         when(r2Service.upload(anyString(), any(InputStream.class), anyLong(), eq("application/xml")))
@@ -117,7 +121,7 @@ class InvoiceServiceTest {
             return entity;
         });
 
-        InvoiceResponse response = invoiceService.createExternalInvoice(request, xmlFile, danfePdf, );
+        InvoiceResponse response = invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal);
 
         assertNotNull(response);
         assertEquals(1L, response.id());
@@ -145,10 +149,10 @@ class InvoiceServiceTest {
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
 
-        when(partnerRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+        when(partnerRepository.existsByIdAndCompanyId(999L, companyId)).thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, companyId)
+                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
         );
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
@@ -171,13 +175,11 @@ class InvoiceServiceTest {
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
 
-        PartnerEntity partner = PartnerEntity.builder().id(partnerId).companyId(companyId).build();
-        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId)).thenReturn(Optional.of(partner));
-        when(invoiceRepository.existsByCompanyIdAndAccessKey(companyId, accessKey))
-                .thenReturn(Optional.of(InvoiceEntity.builder().id(2L).accessKey(accessKey).build()));
+        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(invoiceRepository.existsByCompanyIdAndAccessKey(companyId, accessKey)).thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, companyId)
+                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
@@ -200,7 +202,7 @@ class InvoiceServiceTest {
         MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                invoiceService.createExternalInvoice(request, emptyXml, danfePdf, companyId)
+                invoiceService.createExternalInvoice(request, emptyXml, danfePdf, userPrincipal)
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());

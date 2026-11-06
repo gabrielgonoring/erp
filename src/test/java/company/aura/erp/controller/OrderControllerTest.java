@@ -1,10 +1,9 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
-import company.aura.erp.enums.CatalogItemType;
-import company.aura.erp.enums.InstallmentStatus;
-import company.aura.erp.enums.OrderStatus;
-import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.entity.InvoiceEntity;
+import company.aura.erp.enums.*;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -330,6 +330,39 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{orderId}/invoice/external — Deve vincular nota fiscal externa ao pedido e retornar HTTP 201")
+    void shouldLinkExternalInvoice() {
+        Long orderId = 1L;
+        DocumentType documentType = DocumentType.NFE;
+        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
+        MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "danfe.pdf", "application/pdf", "%PDF".getBytes());
+        OrderExternalInvoiceRequest formRequest = new OrderExternalInvoiceRequest(
+                documentType, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        InvoiceEntity invoiceEntity = InvoiceEntity.builder()
+                .id(100L)
+                .companyId(10L)
+                .partnerId(5L)
+                .documentType(DocumentType.NFE)
+                .status("ISSUED")
+                .totalAmount(BigDecimal.valueOf(150.00))
+                .build();
+        InvoiceResponse invoiceResponse = InvoiceResponse.fromEntity(invoiceEntity);
+
+        when(orderService.linkExternalInvoice(orderId, documentType, formRequest, xmlFile, pdfFile, userPrincipal))
+                .thenReturn(invoiceResponse);
+
+        ResponseEntity<InvoiceResponse> response = orderController.linkExternalInvoice(
+                orderId, documentType, xmlFile, pdfFile, formRequest, userPrincipal
+        );
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(invoiceResponse, response.getBody());
+        verify(orderService).linkExternalInvoice(orderId, documentType, formRequest, xmlFile, pdfFile, userPrincipal);
     }
 
     @Test

@@ -1,6 +1,13 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.order.*;
+import company.aura.erp.dto.invoice.InvoiceCreateRequest;
+import company.aura.erp.dto.invoice.InvoiceResponse;
+import company.aura.erp.enums.DocumentType;
+import company.aura.erp.enums.EnvironmentType;
+import company.aura.erp.security.UserPrincipal;
+import org.springframework.mock.web.MockMultipartFile;
+
 import company.aura.erp.entity.*;
 import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.InstallmentStatus;
@@ -55,6 +62,9 @@ class OrderServiceTest {
 
     @Mock
     private OrderShippingService orderShippingService;
+    @Mock
+    private InvoiceService invoiceService;
+
 
     @InjectMocks
     private OrderService orderService;
@@ -685,5 +695,142 @@ class OrderServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verify(orderShippingService, never()).updateShipping(any(), any());
+    }
+
+    @Test
+    @DisplayName("linkExternalInvoice - Deve vincular nota fiscal NFE ao pedido com sucesso")
+    void shouldLinkExternalInvoiceNfeSuccess() {
+        UserPrincipal user = UserPrincipal.builder().id(1L).companyId(companyId).build();
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.OPEN)
+                .totalAmount(BigDecimal.valueOf(250.00))
+                .freightAmount(BigDecimal.valueOf(20.00))
+                .productsAmount(BigDecimal.valueOf(230.00))
+                .notes("Obs do pedido")
+                .build();
+
+        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
+        MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "danfe.pdf", "application/pdf", "%PDF".getBytes());
+        OrderExternalInvoiceRequest request = new OrderExternalInvoiceRequest(
+                DocumentType.NFE, 123, 1, "accessKey123", "prot123", null, null, null, null, null, null, null, null, null, null, null, null, null, null
+        );
+
+        InvoiceEntity invoiceEntity = InvoiceEntity.builder()
+                .id(555L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .documentType(DocumentType.NFE)
+                .status("ISSUED")
+                .totalAmount(BigDecimal.valueOf(250.00))
+                .freightAmount(BigDecimal.valueOf(20.00))
+                .productsAmount(BigDecimal.valueOf(230.00))
+                .additionalInformation("Obs do pedido")
+                .build();
+        InvoiceResponse invoiceResponse = InvoiceResponse.fromEntity(invoiceEntity);
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
+        when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user)))
+                .thenReturn(invoiceResponse);
+        when(orderRepository.save(order)).thenReturn(order);
+
+        InvoiceResponse response = orderService.linkExternalInvoice(100L, DocumentType.NFE, request, xmlFile, pdfFile, user);
+
+        assertNotNull(response);
+        assertEquals(555L, response.id());
+        assertEquals(555L, order.getNfeInvoiceId());
+        assertNull(order.getNfseInvoiceId());
+        verify(orderRepository).save(order);
+        verify(invoiceService).createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user));
+    }
+
+    @Test
+    @DisplayName("linkExternalInvoice - Deve vincular nota fiscal NFSE ao pedido com sucesso")
+    void shouldLinkExternalInvoiceNfseSuccess() {
+        UserPrincipal user = UserPrincipal.builder().id(1L).companyId(companyId).build();
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.COMPLETED)
+                .totalAmount(BigDecimal.valueOf(100.00))
+                .build();
+
+        MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfse.xml", "application/xml", "<xml/>".getBytes());
+        MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "nfse.pdf", "application/pdf", "%PDF".getBytes());
+
+        InvoiceEntity invoiceEntity = InvoiceEntity.builder()
+                .id(777L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .documentType(DocumentType.NFSE)
+                .status("ISSUED")
+                .totalAmount(BigDecimal.valueOf(100.00))
+                .build();
+        InvoiceResponse invoiceResponse = InvoiceResponse.fromEntity(invoiceEntity);
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
+        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
+        when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user)))
+                .thenReturn(invoiceResponse);
+        when(orderRepository.save(order)).thenReturn(order);
+
+        InvoiceResponse response = orderService.linkExternalInvoice(100L, DocumentType.NFSE, null, xmlFile, pdfFile, user);
+
+        assertNotNull(response);
+        assertEquals(777L, response.id());
+        assertEquals(777L, order.getNfseInvoiceId());
+        assertNull(order.getNfeInvoiceId());
+        verify(orderRepository).save(order);
+    }
+
+    @Test
+    @DisplayName("linkExternalInvoice - Deve lancar CONFLICT se pedido ja possui nota NFE vinculada")
+    void shouldThrowConflictWhenNfeAlreadyLinked() {
+        UserPrincipal user = UserPrincipal.builder().id(1L).companyId(companyId).build();
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.OPEN)
+                .nfeInvoiceId(999L)
+                .totalAmount(BigDecimal.valueOf(100.00))
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.linkExternalInvoice(100L, DocumentType.NFE, null, null, null, user)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verifyNoInteractions(invoiceService);
+    }
+
+    @Test
+    @DisplayName("linkExternalInvoice - Deve lancar BAD_REQUEST se pedido cancelado")
+    void shouldThrowBadRequestWhenLinkingToCanceledOrder() {
+        UserPrincipal user = UserPrincipal.builder().id(1L).companyId(companyId).build();
+        OrderEntity order = OrderEntity.builder()
+                .id(100L)
+                .companyId(companyId)
+                .partnerId(partnerId)
+                .status(OrderStatus.CANCELED)
+                .totalAmount(BigDecimal.valueOf(100.00))
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.linkExternalInvoice(100L, DocumentType.NFE, null, null, null, user)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verifyNoInteractions(invoiceService);
     }
 }

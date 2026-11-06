@@ -1,6 +1,8 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
+import company.aura.erp.enums.DocumentType;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.OrderService;
 import jakarta.validation.Valid;
@@ -10,9 +12,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -159,6 +163,24 @@ public class OrderController {
     ) {
         OrderResponse response = orderService.closeOrder(id, request, userPrincipal.getCompanyId());
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/{orderId}/invoice/external", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<InvoiceResponse> linkExternalInvoice(
+            @PathVariable Long orderId,
+            @RequestPart(value = "xmlFile", required = false) MultipartFile xmlFile,
+            @RequestPart(value = "pdfFile", required = false) MultipartFile pdfFile,
+            @ModelAttribute OrderExternalInvoiceRequest formRequest,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        InvoiceResponse response = orderService.linkExternalInvoice(
+                orderId,
+                formRequest,
+                xmlFile,
+                pdfFile,
+                userPrincipal
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping

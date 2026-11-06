@@ -34,7 +34,6 @@ public class CloudflareR2Service {
     private final S3Presigner s3Presigner;
     private final CloudflareR2Properties properties;
 
-    
     private String getBucketName() {
         String bucket = properties.getBucketName();
         if (bucket == null || bucket.isBlank()) {
@@ -42,12 +41,17 @@ public class CloudflareR2Service {
         }
         return bucket.trim();
     }
-    
+
     public String upload(MultipartFile file) {
-        return upload(file, null);
+        log.info("upload() - START - originalFilename={}", file != null ? file.getOriginalFilename() : null);
+        String key = upload(file, null);
+        log.info("upload() - END - key={}", key);
+        return key;
     }
-    
+
     public String upload(MultipartFile file, String folder) {
+        log.info("upload() - START - originalFilename={}, folder={}",
+                file != null ? file.getOriginalFilename() : null, folder);
 
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O arquivo para upload não pode estar vazio.");
@@ -56,7 +60,6 @@ public class CloudflareR2Service {
         String originalFilename = StringUtils.cleanPath(
                 file.getOriginalFilename() != null ? file.getOriginalFilename() : "file"
         );
-
 
         String uniqueKey = UUID.randomUUID() + "-" + originalFilename;
 
@@ -72,14 +75,17 @@ public class CloudflareR2Service {
 
         try {
             upload(uniqueKey, file.getInputStream(), file.getSize(), contentType);
+            log.info("upload() - END - key={}", uniqueKey);
             return uniqueKey;
         } catch (IOException e) {
-            log.error("Erro ao ler o InputStream do arquivo para upload: {}", originalFilename, e);
+            log.error("upload() - ERROR - Error when reading file input stream - originalFilename: {}, error: {}", originalFilename, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Falha ao processar o arquivo para upload.", e);
         }
     }
-    
+
     public String upload(String key, byte[] content, String contentType) {
+        log.info("upload() - START - key={}, size={}, contentType={}", key, content != null ? content.length : null, contentType);
+
         if (key == null || key.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A chave do arquivo não pode ser nula ou vazia.");
         }
@@ -100,15 +106,17 @@ public class CloudflareR2Service {
                     .build();
 
             s3Client.putObject(request, RequestBody.fromBytes(content));
-            log.info("Upload realizado com sucesso no R2: bucket='{}', key='{}', tamanho={} bytes", getBucketName(), key, content.length);
+            log.info("upload() - END - key={}", key);
             return key;
         } catch (S3Exception e) {
-            log.error("Erro no upload para o Cloudflare R2 (key='{}'): {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("upload() - ERROR - Error when uploading bytes to bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao enviar arquivo", e);
         }
     }
-    
+
     public String upload(String key, InputStream inputStream, long contentLength, String contentType) {
+        log.info("upload() - START - key={}, contentLength={}, contentType={}", key, contentLength, contentType);
+
         if (key == null || key.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A chave do arquivo não pode ser nula ou vazia.");
         }
@@ -129,15 +137,16 @@ public class CloudflareR2Service {
                     .build();
 
             s3Client.putObject(request, RequestBody.fromInputStream(inputStream, contentLength));
-            log.info("Upload de stream realizado com sucesso no R2: bucket='{}', key='{}', tamanho={} bytes", getBucketName(), key, contentLength);
+            log.info("upload() - END - key={}", key);
             return key;
         } catch (S3Exception e) {
-            log.error("Erro no upload de stream para o Cloudflare R2 (key='{}'): {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("upload() - ERROR - Error when uploading stream to bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao enviar arquivo", e);
         }
     }
-    
+
     public byte[] download(String key) {
+        log.info("download() - START - key={}", key);
         validateKey(key);
         try {
             GetObjectRequest request = GetObjectRequest.builder()
@@ -145,18 +154,20 @@ public class CloudflareR2Service {
                     .key(key)
                     .build();
 
-            return s3Client.getObjectAsBytes(request).asByteArray();
+            byte[] bytes = s3Client.getObjectAsBytes(request).asByteArray();
+            log.info("download() - END - key={}, size={}", key, bytes.length);
+            return bytes;
         } catch (NoSuchKeyException e) {
-            log.warn("Arquivo não encontrado no Cloudflare R2: key='{}'", key);
+            log.warn("download() - ERROR - File not found in bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo não encontrado no bucket: " + key, e);
         } catch (S3Exception e) {
-            log.error("Erro ao buscar arquivo '{}' no Cloudflare R2: {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("download() - ERROR - Error when downloading file from bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao buscar arquivo", e);
         }
     }
 
-
     public ResponseInputStream<GetObjectResponse> getFileInputStream(String key) {
+        log.info("getFileInputStream() - START - key={}", key);
         validateKey(key);
         try {
             GetObjectRequest request = GetObjectRequest.builder()
@@ -164,17 +175,20 @@ public class CloudflareR2Service {
                     .key(key)
                     .build();
 
-            return s3Client.getObject(request);
+            ResponseInputStream<GetObjectResponse> responseInputStream = s3Client.getObject(request);
+            log.info("getFileInputStream() - END - key={}", key);
+            return responseInputStream;
         } catch (NoSuchKeyException e) {
-            log.warn("Arquivo não encontrado no Cloudflare R2: key='{}'", key);
+            log.warn("getFileInputStream() - ERROR - File not found in bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo não encontrado no bucket: " + key, e);
         } catch (S3Exception e) {
-            log.error("Erro ao obter stream do arquivo '{}' no Cloudflare R2: {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("getFileInputStream() - ERROR - Error when getting file stream from bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao obter stream do arquivo", e);
         }
     }
-    
+
     public List<R2FileInfo> searchFiles(String prefix) {
+        log.info("searchFiles() - START - prefix={}", prefix);
         try {
             ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
                     .bucket(getBucketName());
@@ -185,10 +199,11 @@ public class CloudflareR2Service {
 
             ListObjectsV2Response response = s3Client.listObjectsV2(builder.build());
             if (response.contents() == null || response.contents().isEmpty()) {
+                log.info("searchFiles() - END - prefix={}, totalFiles=0", prefix);
                 return Collections.emptyList();
             }
 
-            return response.contents().stream()
+            List<R2FileInfo> files = response.contents().stream()
                     .map(obj -> new R2FileInfo(
                             obj.key(),
                             obj.size(),
@@ -196,15 +211,19 @@ public class CloudflareR2Service {
                             obj.eTag()
                     ))
                     .toList();
+
+            log.info("searchFiles() - END - prefix={}, totalFiles={}", prefix, files.size());
+            return files;
         } catch (S3Exception e) {
-            log.error("Erro ao listar arquivos com prefixo '{}'", prefix, e);
+            log.error("searchFiles() - ERROR - Error when searching files in bucket - prefix: {}, error: {}", prefix, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao listar arquivos", e);
         }
     }
 
-
     public boolean exists(String key) {
+        log.info("exists() - START - key={}", key);
         if (key == null || key.isBlank()) {
+            log.info("exists() - END - key={}, exists=false", key);
             return false;
         }
         try {
@@ -214,31 +233,39 @@ public class CloudflareR2Service {
                     .build();
 
             s3Client.headObject(request);
+            log.info("exists() - END - key={}, exists=true", key);
             return true;
         } catch (NoSuchKeyException e) {
+            log.info("exists() - END - key={}, exists=false", key);
             return false;
         } catch (S3Exception e) {
             if (e.statusCode() == 404) {
+                log.info("exists() - END - key={}, exists=false", key);
                 return false;
             }
-            log.error("Erro ao verificar existência do arquivo '{}' no Cloudflare R2: {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("exists() - ERROR - Error when checking if file exists in bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao verificar existência do arquivo", e);
         }
     }
 
-
     public String getFileUrl(String key) {
+        log.info("getFileUrl() - START - key={}", key);
         validateKey(key);
         String publicUrl = properties.getPublicUrl();
         if (publicUrl != null && !publicUrl.isBlank()) {
             String baseUrl = publicUrl.replaceAll("/+$", "");
             String cleanKey = key.replaceAll("^/+", "");
-            return baseUrl + "/" + cleanKey;
+            String fileUrl = baseUrl + "/" + cleanKey;
+            log.info("getFileUrl() - END - key={}, url={}", key, fileUrl);
+            return fileUrl;
         }
-        return generatePresignedUrl(key, Duration.ofMinutes(60));
+        String presignedUrl = generatePresignedUrl(key, Duration.ofMinutes(60));
+        log.info("getFileUrl() - END - key={}, url={}", key, presignedUrl);
+        return presignedUrl;
     }
 
     public String generatePresignedUrl(String key, Duration duration) {
+        log.info("generatePresignedUrl() - START - key={}, duration={}", key, duration);
         validateKey(key);
         Duration expiration = (duration != null && !duration.isNegative() && !duration.isZero())
                 ? duration
@@ -256,15 +283,17 @@ public class CloudflareR2Service {
                     .build();
 
             PresignedGetObjectRequest presigned = s3Presigner.presignGetObject(presignRequest);
-            return presigned.url().toString();
+            String url = presigned.url().toString();
+            log.info("generatePresignedUrl() - END - key={}, url={}", key, url);
+            return url;
         } catch (S3Exception e) {
-            log.error("Erro ao gerar URL pré-assinada para a chave '{}': {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("generatePresignedUrl() - ERROR - Error when generating presigned URL - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao gerar URL pré-assinada para o arquivo", e);
         }
     }
 
-   
     public void delete(String key) {
+        log.info("delete() - START - key={}", key);
         validateKey(key);
         try {
             DeleteObjectRequest request = DeleteObjectRequest.builder()
@@ -273,16 +302,17 @@ public class CloudflareR2Service {
                     .build();
 
             s3Client.deleteObject(request);
-            log.info("Arquivo '{}' excluído com sucesso do bucket '{}'", key, getBucketName());
+            log.info("delete() - END - key={}", key);
         } catch (S3Exception e) {
-            log.error("Erro ao excluir arquivo '{}' do Cloudflare R2: {}", key, e.awsErrorDetails().errorMessage(), e);
+            log.error("delete() - ERROR - Error when deleting file from bucket - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao excluir arquivo", e);
         }
     }
 
-   
     public void deleteMany(List<String> keys) {
+        log.info("deleteMany() - START - totalKeys={}", keys != null ? keys.size() : 0);
         if (keys == null || keys.isEmpty()) {
+            log.info("deleteMany() - END - totalDeleted=0");
             return;
         }
 
@@ -293,6 +323,7 @@ public class CloudflareR2Service {
                     .toList();
 
             if (objectIdentifiers.isEmpty()) {
+                log.info("deleteMany() - END - totalDeleted=0");
                 return;
             }
 
@@ -302,9 +333,9 @@ public class CloudflareR2Service {
                     .build();
 
             s3Client.deleteObjects(request);
-            log.info("Lote de {} arquivos excluído com sucesso do bucket '{}'", objectIdentifiers.size(), getBucketName());
+            log.info("deleteMany() - END - totalDeleted={}", objectIdentifiers.size());
         } catch (S3Exception e) {
-            log.error("Erro ao excluir lote de arquivos do Cloudflare R2: {}", e.awsErrorDetails().errorMessage(), e);
+            log.error("deleteMany() - ERROR - Error when deleting multiple files from bucket - error: {}", e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao excluir lote de arquivos", e);
         }
     }

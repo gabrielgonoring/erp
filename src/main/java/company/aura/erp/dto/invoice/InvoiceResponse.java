@@ -30,6 +30,8 @@ public record InvoiceResponse(
         BigDecimal discountAmount,
         BigDecimal totalAmount,
         String additionalInformation,
+        String pdfUrl,
+        String xmlUrl,
         LocalDateTime issuedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -60,6 +62,8 @@ public record InvoiceResponse(
                 entity.getDiscountAmount(),
                 entity.getTotalAmount(),
                 entity.getAdditionalInformation(),
+                entity.getPdfUrl(),
+                entity.getXmlUrl(),
                 entity.getIssuedAt(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()

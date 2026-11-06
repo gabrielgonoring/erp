@@ -32,14 +32,11 @@ public class InvoiceService {
 
     @Transactional
     public InvoiceResponse createExternalInvoice(InvoiceCreateRequest request, MultipartFile xmlFile, MultipartFile pdfFile, UserPrincipal currentUser) {
-        log.info("createExternalInvoice() - START - accessKey={}, partnerId={}, companyId={}",
-                request != null ? request.accessKey() : null,
-                request != null ? request.partnerId() : null,
-                currentUser != null ? currentUser.getCompanyId() : null);
+        log.info("createExternalInvoice() - START - accessKey={}, partnerId={}, companyId={}", request.getAccessKey(), request.getPartnerId(), currentUser.getCompanyId());
 
         validateInvoiceRequest(request, xmlFile, pdfFile, currentUser);
 
-        UploadedInvoice uploadedInvoice = uploadInvoiceOnBucket(request.accessKey(), xmlFile, pdfFile, currentUser);
+        UploadedInvoice uploadedInvoice = uploadInvoiceOnBucket(request.getAccessKey(), xmlFile, pdfFile, currentUser);
 
         InvoiceEntity saved = saveInvoiceInDatabase(request, uploadedInvoice.xmlUrl(), uploadedInvoice.pdfUrl(), currentUser);
 
@@ -59,21 +56,21 @@ public class InvoiceService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O arquivo PDF da DANFE é obrigatório.");
         }
 
-        if(!partnerRepository.existsByIdAndCompanyId(request.partnerId(), currentUser.getCompanyId())){
+        if(!partnerRepository.existsByIdAndCompanyId(request.getPartnerId(), currentUser.getCompanyId())){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não foi encontrado para esta empresa.");
         }
 
         if (isInvoiceAlreadyExist(request, currentUser)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma nota fiscal cadastrada com a chave de acesso: " + request.accessKey());
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma nota fiscal cadastrada com a chave de acesso: " + request.getAccessKey());
         }
     }
 
     private boolean isInvoiceAlreadyExist(InvoiceCreateRequest request, UserPrincipal currentUser){
-        if (StringUtils.isBlank(request.accessKey())) {
+        if (StringUtils.isBlank(request.getAccessKey())) {
             return false;
         }
 
-        String trimmedKey = request.accessKey().trim();
+        String trimmedKey = request.getAccessKey().trim();
 
         return invoiceRepository.existsByCompanyIdAndAccessKey(currentUser.getCompanyId(), trimmedKey);
     }

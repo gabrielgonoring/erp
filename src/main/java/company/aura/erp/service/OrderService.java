@@ -1,13 +1,13 @@
 package company.aura.erp.service;
 
+import company.aura.erp.dto.invoice.InvoiceCreateRequest;
+import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.*;
-import company.aura.erp.enums.CatalogItemType;
-import company.aura.erp.enums.InstallmentStatus;
-import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.enums.*;
 import company.aura.erp.repository.*;
+import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,12 +15,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +34,7 @@ public class OrderService {
     private final OrderPaymentService orderPaymentService;
     private final OrderItemService orderItemService;
     private final OrderShippingService orderShippingService;
+    private final InvoiceService invoiceService;
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
@@ -139,13 +143,13 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
-        if (request != null && request.partnerId() != null) {
+        if (request.partnerId() != null) {
             partnerRepository.findByIdAndCompanyId(request.partnerId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado"));
             order.setPartnerId(request.partnerId());
         }
 
-        if (request != null && request.notes() != null) {
+        if (request.notes() != null) {
             order.setNotes(request.notes());
         }
 
@@ -184,7 +188,7 @@ public class OrderService {
 
         OrderShippingEntity shipping = orderShippingService.updateShipping(orderId, request);
 
-        if (request != null && request.freightAmount() != null) {
+        if (request.freightAmount() != null) {
             order.setFreightAmount(request.freightAmount());
         }
         recalculateOrderTotals(order);
@@ -284,6 +288,58 @@ public class OrderService {
                 : null;
 
         return OrderResponse.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping);
+    }
+
+    @Transactional
+    public InvoiceResponse linkExternalInvoice(Long orderId, OrderExternalInvoiceRequest request, MultipartFile xmlFile, MultipartFile pdfFile, UserPrincipal currentUser) {
+
+        validateExternalInvoiceRequest(request);
+
+        OrderEntity order = findOrder(orderId, currentUser.getCompanyId());
+
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível vincular nota fiscal a um pedido cancelado.");
+        }
+
+        //todo: implementar a leitura do pdf ou xml para recuperar as informaçoes
+        InvoiceCreateRequest invoiceRequest = InvoiceCreateRequest.builder()
+                        .partnerId(order.getPartnerId())
+                        .totalAmount(request.getTotalAmount() != null ? request.getTotalAmount() : order.getTotalAmount())
+                        .documentType(request.getDocumentType())
+                        .environment(EnvironmentType.PRD)
+                        .status(InvoiceStatus.ISSUED.name())
+                        .operationType(request.getOperationType())
+                        .externalReference(request.getExternalReference() != null ? request.getExternalReference() : "ORDER-" + order.getId())
+                        .build();
+
+        InvoiceResponse invoiceResponse = invoiceService.createExternalInvoice(invoiceRequest, xmlFile, pdfFile, currentUser);
+
+        if (request.getDocumentType() == DocumentType.NFSE) {
+            order.setNfseInvoiceId(invoiceResponse.id());
+        } else {
+            order.setNfeInvoiceId(invoiceResponse.id());
+        }
+        orderRepository.save(order);
+
+        return invoiceResponse;
+    }
+
+    private void validateExternalInvoiceRequest(OrderExternalInvoiceRequest request) {
+        if (request.getDocumentType() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de nota fiscal é obrigatório.");
+        }
+
+        if (request.getDocumentType() != DocumentType.NFE && request.getDocumentType() != DocumentType.NFSE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tipo de nota fiscal não suportado para vinculação ao pedido. Utilize NFE ou NFSE.");
+        }
+
+        if (request.getOperationType()  == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de operação é obrigatório");
+        }
+
+        if (request.getTotalAmount() != null && request.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O valor total da nota fiscal deve ser maior que zero.");
+        }
     }
 
     private static OrderStatus getOrderFinalStatus(List<OrderInstallmentEntity> savedInstallments) {

@@ -77,11 +77,11 @@ class InvoiceControllerTest {
                 LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now()
         );
 
-        when(invoiceService.createExternalInvoice(eq(request), eq(xmlFile), eq(danfePdf), eq(10L)))
+        when(invoiceService.createExternalInvoice(eq(request), eq(xmlFile), eq(danfePdf), eq(userPrincipal)))
                 .thenReturn(responseDto);
 
         ResponseEntity<InvoiceResponse> response = invoiceController.createInvoice(
-                request, null, xmlFile, danfePdf, null, userPrincipal
+                request, xmlFile, danfePdf, userPrincipal
         );
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
@@ -90,7 +90,7 @@ class InvoiceControllerTest {
         assertEquals("https://r2/danfe.pdf", response.getBody().pdfUrl());
         assertEquals("https://r2/nfe.xml", response.getBody().xmlUrl());
 
-        verify(invoiceService, times(1)).createExternalInvoice(eq(request), eq(xmlFile), eq(danfePdf), eq(10L));
+        verify(invoiceService, times(1)).createExternalInvoice(eq(request), eq(xmlFile), eq(danfePdf), eq(userPrincipal));
     }
 
     @Test
@@ -100,7 +100,7 @@ class InvoiceControllerTest {
                 1L, 10L, 5L, null, 1, DocumentType.NFE, EnvironmentType.STG,
                 "ISSUED", 10, 1, null, null, null, null, 9,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("500.00"),
-                null, "https://r2/pdf", "https://r2/xml",
+                null, "https://r2/danfe.pdf", "https://r2/nfe.xml",
                 LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now()
         );
 
@@ -121,7 +121,7 @@ class InvoiceControllerTest {
                 1L, 10L, 5L, null, 1, DocumentType.NFE, EnvironmentType.STG,
                 "ISSUED", 10, 1, null, null, null, null, 9,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("500.00"),
-                null, "https://r2/pdf", "https://r2/xml",
+                null, "https://r2/danfe.pdf", "https://r2/nfe.xml",
                 LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now()
         );
 
@@ -132,6 +132,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
+        assertEquals(1L, response.getBody().get(0).id());
         verify(invoiceService, times(1)).list(10L);
     }
 }
