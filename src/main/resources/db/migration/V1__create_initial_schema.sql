@@ -39,7 +39,7 @@ CREATE TABLE partners (
     is_customer BOOLEAN DEFAULT FALSE,
     is_supplier BOOLEAN DEFAULT FALSE,
     
-    person_type VARCHAR(2) NOT NULL CHECK (person_type IN ('PF', 'PJ')),
+    person_type VARCHAR(2) NOT NULL,
     document VARCHAR(14) NOT NULL,
     name VARCHAR(255) NOT NULL,
     
@@ -76,7 +76,7 @@ CREATE TABLE partners (
 CREATE TABLE catalog_items (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     company_id BIGINT NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('PHYSICAL', 'SERVICE')),
+    type VARCHAR(10) NOT NULL,
     internal_code VARCHAR(50),
     description VARCHAR(255) NOT NULL,
     unit_price DECIMAL(12, 2) NOT NULL,
@@ -131,8 +131,8 @@ CREATE TABLE invoices (
     
     external_reference VARCHAR(100),
     operation_type INT NOT NULL DEFAULT 1,
-    document_type VARCHAR(10) NOT NULL CHECK (document_type IN ('NFE', 'NFCE', 'NFSE')),
-    environment VARCHAR(10) NOT NULL CHECK (environment IN ('STG', 'PRD')),
+    document_type VARCHAR(10) NOT NULL,
+    environment VARCHAR(10) NOT NULL,
 
     status VARCHAR(45) NOT NULL,
     

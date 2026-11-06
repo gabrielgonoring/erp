@@ -32,15 +32,21 @@ public class InvoiceService {
 
     @Transactional
     public InvoiceResponse createExternalInvoice(InvoiceCreateRequest request, MultipartFile xmlFile, MultipartFile pdfFile, UserPrincipal currentUser) {
+        log.info("createExternalInvoice() - START - accessKey={}, partnerId={}, companyId={}",
+                request != null ? request.accessKey() : null,
+                request != null ? request.partnerId() : null,
+                currentUser != null ? currentUser.getCompanyId() : null);
 
         validateInvoiceRequest(request, xmlFile, pdfFile, currentUser);
 
         UploadedInvoice uploadedInvoice = uploadInvoiceOnBucket(request.accessKey(), xmlFile, pdfFile, currentUser);
 
         InvoiceEntity saved = saveInvoiceInDatabase(request, uploadedInvoice.xmlUrl(), uploadedInvoice.pdfUrl(), currentUser);
-        log.info("Nota fiscal salva com sucesso: ID={}, chave='{}', companyId={}", saved.getId(), saved.getAccessKey(), currentUser.getCompanyId());
 
-        return InvoiceResponse.fromEntity(saved);
+        InvoiceResponse response = InvoiceResponse.fromEntity(saved);
+
+        log.info("createExternalInvoice() - END - invoiceId={}, accessKey={}", response.id(), response.accessKey());
+        return response;
     }
 
 
@@ -91,7 +97,7 @@ public class InvoiceService {
             return new UploadedInvoice(xmlUrl, pdfUrl);
         }
         catch (Exception e) {
-            log.error("uploadInvoiceOnBucket() - Error when upload invoice in bucket");
+            log.error("uploadInvoiceOnBucket() - ERROR - Error when upload invoice in bucket - error: {}", e.getMessage());
             deleteFileOnBucket(xmlKey);
             deleteFileOnBucket(pdfKey);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Não foi possível fazer o upload do arquivo", e);
@@ -102,7 +108,7 @@ public class InvoiceService {
         try {
             r2Service.delete(xmlKey);
         } catch (Exception ex) {
-            log.warn("deleteFileOnBucket() - Error when delete file in bucket - key: {}, error: {}", xmlKey, ex.getMessage());
+            log.warn("deleteFileOnBucket() - ERROR - Error when delete file in bucket - key: {}, error: {}", xmlKey, ex.getMessage());
         }
     }
 
@@ -119,16 +125,27 @@ public class InvoiceService {
     }
 
     public InvoiceResponse findById(Long id, Long companyId) {
+        log.info("findById() - START - id={}, companyId={}", id, companyId);
+
         InvoiceEntity invoice = invoiceRepository.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + id));
-        return InvoiceResponse.fromEntity(invoice);
+
+        InvoiceResponse response = InvoiceResponse.fromEntity(invoice);
+
+        log.info("findById() - END - id={}, companyId={}, invoice: {}", id, companyId, response);
+        return response;
     }
 
 
     public List<InvoiceResponse> list(Long companyId) {
-        return invoiceRepository.findByCompanyId(companyId)
+        log.info("list() - START - companyId={}", companyId);
+
+        List<InvoiceResponse> responses = invoiceRepository.findByCompanyId(companyId)
                 .stream()
                 .map(InvoiceResponse::fromEntity)
                 .toList();
+
+        log.info("list() - END - companyId={}, totalInvoices={}", companyId, responses.size());
+        return responses;
     }
 }
