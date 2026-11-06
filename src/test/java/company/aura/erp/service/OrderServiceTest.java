@@ -5,6 +5,7 @@ import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
+import company.aura.erp.enums.InvoiceStatus;
 import company.aura.erp.security.UserPrincipal;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -714,9 +715,12 @@ class OrderServiceTest {
 
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "danfe.pdf", "application/pdf", "%PDF".getBytes());
-        OrderExternalInvoiceRequest request = new OrderExternalInvoiceRequest(
-                DocumentType.NFE, 123, 1, "accessKey123", "prot123", null, null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+        OrderExternalInvoiceRequest request = OrderExternalInvoiceRequest.builder()
+                .documentType(DocumentType.NFE)
+                .operationType(1)
+                .externalReference("accessKey123")
+                .totalAmount(BigDecimal.valueOf(250.00))
+                .build();
 
         InvoiceEntity invoiceEntity = InvoiceEntity.builder()
                 .id(555L)
@@ -732,13 +736,11 @@ class OrderServiceTest {
         InvoiceResponse invoiceResponse = company.aura.erp.mapper.InvoiceMapper.fromEntity(invoiceEntity);
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
-        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
-        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
         when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user)))
                 .thenReturn(invoiceResponse);
         when(orderRepository.save(order)).thenReturn(order);
 
-        InvoiceResponse response = orderService.linkExternalInvoice(100L, DocumentType.NFE, request, xmlFile, pdfFile, user);
+        InvoiceResponse response = orderService.linkExternalInvoice(100L, request, xmlFile, pdfFile, user);
 
         assertNotNull(response);
         assertEquals(555L, response.getId());
@@ -762,6 +764,12 @@ class OrderServiceTest {
 
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfse.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "nfse.pdf", "application/pdf", "%PDF".getBytes());
+        OrderExternalInvoiceRequest request = OrderExternalInvoiceRequest.builder()
+                .documentType(DocumentType.NFSE)
+                .operationType(1)
+                .externalReference("accessKey123")
+                .totalAmount(BigDecimal.valueOf(100.00))
+                .build();
 
         InvoiceEntity invoiceEntity = InvoiceEntity.builder()
                 .id(777L)
@@ -774,13 +782,11 @@ class OrderServiceTest {
         InvoiceResponse invoiceResponse = company.aura.erp.mapper.InvoiceMapper.fromEntity(invoiceEntity);
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
-        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
-        when(orderPaymentService.findInstallments(100L)).thenReturn(Collections.emptyList());
         when(invoiceService.createExternalInvoice(any(InvoiceCreateRequest.class), eq(xmlFile), eq(pdfFile), eq(user)))
                 .thenReturn(invoiceResponse);
         when(orderRepository.save(order)).thenReturn(order);
 
-        InvoiceResponse response = orderService.linkExternalInvoice(100L, DocumentType.NFSE, null, xmlFile, pdfFile, user);
+        InvoiceResponse response = orderService.linkExternalInvoice(100L, request, xmlFile, pdfFile, user);
 
         assertNotNull(response);
         assertEquals(777L, response.getId());
@@ -802,10 +808,15 @@ class OrderServiceTest {
                 .totalAmount(BigDecimal.valueOf(100.00))
                 .build();
 
+        OrderExternalInvoiceRequest request = OrderExternalInvoiceRequest.builder()
+                .documentType(DocumentType.NFE)
+                .operationType(1)
+                .build();
+
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                orderService.linkExternalInvoice(100L, DocumentType.NFE, null, null, null, user)
+                orderService.linkExternalInvoice(100L, request, null, null, user)
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
@@ -824,10 +835,15 @@ class OrderServiceTest {
                 .totalAmount(BigDecimal.valueOf(100.00))
                 .build();
 
+        OrderExternalInvoiceRequest request = OrderExternalInvoiceRequest.builder()
+                .documentType(DocumentType.NFE)
+                .operationType(1)
+                .build();
+
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(order));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                orderService.linkExternalInvoice(100L, DocumentType.NFE, null, null, null, user)
+                orderService.linkExternalInvoice(100L, request, null, null, user)
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());

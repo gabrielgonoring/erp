@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -134,5 +135,31 @@ class InvoiceControllerTest {
         assertEquals(1, response.getBody().size());
         assertEquals(1L, response.getBody().get(0).getId());
         verify(invoiceService, times(1)).list(10L);
+    }
+
+    @Test
+    @DisplayName("Deve redirecionar 302 FOUND para URL temporária do PDF")
+    void getPdfSuccess() {
+        String temporaryUrl = "https://r2.aura.company/signed/danfe.pdf?token=xyz";
+        when(invoiceService.getPdfUrl(1L, userPrincipal)).thenReturn(temporaryUrl);
+
+        ResponseEntity<Void> response = invoiceController.getPdf(1L, userPrincipal);
+
+        assertEquals(HttpStatus.FOUND, response.getStatusCode());
+        assertEquals(URI.create(temporaryUrl), response.getHeaders().getLocation());
+        verify(invoiceService, times(1)).getPdfUrl(1L, userPrincipal);
+    }
+
+    @Test
+    @DisplayName("Deve redirecionar 302 FOUND para URL temporária do XML")
+    void getXmlSuccess() {
+        String temporaryUrl = "https://r2.aura.company/signed/nota.xml?token=xyz";
+        when(invoiceService.getXmlUrl(1L, userPrincipal)).thenReturn(temporaryUrl);
+
+        ResponseEntity<Void> response = invoiceController.getXml(1L, userPrincipal);
+
+        assertEquals(HttpStatus.FOUND, response.getStatusCode());
+        assertEquals(URI.create(temporaryUrl), response.getHeaders().getLocation());
+        verify(invoiceService, times(1)).getXmlUrl(1L, userPrincipal);
     }
 }

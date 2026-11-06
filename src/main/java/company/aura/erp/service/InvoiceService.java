@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 
 import static company.aura.erp.mapper.InvoiceMapper.buildInvoiceEntity;
@@ -47,6 +48,73 @@ public class InvoiceService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public String getPdfUrl(Long invoiceId, UserPrincipal currentUser) {
+        log.info("getPdfUrl() - START - invoiceId={}, companyId={}", invoiceId, currentUser.getCompanyId());
+
+        InvoiceEntity invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + invoiceId));
+
+        if (!invoice.getCompanyId().equals(currentUser.getCompanyId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A nota fiscal informada não pertence à empresa do usuário logado.");
+        }
+
+        String pdfUrl = invoice.getPdfUrl();
+        if (pdfUrl == null || pdfUrl.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo PDF não encontrado para esta nota fiscal.");
+        }
+
+        String temporaryUrl = r2Service.generateTemporaryUrl(pdfUrl, Duration.ofMinutes(5));
+        log.info("getPdfUrl() - END - invoiceId={}, temporaryUrl={}", invoiceId, temporaryUrl);
+        return temporaryUrl;
+    }
+
+    @Transactional(readOnly = true)
+    public String getXmlUrl(Long invoiceId, UserPrincipal currentUser) {
+        log.info("getXmlUrl() - START - invoiceId={}, companyId={}", invoiceId, currentUser.getCompanyId());
+
+        InvoiceEntity invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + invoiceId));
+
+        if (!invoice.getCompanyId().equals(currentUser.getCompanyId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A nota fiscal informada não pertence à empresa do usuário logado.");
+        }
+
+        String xmlUrl = invoice.getXmlUrl();
+        if (xmlUrl == null || xmlUrl.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo XML não encontrado para esta nota fiscal.");
+        }
+
+        String temporaryUrl = r2Service.generateTemporaryUrl(xmlUrl, Duration.ofMinutes(5));
+        log.info("getXmlUrl() - END - invoiceId={}, temporaryUrl={}", invoiceId, temporaryUrl);
+        return temporaryUrl;
+    }
+
+    @Transactional(readOnly = true)
+    public InvoiceResponse findById(Long id, Long companyId) {
+        log.info("findById() - START - id={}, companyId={}", id, companyId);
+
+        InvoiceEntity invoice = invoiceRepository.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + id));
+
+        InvoiceResponse response = InvoiceMapper.fromEntity(invoice);
+
+        log.info("findById() - END - id={}, companyId={}", id, companyId);
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> list(Long companyId) {
+        log.info("list() - START - companyId={}", companyId);
+
+        List<InvoiceResponse> responses = invoiceRepository.findByCompanyId(companyId)
+                .stream()
+                .map(InvoiceMapper::fromEntity)
+                .toList();
+
+        log.info("list() - END - companyId={}, totalInvoices={}", companyId, responses.size());
+        return responses;
+    }
 
     private void validateInvoiceRequest(InvoiceCreateRequest request, MultipartFile xmlFile, MultipartFile danfePdf, UserPrincipal currentUser) {
 

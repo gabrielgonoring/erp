@@ -339,9 +339,10 @@ class OrderControllerTest {
         DocumentType documentType = DocumentType.NFE;
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "danfe.pdf", "application/pdf", "%PDF".getBytes());
-        OrderExternalInvoiceRequest formRequest = new OrderExternalInvoiceRequest(
-                documentType, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
-        );
+        OrderExternalInvoiceRequest formRequest = OrderExternalInvoiceRequest.builder()
+                .documentType(documentType)
+                .operationType(1)
+                .build();
 
         InvoiceEntity invoiceEntity = InvoiceEntity.builder()
                 .id(100L)
@@ -353,16 +354,16 @@ class OrderControllerTest {
                 .build();
         InvoiceResponse invoiceResponse = company.aura.erp.mapper.InvoiceMapper.fromEntity(invoiceEntity);
 
-        when(orderService.linkExternalInvoice(orderId, documentType, formRequest, xmlFile, pdfFile, userPrincipal))
+        when(orderService.linkExternalInvoice(orderId, formRequest, xmlFile, pdfFile, userPrincipal))
                 .thenReturn(invoiceResponse);
 
         ResponseEntity<InvoiceResponse> response = orderController.linkExternalInvoice(
-                orderId, documentType, xmlFile, pdfFile, formRequest, userPrincipal
+                orderId, xmlFile, pdfFile, formRequest, userPrincipal
         );
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(invoiceResponse, response.getBody());
-        verify(orderService).linkExternalInvoice(orderId, documentType, formRequest, xmlFile, pdfFile, userPrincipal);
+        verify(orderService).linkExternalInvoice(orderId, formRequest, xmlFile, pdfFile, userPrincipal);
     }
 
     @Test

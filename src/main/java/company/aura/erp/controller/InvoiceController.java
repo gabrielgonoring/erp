@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -33,6 +34,45 @@ public class InvoiceController {
         InvoiceResponse response = invoiceService.createExternalInvoice(formRequest, xmlFile, pdfFile, userPrincipal);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<InvoiceResponse> findById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        InvoiceResponse response = invoiceService.findById(id, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<InvoiceResponse>> list(
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        List<InvoiceResponse> responses = invoiceService.list(userPrincipal.getCompanyId());
+        return ResponseEntity.ok(responses);
+    }
+
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<Void> getPdf(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        String temporaryUrl = invoiceService.getPdfUrl(id, userPrincipal);
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(temporaryUrl))
+                .build();
+    }
+
+    @GetMapping("/{id}/xml")
+    public ResponseEntity<Void> getXml(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        String temporaryUrl = invoiceService.getXmlUrl(id, userPrincipal);
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(temporaryUrl))
+                .build();
     }
 
 }

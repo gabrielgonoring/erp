@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -251,5 +252,145 @@ class InvoiceServiceTest {
 
         assertEquals(1, list.size());
         assertEquals(1L, list.get(0).getId());
+    }
+
+    @Test
+    @DisplayName("Deve gerar link temporário de 5 minutos para PDF com sucesso")
+    void getPdfUrlSuccess() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .pdfUrl("https://r2.aura.company/invoices/10/pdf/danfe.pdf")
+                .build();
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(r2Service.generateTemporaryUrl("https://r2.aura.company/invoices/10/pdf/danfe.pdf", Duration.ofMinutes(5)))
+                .thenReturn("https://signed-url/danfe.pdf?exp=300");
+
+        String temporaryUrl = invoiceService.getPdfUrl(1L, userPrincipal);
+
+        assertEquals("https://signed-url/danfe.pdf?exp=300", temporaryUrl);
+        verify(r2Service, times(1)).generateTemporaryUrl("https://r2.aura.company/invoices/10/pdf/danfe.pdf", Duration.ofMinutes(5));
+    }
+
+    @Test
+    @DisplayName("Deve falhar getPdfUrl com NOT_FOUND se nota fiscal não existir")
+    void getPdfUrlNotFound() {
+        when(invoiceRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.getPdfUrl(999L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verifyNoInteractions(r2Service);
+    }
+
+    @Test
+    @DisplayName("Deve falhar getPdfUrl com FORBIDDEN se nota fiscal pertencer a outra empresa")
+    void getPdfUrlForbiddenDifferentCompany() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(999L)
+                .pdfUrl("https://r2.aura.company/invoices/999/pdf/danfe.pdf")
+                .build();
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.getPdfUrl(1L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verifyNoInteractions(r2Service);
+    }
+
+    @Test
+    @DisplayName("Deve falhar getPdfUrl com NOT_FOUND se nota fiscal não tiver pdfUrl")
+    void getPdfUrlMissingPdfUrl() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .pdfUrl(null)
+                .build();
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.getPdfUrl(1L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verifyNoInteractions(r2Service);
+    }
+
+    @Test
+    @DisplayName("Deve gerar link temporário de 5 minutos para XML com sucesso")
+    void getXmlUrlSuccess() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .xmlUrl("https://r2.aura.company/invoices/10/xml/nfe.xml")
+                .build();
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(r2Service.generateTemporaryUrl("https://r2.aura.company/invoices/10/xml/nfe.xml", Duration.ofMinutes(5)))
+                .thenReturn("https://signed-url/nfe.xml?exp=300");
+
+        String temporaryUrl = invoiceService.getXmlUrl(1L, userPrincipal);
+
+        assertEquals("https://signed-url/nfe.xml?exp=300", temporaryUrl);
+        verify(r2Service, times(1)).generateTemporaryUrl("https://r2.aura.company/invoices/10/xml/nfe.xml", Duration.ofMinutes(5));
+    }
+
+    @Test
+    @DisplayName("Deve falhar getXmlUrl com NOT_FOUND se nota fiscal não existir")
+    void getXmlUrlNotFound() {
+        when(invoiceRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.getXmlUrl(999L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verifyNoInteractions(r2Service);
+    }
+
+    @Test
+    @DisplayName("Deve falhar getXmlUrl com FORBIDDEN se nota fiscal pertencer a outra empresa")
+    void getXmlUrlForbiddenDifferentCompany() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(999L)
+                .xmlUrl("https://r2.aura.company/invoices/999/xml/nfe.xml")
+                .build();
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.getXmlUrl(1L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verifyNoInteractions(r2Service);
+    }
+
+    @Test
+    @DisplayName("Deve falhar getXmlUrl com NOT_FOUND se nota fiscal não tiver xmlUrl")
+    void getXmlUrlMissingXmlUrl() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .xmlUrl(null)
+                .build();
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.getXmlUrl(1L, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verifyNoInteractions(r2Service);
     }
 }

@@ -301,6 +301,13 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível vincular nota fiscal a um pedido cancelado.");
         }
 
+        if (request.getDocumentType() == DocumentType.NFE && order.getNfeInvoiceId() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido já possui uma nota fiscal NF-e vinculada.");
+        }
+        if (request.getDocumentType() == DocumentType.NFSE && order.getNfseInvoiceId() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido já possui uma nota fiscal NFS-e vinculada.");
+        }
+
         //todo: implementar a leitura do pdf ou xml para recuperar as informaçoes
         InvoiceCreateRequest invoiceRequest = InvoiceCreateRequest.builder()
                         .partnerId(order.getPartnerId())
@@ -325,7 +332,7 @@ public class OrderService {
     }
 
     private void validateExternalInvoiceRequest(OrderExternalInvoiceRequest request) {
-        if (request.getDocumentType() == null) {
+        if (request == null || request.getDocumentType() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O tipo de nota fiscal é obrigatório.");
         }
 

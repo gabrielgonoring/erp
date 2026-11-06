@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -290,6 +291,67 @@ public class CloudflareR2Service {
             log.error("generatePresignedUrl() - ERROR - Error when generating presigned URL - key: {}, error: {}", key, e.getMessage());
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao gerar URL pré-assinada para o arquivo", e);
         }
+    }
+
+    public String extractKeyFromUrl(String fileUrl) {
+        log.info("extractKeyFromUrl() - START - fileUrl={}", fileUrl);
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A URL do arquivo não pode ser nula ou vazia.");
+        }
+
+        String path;
+        try {
+            if (fileUrl.contains("://")) {
+                URI uri = URI.create(fileUrl);
+                path = uri.getPath();
+            } else {
+                int queryIdx = fileUrl.indexOf('?');
+                path = (queryIdx != -1) ? fileUrl.substring(0, queryIdx) : fileUrl;
+            }
+        } catch (Exception e) {
+            int queryIdx = fileUrl.indexOf('?');
+            path = (queryIdx != -1) ? fileUrl.substring(0, queryIdx) : fileUrl;
+        }
+
+        if (path == null) {
+            path = fileUrl;
+        }
+
+        // Remove prefix slashes
+        path = path.replaceFirst("^/+", "");
+
+        // If path starts with publicUrl prefix path, remove it
+        String publicUrl = properties.getPublicUrl();
+        if (publicUrl != null && !publicUrl.isBlank()) {
+            try {
+                URI publicUri = URI.create(publicUrl);
+                String publicPath = publicUri.getPath();
+                if (publicPath != null) {
+                    publicPath = publicPath.replaceFirst("^/+", "").replaceAll("/+$", "");
+                    if (!publicPath.isBlank() && path.startsWith(publicPath + "/")) {
+                        path = path.substring(publicPath.length() + 1);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // If path starts with bucket name + "/", remove it
+        String bucket = properties.getBucketName();
+        if (bucket != null && !bucket.isBlank()) {
+            String cleanBucket = bucket.trim();
+            if (path.startsWith(cleanBucket + "/")) {
+                path = path.substring(cleanBucket.length() + 1);
+            }
+        }
+
+        log.info("extractKeyFromUrl() - END - fileUrl={}, key={}", fileUrl, path);
+        return path;
+    }
+
+    public String generateTemporaryUrl(String fileUrlOrKey, Duration duration) {
+        String key = extractKeyFromUrl(fileUrlOrKey);
+        return generatePresignedUrl(key, duration);
     }
 
     public void delete(String key) {

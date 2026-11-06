@@ -61,131 +61,141 @@ class CloudflareR2ServiceTest {
                 "file",
                 "documento.pdf",
                 "application/pdf",
-                "conteudo do documento".getBytes()
+                "conteudo".getBytes()
         );
 
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        String generatedKey = r2Service.upload(file);
+        String key = r2Service.upload(file);
 
-        assertNotNull(generatedKey);
-        assertTrue(generatedKey.endsWith("-documento.pdf"));
+        assertNotNull(key);
+        assertTrue(key.endsWith("-documento.pdf"));
         verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
 
     @Test
-    @DisplayName("Deve fazer upload de MultipartFile em uma pasta específica")
+    @DisplayName("Deve fazer upload de MultipartFile com pasta específica")
     void uploadMultipartFileWithFolderSuccess() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
-                "nota-fiscal.xml",
-                "application/xml",
-                "<nfe/>".getBytes()
+                "imagem.png",
+                "image/png",
+                "pixels".getBytes()
         );
 
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        String generatedKey = r2Service.upload(file, "invoices/2026");
+        String key = r2Service.upload(file, "empresas/1/logos");
 
-        assertNotNull(generatedKey);
-        assertTrue(generatedKey.startsWith("invoices/2026/"));
-        assertTrue(generatedKey.endsWith("-nota-fiscal.xml"));
-        verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+        assertNotNull(key);
+        assertTrue(key.startsWith("empresas/1/logos/"));
+        assertTrue(key.endsWith("-imagem.png"));
     }
 
     @Test
-    @DisplayName("Deve lançar erro ao fazer upload de arquivo vazio")
-    void uploadEmptyFileThrowsBadRequest() {
-        MockMultipartFile emptyFile = new MockMultipartFile(
-                "file",
-                "vazio.txt",
-                "text/plain",
-                new byte[0]
+    @DisplayName("Deve falhar no upload se MultipartFile estiver vazio")
+    void uploadMultipartFileEmpty() {
+        MockMultipartFile emptyFile = new MockMultipartFile("file", new byte[0]);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> r2Service.upload(emptyFile)
         );
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> r2Service.upload(emptyFile));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
         verifyNoInteractions(s3Client);
     }
 
     @Test
-    @DisplayName("Deve fazer upload com array de bytes e chave específica")
+    @DisplayName("Deve fazer upload de bytes diretamente")
     void uploadBytesSuccess() {
-        byte[] content = "conteudo em bytes".getBytes();
-        String key = "custom/path/file.txt";
+        String key = "backups/dump.sql";
+        byte[] content = "SELECT 1;".getBytes();
 
         when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
                 .thenReturn(PutObjectResponse.builder().build());
 
-        String resultKey = r2Service.upload(key, content, "text/plain");
+        String resultKey = r2Service.upload(key, content, "application/sql");
 
         assertEquals(key, resultKey);
         verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
     }
 
     @Test
-    @DisplayName("Deve fazer download do arquivo em bytes com sucesso")
-    void downloadFileSuccess() {
-        String key = "orders/123/anexo.pdf";
-        byte[] expectedBytes = "conteudo pdf".getBytes();
+    @DisplayName("Deve fazer upload de InputStream diretamente")
+    void uploadInputStreamSuccess() {
+        String key = "documentos/relatorio.csv";
+        byte[] bytes = "id;nome\n1;Item".getBytes();
+        ByteArrayInputStream is = new ByteArrayInputStream(bytes);
+
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+
+        String resultKey = r2Service.upload(key, is, bytes.length, "text/csv");
+
+        assertEquals(key, resultKey);
+        verify(s3Client, times(1)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    @DisplayName("Deve fazer download de arquivo retornando bytes")
+    void downloadSuccess() {
+        String key = "fotos/perfil.jpg";
+        byte[] expectedContent = "dados-da-imagem".getBytes();
 
         ResponseBytes<GetObjectResponse> responseBytes = mock(ResponseBytes.class);
-        when(responseBytes.asByteArray()).thenReturn(expectedBytes);
-
+        when(responseBytes.asByteArray()).thenReturn(expectedContent);
         when(s3Client.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(responseBytes);
 
         byte[] result = r2Service.download(key);
 
-        assertNotNull(result);
-        assertArrayEquals(expectedBytes, result);
+        assertArrayEquals(expectedContent, result);
         verify(s3Client, times(1)).getObjectAsBytes(any(GetObjectRequest.class));
     }
 
     @Test
-    @DisplayName("Deve lançar NOT_FOUND quando o arquivo não existir no download")
-    void downloadFileNotFoundThrowsNotFound() {
-        String key = "inexistente.pdf";
+    @DisplayName("Deve falhar no download com 404 se arquivo não existir")
+    void downloadNotFound() {
+        String key = "nao-existe.txt";
 
         when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
-                .thenThrow(NoSuchKeyException.builder().message("Key not found").build());
+                .thenThrow(NoSuchKeyException.builder().build());
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> r2Service.download(key));
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> r2Service.download(key)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
     }
 
     @Test
-    @DisplayName("Deve retornar stream do arquivo no bucket")
+    @DisplayName("Deve obter stream do arquivo com sucesso")
     void getFileInputStreamSuccess() {
-        String key = "pedidos/export.csv";
-        GetObjectResponse getObjectResponse = GetObjectResponse.builder()
-                .contentType("text/csv")
-                .contentLength(100L)
-                .build();
-        ResponseInputStream<GetObjectResponse> stream = new ResponseInputStream<>(
-                getObjectResponse,
-                new ByteArrayInputStream("a,b,c".getBytes())
-        );
+        String key = "video/demo.mp4";
+        ResponseInputStream<GetObjectResponse> expectedStream = mock(ResponseInputStream.class);
 
-        when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(stream);
+        when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(expectedStream);
 
         ResponseInputStream<GetObjectResponse> resultStream = r2Service.getFileInputStream(key);
 
         assertNotNull(resultStream);
-        assertEquals("text/csv", resultStream.response().contentType());
+        assertEquals(expectedStream, resultStream);
         verify(s3Client, times(1)).getObject(any(GetObjectRequest.class));
     }
 
     @Test
-    @DisplayName("Deve buscar arquivos por prefixo")
+    @DisplayName("Deve listar arquivos pelo prefixo")
     void searchFilesSuccess() {
         String prefix = "orders/";
+
         S3Object obj1 = S3Object.builder().key("orders/1.pdf").size(1024L).lastModified(Instant.now()).eTag("etag1").build();
         S3Object obj2 = S3Object.builder().key("orders/2.pdf").size(2048L).lastModified(Instant.now()).eTag("etag2").build();
 
         ListObjectsV2Response response = ListObjectsV2Response.builder()
-                .contents(List.of(obj1, obj2))
+                .contents(obj1, obj2)
                 .build();
 
         when(s3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenReturn(response);
@@ -234,6 +244,29 @@ class CloudflareR2ServiceTest {
         String url = r2Service.generatePresignedUrl("relatorio.xlsx", Duration.ofMinutes(30));
 
         assertEquals("https://r2.storage/signed-url", url);
+    }
+
+    @Test
+    @DisplayName("Deve extrair chave do bucket de diferentes formatos de URL ou chave")
+    void extractKeyFromUrlSuccess() {
+        when(properties.getPublicUrl()).thenReturn("https://pub-cdn.aura.company");
+
+        assertEquals("invoices/10/pdf/danfe.pdf", r2Service.extractKeyFromUrl("invoices/10/pdf/danfe.pdf"));
+        assertEquals("invoices/10/pdf/danfe.pdf", r2Service.extractKeyFromUrl("/invoices/10/pdf/danfe.pdf"));
+        assertEquals("invoices/10/pdf/danfe.pdf", r2Service.extractKeyFromUrl("https://pub-cdn.aura.company/invoices/10/pdf/danfe.pdf"));
+        assertEquals("invoices/10/pdf/danfe.pdf", r2Service.extractKeyFromUrl("https://storage.r2.cloudflarestorage.com/test-erp-bucket/invoices/10/pdf/danfe.pdf?X-Amz=123"));
+    }
+
+    @Test
+    @DisplayName("Deve gerar URL temporária a partir de URL ou chave")
+    void generateTemporaryUrlSuccess() throws Exception {
+        PresignedGetObjectRequest presigned = mock(PresignedGetObjectRequest.class);
+        when(presigned.url()).thenReturn(new URI("https://r2.storage/temp-url").toURL());
+        when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class))).thenReturn(presigned);
+
+        String url = r2Service.generateTemporaryUrl("invoices/10/pdf/danfe.pdf", Duration.ofMinutes(5));
+
+        assertEquals("https://r2.storage/temp-url", url);
     }
 
     @Test
