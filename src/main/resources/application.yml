@@ -38,6 +38,15 @@ jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration: ${JWT_EXPIRATION:86400000} # 24 horas (em milissegundos)
 
+cloudflare:
+  r2:
+    account-id: ${CLOUDFLARE_R2_ACCOUNT_ID:}
+    access-key-id: ${CLOUDFLARE_R2_ACCESS_KEY_ID:}
+    secret-access-key: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY:}
+    bucket-name: ${CLOUDFLARE_R2_BUCKET_NAME:}
+    public-url: ${CLOUDFLARE_R2_PUBLIC_URL:}
+    endpoint: ${CLOUDFLARE_R2_ENDPOINT:}
+
 server:
   port: ${SERVER_PORT:8080}
 
