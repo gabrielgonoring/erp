@@ -46,6 +46,7 @@ cloudflare:
     bucket-name: ${CLOUDFLARE_R2_BUCKET_NAME:}
     public-url: ${CLOUDFLARE_R2_PUBLIC_URL:}
     endpoint: ${CLOUDFLARE_R2_ENDPOINT:}
+    trust-all-certificates: ${CLOUDFLARE_R2_TRUST_ALL:false}
 
 server:
   port: ${SERVER_PORT:8080}

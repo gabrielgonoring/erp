@@ -34,6 +34,7 @@ public class InvoiceEntity {
     @Column(name = "external_reference", length = 100)
     private String externalReference;
     
+    @Builder.Default
     @Column(name = "operation_type", nullable = false)
     private Integer operationType = 1;
 
@@ -66,18 +67,23 @@ public class InvoiceEntity {
     @Column(name = "due_date")
     private LocalDate dueDate;
     
+    @Builder.Default
     @Column(name = "freight_mode")
     private Integer freightMode = 9;
 
+    @Builder.Default
     @Column(name = "freight_amount", precision = 12, scale = 2)
     private BigDecimal freightAmount = BigDecimal.ZERO;
     
+    @Builder.Default
     @Column(name = "additional_expenses", precision = 12, scale = 2)
     private BigDecimal additionalExpenses = BigDecimal.ZERO;
     
+    @Builder.Default
     @Column(name = "products_amount", precision = 12, scale = 2)
     private BigDecimal productsAmount = BigDecimal.ZERO;
     
+    @Builder.Default
     @Column(name = "discount_amount", precision = 12, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 

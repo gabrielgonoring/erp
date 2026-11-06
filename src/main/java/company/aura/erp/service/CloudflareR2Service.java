@@ -48,6 +48,7 @@ public class CloudflareR2Service {
     }
     
     public String upload(MultipartFile file, String folder) {
+
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O arquivo para upload não pode estar vazio.");
         }
@@ -55,6 +56,8 @@ public class CloudflareR2Service {
         String originalFilename = StringUtils.cleanPath(
                 file.getOriginalFilename() != null ? file.getOriginalFilename() : "file"
         );
+
+
         String uniqueKey = UUID.randomUUID() + "-" + originalFilename;
 
         if (folder != null && !folder.isBlank()) {

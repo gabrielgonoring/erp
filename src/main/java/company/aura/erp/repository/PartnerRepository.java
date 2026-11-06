@@ -18,6 +18,8 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
 
     Optional<PartnerEntity> findByIdAndCompanyId(Long id, Long companyId);
 
+    boolean existsByIdAndCompanyId(Long id, Long companyId);
+
     Optional<PartnerEntity> findByIdAndCompanyIdAndDeletedAtIsNull(Long id, Long companyId);
 
     Optional<PartnerEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, String status);

@@ -1,6 +1,7 @@
 package company.aura.erp.exception;
 
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,11 +20,13 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
+        log.error("handleMethodArgumentNotValid() - ERROR - Erro de validação nos campos da requisição - error: {}", ex.getMessage(), ex);
         String description = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
@@ -40,6 +43,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        log.error("handleConstraintViolation() - ERROR - Violação de restrição de validação - error: {}", ex.getMessage(), ex);
         String description = ex.getConstraintViolations().stream()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .collect(Collectors.joining("; "));
@@ -50,6 +54,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
+        log.error("handleResponseStatusException() - ERROR - Erro de status de resposta - error: {}", ex.getMessage(), ex);
         HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
         String error = status != null ? status.getReasonPhrase() : "Error";
         String description = ex.getReason() != null ? ex.getReason() : ex.getMessage();
@@ -60,36 +65,42 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<ErrorResponse> handleIllegalArgumentAndState(RuntimeException ex) {
+        log.error("handleIllegalArgumentAndState() - ERROR - Argumento ou estado ilegal na requisição - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Bad Request", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex) {
+        log.error("handleBadCredentials() - ERROR - Credenciais inválidas fornecidas - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Unauthorized", "Credenciais inválidas: e-mail ou senha incorretos.");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ErrorResponse> handleDisabledException(DisabledException ex) {
+        log.error("handleDisabledException() - ERROR - Usuário desativado ou inativo - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Forbidden", "Usuário inativo ou desativado.");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        log.error("handleAccessDenied() - ERROR - Acesso negado ao recurso - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Forbidden", "Acesso negado: você não tem permissão para acessar este recurso.");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthenticationException(AuthenticationException ex) {
+        log.error("handleAuthenticationException() - ERROR - Falha de autenticação - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Unauthorized", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.error("handleHttpMessageNotReadable() - ERROR - Corpo da requisição ausente ou mal formatado - error: {}", ex.getMessage(), ex);
         String description = "Corpo da requisição ausente ou mal formatado.";
         if (ex.getRootCause() != null && ex.getRootCause().getMessage() != null) {
             description = description + " Detalhes: " + ex.getRootCause().getMessage();
@@ -100,24 +111,28 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        log.error("handleMethodNotSupported() - ERROR - Método HTTP não suportado - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Method Not Allowed", "Método HTTP '" + ex.getMethod() + "' não é suportado para este endpoint.");
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        log.error("handleMediaTypeNotSupported() - ERROR - Tipo de mídia não suportado - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Unsupported Media Type", "Tipo de mídia '" + ex.getContentType() + "' não suportado.");
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(response);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        log.error("handleNoResourceFound() - ERROR - Recurso não encontrado para a rota solicitada - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Not Found", "Recurso não encontrado para a rota solicitada: " + ex.getResourcePath());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.error("handleDataIntegrityViolation() - ERROR - Violação de integridade no banco de dados - error: {}", ex.getMessage(), ex);
         String message = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
         ErrorResponse response = new ErrorResponse("Data Integrity Violation", "Violação de integridade no banco de dados. " + (message != null ? message : ""));
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
@@ -125,6 +140,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {
+        log.error("handleGeneralException() - ERROR - Erro interno inesperado no servidor - error: {}", ex.getMessage(), ex);
         String description = ex.getMessage() != null ? ex.getMessage() : "Ocorreu um erro interno inesperado no servidor.";
         ErrorResponse response = new ErrorResponse("Internal Server Error", description);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);

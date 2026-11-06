@@ -132,7 +132,7 @@ CREATE TABLE invoices (
     external_reference VARCHAR(100),
     operation_type INT NOT NULL DEFAULT 1,
     document_type VARCHAR(10) NOT NULL CHECK (document_type IN ('NFE', 'NFCE', 'NFSE')),
-    environment VARCHAR(10) NOT NULL CHECK (environment IN ('HOMOLOGACAO', 'PRODUCAO')),
+    environment VARCHAR(10) NOT NULL CHECK (environment IN ('STG', 'PRD')),
 
     status VARCHAR(45) NOT NULL,
     

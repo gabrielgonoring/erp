@@ -19,5 +19,5 @@ public interface InvoiceRepository extends JpaRepository<InvoiceEntity, Long> {
 
     List<InvoiceEntity> findByCompanyIdAndDocumentType(Long companyId, DocumentType documentType);
 
-    Optional<InvoiceEntity> findByCompanyIdAndAccessKey(Long companyId, String accessKey);
+    boolean existsByCompanyIdAndAccessKey(Long companyId, String accessKey);
 }
