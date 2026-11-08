@@ -2,6 +2,7 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
+import company.aura.erp.dto.invoice.InvoiceUrlResponse;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.InvoiceService;
@@ -18,7 +19,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -73,25 +73,21 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}/pdf")
-    public ResponseEntity<Void> getPdf(
+    public ResponseEntity<InvoiceUrlResponse> getPdf(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
         String temporaryUrl = invoiceService.getPdfUrl(id, userPrincipal);
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(temporaryUrl))
-                .build();
+        return ResponseEntity.ok(new InvoiceUrlResponse(temporaryUrl));
     }
 
     @GetMapping("/{id}/xml")
-    public ResponseEntity<Void> getXml(
+    public ResponseEntity<InvoiceUrlResponse> getXml(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
         String temporaryUrl = invoiceService.getXmlUrl(id, userPrincipal);
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(temporaryUrl))
-                .build();
+        return ResponseEntity.ok(new InvoiceUrlResponse(temporaryUrl));
     }
 
 }

@@ -2,6 +2,7 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
+import company.aura.erp.dto.invoice.InvoiceUrlResponse;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
 import company.aura.erp.security.UserPrincipal;
@@ -22,7 +23,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -155,28 +155,30 @@ class InvoiceControllerTest {
     }
 
     @Test
-    @DisplayName("Deve redirecionar 302 FOUND para URL temporária do PDF")
+    @DisplayName("Deve retornar 200 OK com a URL do PDF em JSON")
     void getPdfSuccess() {
         String temporaryUrl = "https://r2.aura.company/signed/danfe.pdf?token=xyz";
         when(invoiceService.getPdfUrl(1L, userPrincipal)).thenReturn(temporaryUrl);
 
-        ResponseEntity<Void> response = invoiceController.getPdf(1L, userPrincipal);
+        ResponseEntity<InvoiceUrlResponse> response = invoiceController.getPdf(1L, userPrincipal);
 
-        assertEquals(HttpStatus.FOUND, response.getStatusCode());
-        assertEquals(URI.create(temporaryUrl), response.getHeaders().getLocation());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(temporaryUrl, response.getBody().url());
         verify(invoiceService, times(1)).getPdfUrl(1L, userPrincipal);
     }
 
     @Test
-    @DisplayName("Deve redirecionar 302 FOUND para URL temporária do XML")
+    @DisplayName("Deve retornar 200 OK com a URL do XML em JSON")
     void getXmlSuccess() {
         String temporaryUrl = "https://r2.aura.company/signed/nota.xml?token=xyz";
         when(invoiceService.getXmlUrl(1L, userPrincipal)).thenReturn(temporaryUrl);
 
-        ResponseEntity<Void> response = invoiceController.getXml(1L, userPrincipal);
+        ResponseEntity<InvoiceUrlResponse> response = invoiceController.getXml(1L, userPrincipal);
 
-        assertEquals(HttpStatus.FOUND, response.getStatusCode());
-        assertEquals(URI.create(temporaryUrl), response.getHeaders().getLocation());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(temporaryUrl, response.getBody().url());
         verify(invoiceService, times(1)).getXmlUrl(1L, userPrincipal);
     }
 }
