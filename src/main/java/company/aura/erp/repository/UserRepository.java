@@ -16,5 +16,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     List<UserEntity> findByCompanyId(Long companyId);
 
+    Optional<UserEntity> findByIdAndCompanyId(Long id, Long companyId);
+
     Optional<UserEntity> findByResetPasswordToken(String resetPasswordToken);
 }

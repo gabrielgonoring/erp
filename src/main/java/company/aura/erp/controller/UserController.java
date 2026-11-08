@@ -46,9 +46,7 @@ public class UserController {
             @AuthenticationPrincipal UserPrincipal currentUser
     ) {
 
-        Long companyId = currentUser != null ? currentUser.getCompanyId() : null;
-
-        UserResponse response = userService.createUserForCompany(request, companyId);
+        UserResponse response = userService.createUserForCompany(request, currentUser.getCompanyId());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
