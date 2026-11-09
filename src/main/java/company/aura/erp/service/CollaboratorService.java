@@ -105,11 +105,11 @@ public class CollaboratorService {
         log.info("delete() = END - id={}, status={}", id, collaborator.getStatus());
     }
 
-    @Transactional(readOnly = true)
-    public Page<CollaboratorSummaryResponse> listPaginated(String search, Long companyId, Pageable pageable) {
-        log.info("listPaginated() - START - companyId={}, search={}, pageable={}", companyId, search, pageable);
 
-        Page<CollaboratorSummaryResponse> page = collaboratorRepository.searchByCompanyIdAndTerm(companyId, search, pageable)
+    public Page<CollaboratorSummaryResponse> listPaginated(String search, String status, Long companyId, Pageable pageable) {
+        log.info("listPaginated() - START - companyId={}, search={}, status={}, pageable={}", companyId, search, status, pageable);
+
+        Page<CollaboratorSummaryResponse> page = collaboratorRepository.searchByCompanyIdAndTerm(companyId, search, status, pageable)
                 .map(this::toSummaryResponse);
 
         log.info("listPaginated() = END - companyId={}, totalElements={}, totalPages={}",

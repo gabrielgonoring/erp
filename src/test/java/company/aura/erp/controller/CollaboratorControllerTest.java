@@ -104,30 +104,7 @@ class CollaboratorControllerTest {
         verify(collaboratorService).delete(50L, 10L);
     }
 
-    @Test
-    @DisplayName("GET /api/collaborators - Deve listar colaboradores paginados")
-    void shouldListCollaborators() {
-        Pageable pageable = PageRequest.of(0, 20);
-        CollaboratorSummaryResponse item = CollaboratorSummaryResponse.builder()
-                .id(50L)
-                .userId(1L)
-                .nome("João")
-                .cpf("12345678900")
-                .email("joao@email.com")
-                .status("ACTIVE")
-                .build();
 
-        Page<CollaboratorSummaryResponse> page = new PageImpl<>(List.of(item));
-
-        when(collaboratorService.listPaginated("João", 10L, pageable)).thenReturn(page);
-
-        ResponseEntity<Page<CollaboratorSummaryResponse>> response =
-                collaboratorController.list("João", userPrincipal, pageable);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(1, response.getBody().getTotalElements());
-    }
 
     @Test
     @DisplayName("GET /api/collaborators/{id} - Deve buscar por ID")

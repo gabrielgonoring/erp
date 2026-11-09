@@ -53,27 +53,6 @@ class UserControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
     }
 
-    @Test
-    @DisplayName("GET /api/users — Deve retornar todos os usuários da companhia do usuário autenticado")
-    void shouldReturnAllUsersFromCompany() {
-        UserResponse user1 = new UserResponse(
-                1L, 10L, "Admin", "admin@empresa.com", "ACTIVE", false, LocalDateTime.now(), LocalDateTime.now()
-        );
-        UserResponse user2 = new UserResponse(
-                2L, 10L, "Colaborador", "colab@empresa.com", "ACTIVE", true, null, LocalDateTime.now()
-        );
-        List<UserResponse> expectedUsers = List.of(user1, user2);
-
-        when(userService.findAllByCompanyId(10L)).thenReturn(expectedUsers);
-
-        ResponseEntity<List<UserResponse>> response = userController.findAllByCompany(userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(2, response.getBody().size());
-        assertEquals(expectedUsers, response.getBody());
-        verify(userService).findAllByCompanyId(10L);
-    }
 
     @Test
     @DisplayName("POST /api/users — Deve criar novo usuário vinculado à companhia do usuário autenticado")

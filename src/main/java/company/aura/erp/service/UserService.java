@@ -149,20 +149,19 @@ public class UserService {
         log.info("recordLogin() = END - email={}", email);
     }
 
-    @Transactional(readOnly = true)
-    public List<UserResponse> findAllByCompanyId(Long companyId) {
-        log.info("findAllByCompanyId() - START - companyId={}", companyId);
+    public List<UserResponse> findAllByCompanyId(Long companyId, String status) {
+        log.info("findAllByCompanyId() - START - companyId={}, status={}", companyId, status);
 
         if (companyId == null) {
             log.info("findAllByCompanyId() = END - totalUsers=0");
             return Collections.emptyList();
         }
+
         List<UserResponse> users = userRepository.findByCompanyId(companyId).stream()
-                .filter(user -> user.getStatus() == null || UserStatus.ACTIVE.name().equalsIgnoreCase(user.getStatus()))
                 .map(UserResponse::fromEntity)
                 .toList();
 
-        log.info("findAllByCompanyId() = END - companyId={}, totalUsers={}", companyId, users.size());
+        log.info("findAllByCompanyId() = END - companyId={}, status={}, totalUsers={}", companyId, status, users.size());
         return users;
     }
 

@@ -23,13 +23,15 @@ public interface CollaboratorRepository extends JpaRepository<CollaboratorEntity
     boolean existsByIdAndCompanyId(Long id, Long companyId);
 
     @Query("SELECT c FROM CollaboratorEntity c WHERE c.companyId = :companyId " +
-           "AND (c.status IS NULL OR c.status <> 'DELETED') " +
+           "AND (:status IS NULL OR :status = '' OR UPPER(c.status) = UPPER(:status)) " +
            "AND (:search IS NULL OR :search = '' OR " +
            "LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "c.cpf LIKE CONCAT('%', :search, '%'))")
     Page<CollaboratorEntity> searchByCompanyIdAndTerm(
             @Param("companyId") Long companyId,
             @Param("search") String search,
+            @Param("status") String status,
             Pageable pageable
     );
+
 }

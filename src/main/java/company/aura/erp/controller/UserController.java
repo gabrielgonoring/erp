@@ -31,11 +31,13 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<List<UserResponse>> findAllByCompany(@AuthenticationPrincipal UserPrincipal currentUser) {
-
+    public ResponseEntity<List<UserResponse>> findAllByCompany(
+            @RequestParam(required = false) String status,
+            @AuthenticationPrincipal UserPrincipal currentUser
+    ) {
         Long companyId = currentUser != null ? currentUser.getCompanyId() : null;
 
-        List<UserResponse> users = userService.findAllByCompanyId(companyId);
+        var users = userService.findAllByCompanyId(companyId, status);
 
         return ResponseEntity.ok(users);
     }
@@ -74,6 +76,4 @@ public class UserController {
 
         return ResponseEntity.noContent().build();
     }
-
-
 }

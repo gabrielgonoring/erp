@@ -68,16 +68,18 @@ public class CollaboratorController {
     @GetMapping
     public ResponseEntity<Page<CollaboratorSummaryResponse>> list(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        log.info("list() - START - companyId={}, search={}", userPrincipal.getCompanyId(), search);
+        log.info("list() - START - companyId={}, search={}, status={}", userPrincipal.getCompanyId(), search, status);
 
-        Page<CollaboratorSummaryResponse> page = collaboratorService.listPaginated(search, userPrincipal.getCompanyId(), pageable);
+        var page = collaboratorService.listPaginated(search, status, userPrincipal.getCompanyId(), pageable);
 
         log.info("list() = END - totalElements={}", page.getTotalElements());
         return ResponseEntity.ok(page);
     }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<CollaboratorResponse> findById(

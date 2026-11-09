@@ -28,6 +28,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -159,27 +160,33 @@ class CollaboratorServiceTest {
         verify(collaboratorRepository, never()).save(any());
     }
 
-    @Test
-    @DisplayName("Deve listar colaboradores de forma paginada filtrando por busca de nome/cpf")
-    void shouldListCollaboratorsPaginated() {
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<CollaboratorEntity> page = new PageImpl<>(List.of(collaborator));
 
-        when(collaboratorRepository.searchByCompanyIdAndTerm(eq(companyId), eq("Maria"), eq(pageable)))
+
+    @Test
+    @DisplayName("Deve listar colaboradores incluindo os que estão com status DELETED")
+    void shouldListCollaboratorsIncludingDeleted() {
+        Pageable pageable = PageRequest.of(0, 10);
+        CollaboratorEntity deletedColab = CollaboratorEntity.builder()
+                .id(11L)
+                .companyId(companyId)
+                .name("Carlos Apagado")
+                .cpf("999.888.777-66")
+                .email("carlos@email.com")
+                .status("DELETED")
+                .build();
+
+        Page<CollaboratorEntity> page = new PageImpl<>(List.of(collaborator, deletedColab));
+
+        when(collaboratorRepository.searchByCompanyIdAndTerm(eq(companyId), isNull(), isNull(), eq(pageable)))
                 .thenReturn(page);
 
-        Page<CollaboratorSummaryResponse> result = collaboratorService.listPaginated("Maria", companyId, pageable);
+        Page<CollaboratorSummaryResponse> result = collaboratorService.listPaginated(null, null, companyId, pageable);
 
         assertNotNull(result);
-        assertEquals(1, result.getTotalElements());
-        CollaboratorSummaryResponse item = result.getContent().get(0);
-        assertEquals(10L, item.getId());
-        assertEquals(100L, item.getUserId());
-        assertEquals("Maria Silva", item.getNome());
-        assertEquals("Maria Silva", item.getName());
-        assertEquals("123.456.789-00", item.getCpf());
-        assertEquals("maria.silva@email.com", item.getEmail());
-        assertEquals("ACTIVE", item.getStatus());
+        assertEquals(2, result.getTotalElements());
+        assertEquals("ACTIVE", result.getContent().get(0).getStatus());
+        assertEquals("DELETED", result.getContent().get(1).getStatus());
+        assertEquals("Carlos Apagado", result.getContent().get(1).getNome());
     }
 
     @Test
