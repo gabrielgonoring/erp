@@ -104,6 +104,21 @@ public class OrderInvoiceService {
                 .toList();
     }
 
+    @Transactional
+    public void unlinkInvoice(Long orderId, Long invoiceId, Long companyId) {
+        List<OrderInvoiceEntity> orderInvoices = orderInvoiceRepository
+                .findByCompanyIdAndOrderIdAndInvoiceId(companyId, orderId, invoiceId);
 
+        if (orderInvoices.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada no pedido com ID: " + invoiceId);
+        }
+
+        orderInvoiceRepository.deleteAll(orderInvoices);
+    }
+
+    @Transactional
+    public void deleteInvoice(Long orderId, Long invoiceId, Long companyId) {
+        unlinkInvoice(orderId, invoiceId, companyId);
+    }
 
 }

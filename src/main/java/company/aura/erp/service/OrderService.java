@@ -321,6 +321,16 @@ public class OrderService {
         return orderInvoiceService.linkInvoice(invoiceId, request, currentUser, order);
     }
 
+    @Transactional
+    public void unlinkInvoice(Long orderId, Long invoiceId, Long companyId) {
+        OrderEntity order = findOrder(orderId, companyId);
+
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível desvincular nota fiscal de um pedido cancelado.");
+        }
+
+        orderInvoiceService.unlinkInvoice(order.getId(), invoiceId, companyId);
+    }
 
     public List<OrderInvoiceResponse> findInvoicesByOrderId(Long orderId, Long companyId) {
         validIfIsCompanyOrder(orderId, companyId);

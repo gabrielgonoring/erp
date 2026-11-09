@@ -15,9 +15,13 @@ public interface OrderInvoiceRepository extends JpaRepository<OrderInvoiceEntity
 
     List<OrderInvoiceEntity> findByCompanyIdAndOrderId(Long companyId, Long orderId);
 
+    List<OrderInvoiceEntity> findByCompanyIdAndOrderIdAndInvoiceId(Long companyId, Long orderId, Long invoiceId);
+
     Optional<OrderInvoiceEntity> findByOrderIdAndInvoiceIdAndInvoicePurpose(Long orderId, Long invoiceId, InvoicePurpose invoicePurpose);
 
     boolean existsByOrderIdAndInvoiceIdAndInvoicePurpose(Long orderId, Long invoiceId, InvoicePurpose invoicePurpose);
 
     void deleteByOrderId(Long orderId);
+
+    void deleteByCompanyIdAndOrderIdAndInvoiceId(Long companyId, Long orderId, Long invoiceId);
 }

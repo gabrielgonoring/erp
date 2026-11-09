@@ -887,4 +887,41 @@ class OrderServiceTest {
         assertEquals(200L, list.get(0).getInvoiceId());
         verify(orderInvoiceService).findInvoicesByOrderId(companyId, 100L);
     }
+
+    @Test
+    @DisplayName("unlinkInvoice - Deve desvincular nota fiscal com sucesso")
+    void shouldUnlinkInvoiceSuccess() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        orderService.unlinkInvoice(100L, 200L, companyId);
+
+        verify(orderInvoiceService).unlinkInvoice(100L, 200L, companyId);
+    }
+
+    @Test
+    @DisplayName("unlinkInvoice - Deve lancar NOT_FOUND se pedido nao existir")
+    void shouldThrowNotFoundWhenOrderDoesNotExistOnUnlink() {
+        when(orderRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.unlinkInvoice(999L, 200L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verifyNoInteractions(orderInvoiceService);
+    }
+
+    @Test
+    @DisplayName("unlinkInvoice - Deve lancar BAD_REQUEST se pedido cancelado")
+    void shouldThrowBadRequestWhenUnlinkingFromCanceledOrder() {
+        sampleOrder.setStatus(OrderStatus.CANCELED);
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.unlinkInvoice(100L, 200L, companyId)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verifyNoInteractions(orderInvoiceService);
+    }
 }

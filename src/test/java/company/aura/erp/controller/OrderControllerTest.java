@@ -385,6 +385,18 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("DELETE /api/orders/{orderId}/invoice/{invoiceId} — Deve desvincular nota fiscal do pedido e retornar HTTP 204")
+    void shouldUnlinkInvoice() {
+        Long orderId = 1L;
+        Long invoiceId = 100L;
+
+        ResponseEntity<Void> response = orderController.unlinkInvoice(orderId, invoiceId, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(orderService).unlinkInvoice(orderId, invoiceId, 10L);
+    }
+
+    @Test
     @DisplayName("GET /api/orders — Deve listar pedidos de forma simplificada e paginada")
     void shouldListSummarizedOrders() {
         Pageable pageable = PageRequest.of(0, 20);

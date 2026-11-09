@@ -175,4 +175,37 @@ class OrderInvoiceServiceTest {
         assertEquals(200L, result.get(0).getInvoiceId());
         assertEquals(InvoicePurpose.PRODUCT, result.get(0).getInvoicePurpose());
     }
+
+    @Test
+    @DisplayName("unlinkInvoice - Deve desvincular nota fiscal do pedido com sucesso")
+    void shouldUnlinkInvoiceSuccess() {
+        OrderInvoiceEntity entity = OrderInvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .orderId(orderId)
+                .invoiceId(200L)
+                .invoicePurpose(InvoicePurpose.PRODUCT)
+                .build();
+
+        when(orderInvoiceRepository.findByCompanyIdAndOrderIdAndInvoiceId(companyId, orderId, 200L))
+                .thenReturn(List.of(entity));
+
+        orderInvoiceService.unlinkInvoice(orderId, 200L, companyId);
+
+        verify(orderInvoiceRepository).deleteAll(List.of(entity));
+    }
+
+    @Test
+    @DisplayName("unlinkInvoice - Deve lançar NOT_FOUND quando nota fiscal não estiver vinculada ao pedido")
+    void shouldThrowNotFoundWhenUnlinkingNonExistingInvoice() {
+        when(orderInvoiceRepository.findByCompanyIdAndOrderIdAndInvoiceId(companyId, orderId, 200L))
+                .thenReturn(Collections.emptyList());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderInvoiceService.unlinkInvoice(orderId, 200L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(orderInvoiceRepository, never()).deleteAll(any());
+    }
 }

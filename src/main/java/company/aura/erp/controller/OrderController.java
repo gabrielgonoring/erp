@@ -201,6 +201,16 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @DeleteMapping("/{orderId}/invoice/{invoiceId}")
+    public ResponseEntity<Void> unlinkInvoice(
+            @PathVariable Long orderId,
+            @PathVariable Long invoiceId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        orderService.unlinkInvoice(orderId, invoiceId, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{orderId}/invoices")
     public ResponseEntity<List<OrderInvoiceResponse>> getOrderInvoices(
             @PathVariable Long orderId,
