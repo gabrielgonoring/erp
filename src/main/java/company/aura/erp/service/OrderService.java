@@ -216,7 +216,7 @@ public class OrderService {
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
         List<OrderInstallmentResponse> installments = orderPaymentService.findInstallmentResponses(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
-        List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(companyId, order.getId());
+        List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(order.getId(), companyId);
 
         return OrderMapper.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
     }
