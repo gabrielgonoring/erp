@@ -8,6 +8,7 @@ import company.aura.erp.enums.CollaboratorStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,6 +24,7 @@ class CollaboratorMapperTest {
                 .cpf("111.222.333-44")
                 .email("carlos@email.com")
                 .phone("11988887777")
+                .defaultCommissionPercentage(new BigDecimal("10.50"))
                 .street("Rua A")
                 .number("10")
                 .city("São Paulo")
@@ -40,6 +42,8 @@ class CollaboratorMapperTest {
         assertEquals("Carlos Santos", entity.getName());
         assertEquals("111.222.333-44", entity.getCpf());
         assertEquals("carlos@email.com", entity.getEmail());
+        assertEquals(new BigDecimal("10.50"), entity.getDefaultCommissionPercentage());
+        assertEquals(new BigDecimal("10.50"), entity.getCommissionPercentage());
         assertEquals(CollaboratorStatus.ACTIVE.name(), entity.getStatus());
         assertEquals("Rua A", entity.getStreet());
         assertEquals("Barbeiro", entity.getJobTitle());
@@ -56,6 +60,7 @@ class CollaboratorMapperTest {
                 .cpf("111.222.333-44")
                 .email("carlos@email.com")
                 .status("ACTIVE")
+                .defaultCommissionPercentage(new BigDecimal("15.00"))
                 .jobTitle("Barbeiro")
                 .build();
 
@@ -67,6 +72,8 @@ class CollaboratorMapperTest {
         assertEquals(5L, response.getUserId());
         assertEquals("Carlos Santos", response.getName());
         assertEquals("ACTIVE", response.getStatus());
+        assertEquals(new BigDecimal("15.00"), response.getDefaultCommissionPercentage());
+        assertEquals(new BigDecimal("15.00"), response.getCommissionPercentage());
         assertEquals("Barbeiro", response.getJobTitle());
     }
 

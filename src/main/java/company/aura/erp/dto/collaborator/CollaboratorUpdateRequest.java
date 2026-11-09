@@ -2,6 +2,8 @@ package company.aura.erp.dto.collaborator;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -10,6 +12,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
@@ -35,6 +38,12 @@ public class CollaboratorUpdateRequest {
 
     @Size(max = 20, message = "O telefone deve ter no máximo 20 caracteres.")
     private String phone;
+
+    @DecimalMin(value = "0.0", message = "A porcentagem de comissão não pode ser negativa.")
+    @DecimalMax(value = "100.0", message = "A porcentagem de comissão não pode ser maior que 100%.")
+    @JsonProperty("default_commission_percentage")
+    @JsonAlias({"defaultCommissionPercentage", "commissionPercentage", "commission_percentage", "porcentagemComissao", "comissaoPadrao", "porcentagem_comissao", "comissao_padrao"})
+    private BigDecimal defaultCommissionPercentage;
 
     // Endereço
     @Size(max = 255, message = "O logradouro deve ter no máximo 255 caracteres.")
@@ -76,4 +85,12 @@ public class CollaboratorUpdateRequest {
 
     @Size(max = 20, message = "O PIS/PASEP deve ter no máximo 20 caracteres.")
     private String pisPasep;
+
+    public BigDecimal getCommissionPercentage() {
+        return this.defaultCommissionPercentage;
+    }
+
+    public void setCommissionPercentage(BigDecimal commissionPercentage) {
+        this.defaultCommissionPercentage = commissionPercentage;
+    }
 }

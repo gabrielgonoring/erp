@@ -1,9 +1,6 @@
 package company.aura.erp.controller;
 
-import company.aura.erp.dto.collaborator.CollaboratorCreateRequest;
-import company.aura.erp.dto.collaborator.CollaboratorResponse;
-import company.aura.erp.dto.collaborator.CollaboratorSummaryResponse;
-import company.aura.erp.dto.collaborator.CollaboratorUpdateRequest;
+import company.aura.erp.dto.collaborator.*;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.CollaboratorService;
 import jakarta.validation.Valid;
@@ -16,6 +13,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 @Slf4j
 @RestController
@@ -80,7 +85,6 @@ public class CollaboratorController {
         return ResponseEntity.ok(page);
     }
 
-
     @GetMapping("/{id}")
     public ResponseEntity<CollaboratorResponse> findById(
             @PathVariable Long id,
@@ -93,4 +97,21 @@ public class CollaboratorController {
         log.info("findById() = END - id={}", response.getId());
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/{id}/commission-report")
+    public ResponseEntity<CollaboratorCommissionReportResponse> getSoldItems(
+            @PathVariable Long id,
+            @RequestParam(name = "startDate", required = false) LocalDate startDate,
+            @RequestParam(name = "endDate", required = false) LocalDate endDate,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        log.info("getSoldItems() - START - id={}, companyId={}", id, userPrincipal.getCompanyId());
+
+        var response = collaboratorService.getSoldItemsReport(id, startDate, endDate, userPrincipal.getCompanyId());
+
+        log.info("getSoldItems() = END - id={}, totalItems={}", id, response.getItems().size());
+        return ResponseEntity.ok(response);
+    }
+
+
 }

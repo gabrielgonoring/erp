@@ -1,14 +1,13 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.collaborator.CollaboratorCreateRequest;
-import company.aura.erp.dto.collaborator.CollaboratorResponse;
-import company.aura.erp.dto.collaborator.CollaboratorSummaryResponse;
-import company.aura.erp.dto.collaborator.CollaboratorUpdateRequest;
+import company.aura.erp.dto.collaborator.*;
 import company.aura.erp.entity.CollaboratorEntity;
+import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.enums.CollaboratorStatus;
 import company.aura.erp.enums.UserStatus;
 import company.aura.erp.mapper.CollaboratorMapper;
 import company.aura.erp.repository.CollaboratorRepository;
+import company.aura.erp.repository.OrderItemRepository;
 import company.aura.erp.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +18,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,6 +32,7 @@ public class CollaboratorService {
 
     private final CollaboratorRepository collaboratorRepository;
     private final UserRepository userRepository;
+    private final OrderItemRepository orderItemRepository;
 
     @Transactional
     public CollaboratorResponse create(CollaboratorCreateRequest request, Long companyId) {
@@ -68,6 +75,10 @@ public class CollaboratorService {
         collaborator.setEmail(request.getEmail());
         collaborator.setPhone(request.getPhone());
 
+        if (request.getDefaultCommissionPercentage() != null) {
+            collaborator.setDefaultCommissionPercentage(request.getDefaultCommissionPercentage());
+        }
+
         collaborator.setStreet(request.getStreet());
         collaborator.setNumber(request.getNumber());
         collaborator.setComplement(request.getComplement());
@@ -105,7 +116,6 @@ public class CollaboratorService {
         log.info("delete() = END - id={}, status={}", id, collaborator.getStatus());
     }
 
-
     public Page<CollaboratorSummaryResponse> listPaginated(String search, String status, Long companyId, Pageable pageable) {
         log.info("listPaginated() - START - companyId={}, search={}, status={}, pageable={}", companyId, search, status, pageable);
 
@@ -128,6 +138,83 @@ public class CollaboratorService {
 
         log.info("findById() = END - id={}, collaborator: {}", id, response);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public CollaboratorCommissionReportResponse getSoldItemsReport(Long collaboratorId, LocalDate startDate, LocalDate endDate, Long companyId) {
+        log.info("getSoldItemsReport() - START - collaboratorId={}, startDate={}, endDate={}, companyId={}", collaboratorId, startDate, endDate, companyId);
+
+        validateReportSoldRequest(collaboratorId, startDate, endDate);
+
+        CollaboratorEntity collaborator = collaboratorRepository.findByIdAndCompanyId(collaboratorId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Colaborador não encontrado com ID: " + collaboratorId));
+
+        List<OrderItemEntity> items = orderItemRepository.findByCollaboratorAndCompanyAndCreatedAtBetween(
+                collaboratorId, companyId, startDate.atStartOfDay(), endDate.atTime(LocalTime.MAX));
+
+        BigDecimal commissionRate = collaborator.getDefaultCommissionPercentage() != null
+                ? collaborator.getDefaultCommissionPercentage()
+                : BigDecimal.ZERO;
+
+        List<CollaboratorSoldItemResponse> soldItems = items.stream().map(item -> buildReportSoldItemResponse(item, commissionRate)).toList();
+
+        BigDecimal totalSold = soldItems.stream()
+                .map(CollaboratorSoldItemResponse::getTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalCommission = soldItems.stream()
+                .map(CollaboratorSoldItemResponse::getCommissionAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        CollaboratorCommissionReportHeader header = CollaboratorCommissionReportHeader.builder()
+                .startDate(startDate)
+                .endDate(endDate)
+                .totalSold(totalSold)
+                .totalCommission(totalCommission)
+                .commissionPercentage(commissionRate)
+                .build();
+
+        CollaboratorCommissionReportResponse response = CollaboratorCommissionReportResponse.builder()
+                .collaboratorId(collaborator.getId())
+                .collaboratorName(collaborator.getName())
+                .header(header)
+                .items(soldItems)
+                .build();
+
+        log.info("getSoldItemsReport() = END - collaboratorId={}, totalSold={}, totalCommission={}, itemsCount={}", collaboratorId, totalSold, totalCommission, soldItems.size());
+        return response;
+    }
+
+    private static CollaboratorSoldItemResponse buildReportSoldItemResponse(OrderItemEntity item, BigDecimal commissionRate) {
+        BigDecimal itemTotal = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
+        BigDecimal itemCommission = itemTotal.multiply(commissionRate)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+        return CollaboratorSoldItemResponse.builder()
+                .itemId(item.getId())
+                .originalOrderId(item.getOrderId())
+                .unitPrice(item.getUnitPrice())
+                .commissionAmount(itemCommission)
+                .date(item.getCreatedAt())
+                .description(item.getDescription())
+                .quantity(item.getQuantity())
+                .totalPrice(itemTotal)
+                .build();
+    }
+
+    private void validateReportSoldRequest(Long collaboratorId, LocalDate startDate, LocalDate endDate) {
+        if (collaboratorId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O ID do colaborador é obrigatório.");
+        }
+        if (startDate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data inicial é obrigatória.");
+        }
+        if (endDate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data final é obrigatória.");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data inicial não pode ser posterior à data final.");
+        }
     }
 
     public CollaboratorEntity toEntity(CollaboratorCreateRequest request, Long companyId) {

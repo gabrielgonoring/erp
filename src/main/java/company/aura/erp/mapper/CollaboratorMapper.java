@@ -6,6 +6,8 @@ import company.aura.erp.dto.collaborator.CollaboratorSummaryResponse;
 import company.aura.erp.entity.CollaboratorEntity;
 import company.aura.erp.enums.CollaboratorStatus;
 
+import java.math.BigDecimal;
+
 public class CollaboratorMapper {
 
     public static CollaboratorEntity toEntity(CollaboratorCreateRequest request, Long companyId) {
@@ -20,6 +22,7 @@ public class CollaboratorMapper {
                 .email(request.getEmail())
                 .phone(request.getPhone())
                 .status(CollaboratorStatus.ACTIVE.name())
+                .defaultCommissionPercentage(request.getDefaultCommissionPercentage() != null ? request.getDefaultCommissionPercentage() : BigDecimal.ZERO)
                 .street(request.getStreet())
                 .number(request.getNumber())
                 .complement(request.getComplement())
@@ -50,6 +53,7 @@ public class CollaboratorMapper {
                 .email(entity.getEmail())
                 .phone(entity.getPhone())
                 .status(entity.getStatus())
+                .defaultCommissionPercentage(entity.getDefaultCommissionPercentage())
                 .street(entity.getStreet())
                 .number(entity.getNumber())
                 .complement(entity.getComplement())

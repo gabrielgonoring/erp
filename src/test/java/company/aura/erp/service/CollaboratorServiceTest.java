@@ -1,13 +1,13 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.collaborator.CollaboratorCreateRequest;
-import company.aura.erp.dto.collaborator.CollaboratorResponse;
-import company.aura.erp.dto.collaborator.CollaboratorSummaryResponse;
-import company.aura.erp.dto.collaborator.CollaboratorUpdateRequest;
+import company.aura.erp.dto.collaborator.*;
 import company.aura.erp.entity.CollaboratorEntity;
+import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.entity.UserEntity;
+import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.CollaboratorStatus;
 import company.aura.erp.repository.CollaboratorRepository;
+import company.aura.erp.repository.OrderItemRepository;
 import company.aura.erp.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +22,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +41,9 @@ class CollaboratorServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private OrderItemRepository orderItemRepository;
 
     @InjectMocks
     private CollaboratorService collaboratorService;
@@ -59,11 +64,12 @@ class CollaboratorServiceTest {
                 .phone("11999998888")
                 .status("ACTIVE")
                 .jobTitle("Desenvolvedora")
+                .defaultCommissionPercentage(new BigDecimal("10.00"))
                 .build();
     }
 
     @Test
-    @DisplayName("Deve criar colaborador com sucesso")
+    @DisplayName("Deve criar colaborador com sucesso incluindo porcentagem de comissão")
     void shouldCreateCollaboratorSuccessfully() {
         CollaboratorCreateRequest request = CollaboratorCreateRequest.builder()
                 .name("Maria Silva")
@@ -72,6 +78,7 @@ class CollaboratorServiceTest {
                 .email("maria.silva@email.com")
                 .phone("11999998888")
                 .jobTitle("Desenvolvedora")
+                .defaultCommissionPercentage(new BigDecimal("10.00"))
                 .build();
 
         UserEntity user = UserEntity.builder()
@@ -91,6 +98,7 @@ class CollaboratorServiceTest {
         assertEquals("Maria Silva", response.getName());
         assertEquals("ACTIVE", response.getStatus());
         assertEquals(100L, response.getUserId());
+        assertEquals(new BigDecimal("10.00"), response.getDefaultCommissionPercentage());
         verify(collaboratorRepository).save(any(CollaboratorEntity.class));
     }
 
@@ -109,7 +117,7 @@ class CollaboratorServiceTest {
     }
 
     @Test
-    @DisplayName("Deve atualizar colaborador com sucesso")
+    @DisplayName("Deve atualizar colaborador com sucesso incluindo comissão")
     void shouldUpdateCollaboratorSuccessfully() {
         CollaboratorUpdateRequest request = CollaboratorUpdateRequest.builder()
                 .name("Maria Santos")
@@ -117,6 +125,7 @@ class CollaboratorServiceTest {
                 .cpf("123.456.789-00")
                 .email("maria.santos@email.com")
                 .phone("11888887777")
+                .defaultCommissionPercentage(new BigDecimal("12.50"))
                 .build();
 
         UserEntity user = UserEntity.builder()
@@ -135,6 +144,7 @@ class CollaboratorServiceTest {
         assertNotNull(response);
         assertEquals("Maria Santos", response.getName());
         assertEquals("maria.santos@email.com", response.getEmail());
+        assertEquals(new BigDecimal("12.50"), response.getDefaultCommissionPercentage());
         verify(collaboratorRepository).save(collaborator);
     }
 
@@ -159,8 +169,6 @@ class CollaboratorServiceTest {
         assertThrows(ResponseStatusException.class, () -> collaboratorService.delete(99L, companyId));
         verify(collaboratorRepository, never()).save(any());
     }
-
-
 
     @Test
     @DisplayName("Deve listar colaboradores incluindo os que estão com status DELETED")
@@ -200,5 +208,116 @@ class CollaboratorServiceTest {
         assertNotNull(response);
         assertEquals(10L, response.getId());
         assertEquals("Maria Silva", response.getName());
+    }
+
+    @Test
+    @DisplayName("Deve gerar relatório de itens vendidos com comissão calculada")
+    void shouldGenerateSoldItemsReportSuccessfully() {
+        LocalDateTime start = LocalDateTime.of(2026, 11, 1, 0, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 11, 8, 23, 59, 59);
+
+        OrderItemEntity item1 = OrderItemEntity.builder()
+                .id(101L)
+                .orderId(501L)
+                .professionalId(10L)
+                .itemType(CatalogItemType.SERVICE)
+                .description("Corte de Cabelo")
+                .quantity(new BigDecimal("2.0000"))
+                .unitPrice(new BigDecimal("100.00"))
+                .discountAmount(BigDecimal.ZERO)
+                .totalPrice(new BigDecimal("200.00"))
+                .createdAt(LocalDateTime.of(2026, 11, 3, 14, 30))
+                .build();
+
+        OrderItemEntity item2 = OrderItemEntity.builder()
+                .id(102L)
+                .orderId(502L)
+                .professionalId(10L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .description("Pomada Modeladora")
+                .quantity(BigDecimal.ONE)
+                .unitPrice(new BigDecimal("50.00"))
+                .discountAmount(BigDecimal.ZERO)
+                .totalPrice(new BigDecimal("50.00"))
+                .createdAt(LocalDateTime.of(2026, 11, 5, 10, 0))
+                .build();
+
+        when(collaboratorRepository.findByIdAndCompanyIdAndStatusNot(10L, companyId, CollaboratorStatus.DELETED.name()))
+                .thenReturn(Optional.of(collaborator));
+        when(orderItemRepository.findByCollaboratorAndCompanyAndCreatedAtBetween(10L, companyId, start, end))
+                .thenReturn(List.of(item1, item2));
+
+        CollaboratorCommissionReportResponse response = collaboratorService.getSoldItemsReport(10L, start, end, companyId);
+
+        assertNotNull(response);
+        assertEquals(10L, response.getCollaboratorId());
+        assertEquals("Maria Silva", response.getCollaboratorName());
+
+        assertNotNull(response.getHeader());
+        assertEquals(start, response.getHeader().getStartDate());
+        assertEquals(end, response.getHeader().getEndDate());
+        assertEquals(new BigDecimal("250.00"), response.getHeader().getTotalSold());
+        // 10% commission on 250.00 = 25.00
+        assertEquals(new BigDecimal("25.00"), response.getHeader().getTotalCommission());
+        assertEquals(new BigDecimal("10.00"), response.getHeader().getCommissionPercentage());
+
+        // Alias checks
+        assertEquals(new BigDecimal("250.00"), response.getValorTotalVendido());
+        assertEquals(new BigDecimal("25.00"), response.getValorComissao());
+
+        assertEquals(2, response.getItems().size());
+
+        CollaboratorSoldItemResponse itemResponse1 = response.getItems().get(0);
+        assertEquals(101L, itemResponse1.getItemId());
+        assertEquals(501L, itemResponse1.getOriginalOrderId());
+        assertEquals(501L, itemResponse1.getIdPedidoOriginal());
+        assertEquals(new BigDecimal("100.00"), itemResponse1.getUnitPrice());
+        assertEquals(new BigDecimal("100.00"), itemResponse1.getValorItem());
+        assertEquals(new BigDecimal("20.00"), itemResponse1.getCommissionAmount());
+        assertEquals(new BigDecimal("20.00"), itemResponse1.getValorComissao());
+        assertEquals("Corte de Cabelo", itemResponse1.getDescription());
+        assertEquals("Corte de Cabelo", itemResponse1.getDescricaoItem());
+        assertEquals(new BigDecimal("2.0000"), itemResponse1.getQuantity());
+        assertEquals(new BigDecimal("2.0000"), itemResponse1.getQuantidade());
+        assertEquals(new BigDecimal("200.00"), itemResponse1.getTotalPrice());
+        assertEquals(new BigDecimal("200.00"), itemResponse1.getValorTotalItem());
+    }
+
+    @Test
+    @DisplayName("Deve falhar ao buscar relatório com ID nulo")
+    void shouldFailReportWhenCollaboratorIdIsNull() {
+        LocalDateTime start = LocalDateTime.now();
+        LocalDateTime end = LocalDateTime.now().plusDays(1);
+
+        assertThrows(ResponseStatusException.class, () ->
+                collaboratorService.getSoldItemsReport(null, start, end, companyId));
+    }
+
+    @Test
+    @DisplayName("Deve falhar ao buscar relatório com data inicial nula")
+    void shouldFailReportWhenStartDateIsNull() {
+        LocalDateTime end = LocalDateTime.now();
+
+        assertThrows(ResponseStatusException.class, () ->
+                collaboratorService.getSoldItemsReport(10L, null, end, companyId));
+    }
+
+    @Test
+    @DisplayName("Deve falhar ao buscar relatório com data final nula")
+    void shouldFailReportWhenEndDateIsNull() {
+        LocalDateTime start = LocalDateTime.now();
+
+        assertThrows(ResponseStatusException.class, () ->
+                collaboratorService.getSoldItemsReport(10L, start, null, companyId));
+    }
+
+    @Test
+    @DisplayName("Deve falhar ao buscar relatório com data inicial posterior à data final")
+    void shouldFailReportWhenStartDateIsAfterEndDate() {
+        LocalDateTime start = LocalDateTime.of(2026, 11, 10, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 11, 5, 0, 0);
+
+        assertThrows(ResponseStatusException.class, () ->
+                collaboratorService.getSoldItemsReport(10L, start, end, companyId));
     }
 }
