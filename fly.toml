@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for erp-hwzl0w on 2026-10-30T14:04:06Z
+# fly.toml app configuration file generated for erp-hwzl0w on 2026-11-09T23:16:11Z
 #
 # See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
@@ -15,7 +15,7 @@ primary_region = 'gru'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
