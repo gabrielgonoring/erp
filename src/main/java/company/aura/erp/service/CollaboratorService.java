@@ -4,6 +4,7 @@ import company.aura.erp.dto.collaborator.*;
 import company.aura.erp.entity.CollaboratorEntity;
 import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.enums.CollaboratorStatus;
+import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.UserStatus;
 import company.aura.erp.mapper.CollaboratorMapper;
 import company.aura.erp.repository.CollaboratorRepository;
@@ -149,8 +150,10 @@ public class CollaboratorService {
         CollaboratorEntity collaborator = collaboratorRepository.findByIdAndCompanyId(collaboratorId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Colaborador não encontrado com ID: " + collaboratorId));
 
+        List<OrderStatus> allowedOrderStatuses = List.of(OrderStatus.COMPLETED, OrderStatus.PENDING_PAYMENT);
+
         List<OrderItemEntity> items = orderItemRepository.findByCollaboratorAndCompanyAndCreatedAtBetween(
-                collaboratorId, companyId, startDate.atStartOfDay(), endDate.atTime(LocalTime.MAX));
+                collaboratorId, companyId, allowedOrderStatuses, startDate.atStartOfDay(), endDate.atTime(LocalTime.MAX));
 
         BigDecimal commissionRate = collaborator.getDefaultCommissionPercentage() != null
                 ? collaborator.getDefaultCommissionPercentage()

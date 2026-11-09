@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   application:
     name: ${SPRING_APPLICATION_NAME:erp}
 
@@ -48,6 +48,17 @@ cloudflare:
     endpoint: ${CLOUDFLARE_R2_ENDPOINT:}
     trust-all-certificates: ${CLOUDFLARE_R2_TRUST_ALL:false}
 
+aws:
+  ses:
+    access-key-id: ${AWS_SES_ACCESS_KEY_ID:${AWS_ACCESS_KEY_ID:}}
+    secret-access-key: ${AWS_SES_SECRET_ACCESS_KEY:${AWS_SECRET_ACCESS_KEY:}}
+    region: ${AWS_SES_REGION:${AWS_REGION:us-east-1}}
+    from-email: ${AWS_SES_FROM_EMAIL:no-reply@company.com}
+    from-name: ${AWS_SES_FROM_NAME:ERP Aura}
+    configuration-set: ${AWS_SES_CONFIGURATION_SET:}
+    endpoint: ${AWS_SES_ENDPOINT:}
+    enabled: ${AWS_SES_ENABLED:true}
+
 server:
   port: ${SERVER_PORT:8080}
 
@@ -67,3 +78,5 @@ logging:
     org.springframework.cloud.openfeign: ${LOG_LEVEL_OPENFEIGN:WARN}
     io.micrometer: ${LOG_LEVEL_MICROMETER:WARN}
     brave: ${LOG_LEVEL_BRAVE:WARN}
+
+
