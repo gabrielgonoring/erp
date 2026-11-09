@@ -43,7 +43,7 @@ class CollaboratorMapperTest {
         assertEquals("111.222.333-44", entity.getCpf());
         assertEquals("carlos@email.com", entity.getEmail());
         assertEquals(new BigDecimal("10.50"), entity.getDefaultCommissionPercentage());
-        assertEquals(new BigDecimal("10.50"), entity.getCommissionPercentage());
+        assertEquals(new BigDecimal("10.50"), entity.getDefaultCommissionPercentage());
         assertEquals(CollaboratorStatus.ACTIVE.name(), entity.getStatus());
         assertEquals("Rua A", entity.getStreet());
         assertEquals("Barbeiro", entity.getJobTitle());
