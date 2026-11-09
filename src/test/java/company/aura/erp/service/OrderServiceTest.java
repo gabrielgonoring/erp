@@ -38,8 +38,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -459,7 +458,9 @@ class OrderServiceTest {
         );
         Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 
-        when(orderRepository.searchSummarized(eq(companyId), eq("Teste"), any(Pageable.class))).thenReturn(page);
+        when(orderRepository.searchSummarized(
+                eq(companyId), eq("Teste"), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), any(Pageable.class)
+        )).thenReturn(page);
 
         Page<OrderSummaryResponse> result = orderService.listSummarized("Teste", companyId, pageable);
 
@@ -470,7 +471,47 @@ class OrderServiceTest {
         assertEquals(100L, result.getContent().get(0).id());
         assertEquals(BigDecimal.valueOf(200.00), result.getContent().get(0).totalAmount());
         assertEquals(OrderStatus.OPEN, result.getContent().get(0).status());
-        verify(orderRepository).searchSummarized(eq(companyId), eq("Teste"), any(Pageable.class));
+        verify(orderRepository).searchSummarized(
+                eq(companyId), eq("Teste"), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), any(Pageable.class)
+        );
+    }
+
+    @Test
+    @DisplayName("GET /api/orders — Deve listar pedidos com filtros de startDate, endDate e status no serviço")
+    void shouldListSummarizedOrdersWithFilters() {
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 30);
+        List<OrderStatus> statuses = List.of(OrderStatus.OPEN, OrderStatus.COMPLETED);
+
+        OrderSummaryResponse summary = new OrderSummaryResponse(
+                100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(200.00), OrderStatus.OPEN, LocalDateTime.now()
+        );
+        Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderRepository.searchSummarized(
+                eq(companyId), eq("Teste"), eq(true), eq(false), eq(false), any(LocalDateTime.class), any(LocalDateTime.class), eq(true), eq(statuses), any(Pageable.class)
+        )).thenReturn(page);
+
+        Page<OrderSummaryResponse> result = orderService.listSummarized("Teste", startDate, endDate, statuses, companyId, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        verify(orderRepository).searchSummarized(
+                eq(companyId), eq("Teste"), eq(true), eq(false), eq(false), any(LocalDateTime.class), any(LocalDateTime.class), eq(true), eq(statuses), any(Pageable.class)
+        );
+    }
+
+    @Test
+    @DisplayName("GET /api/orders — Deve lançar BAD_REQUEST se startDate for posterior a endDate")
+    void shouldThrowBadRequestWhenStartDateIsAfterEndDate() {
+        Pageable pageable = PageRequest.of(0, 10);
+        LocalDate startDate = LocalDate.of(2026, 11, 30);
+        LocalDate endDate = LocalDate.of(2026, 11, 1);
+
+        assertThrows(ResponseStatusException.class, () ->
+                orderService.listSummarized("Teste", startDate, endDate, null, companyId, pageable)
+        );
     }
 
    /* @Test

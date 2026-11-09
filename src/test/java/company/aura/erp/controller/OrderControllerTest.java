@@ -397,7 +397,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/orders — Deve listar pedidos de forma simplificada e paginada")
+    @DisplayName("GET /api/orders — Deve listar pedidos de forma simplificada e paginada sem filtros opcionais")
     void shouldListSummarizedOrders() {
         Pageable pageable = PageRequest.of(0, 20);
         OrderSummaryResponse summary = new OrderSummaryResponse(
@@ -405,12 +405,34 @@ class OrderControllerTest {
         );
         Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 
-        when(orderService.listSummarized("Teste", 10L, pageable)).thenReturn(page);
+        when(orderService.listSummarized("Teste", null, null, null, 10L, pageable)).thenReturn(page);
 
-        ResponseEntity<Page<OrderSummaryResponse>> response = orderController.list("Teste", pageable, userPrincipal);
+        ResponseEntity<Page<OrderSummaryResponse>> response = orderController.list("Teste", null, null, null, pageable, userPrincipal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(page, response.getBody());
-        verify(orderService).listSummarized("Teste", 10L, pageable);
+        verify(orderService).listSummarized("Teste", null, null, null, 10L, pageable);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders — Deve listar pedidos filtrando por startDate, endDate e status")
+    void shouldListSummarizedOrdersWithFilters() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 30);
+        List<OrderStatus> statuses = List.of(OrderStatus.OPEN, OrderStatus.PENDING_PAYMENT);
+
+        OrderSummaryResponse summary = new OrderSummaryResponse(
+                1L, "12345678901", "Cliente Teste", BigDecimal.valueOf(150.00), OrderStatus.OPEN, LocalDateTime.now()
+        );
+        Page<OrderSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderService.listSummarized("Teste", startDate, endDate, statuses, 10L, pageable)).thenReturn(page);
+
+        ResponseEntity<Page<OrderSummaryResponse>> response = orderController.list("Teste", startDate, endDate, statuses, pageable, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(page, response.getBody());
+        verify(orderService).listSummarized("Teste", startDate, endDate, statuses, 10L, pageable);
     }
 }

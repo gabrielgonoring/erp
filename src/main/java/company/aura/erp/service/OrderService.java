@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -408,39 +409,55 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
-        Pageable effectivePageable = pageable;
-        if (pageable != null && pageable.getSort().isSorted()) {
-            Sort mappedSort = Sort.by(
-                    pageable.getSort().stream().map(order -> {
-                        String prop = order.getProperty();
-                        if ("customerName".equalsIgnoreCase(prop) || "name".equalsIgnoreCase(prop)) {
-                            return new Sort.Order(order.getDirection(), "p.name");
-                        }
-                        if ("customerDocument".equalsIgnoreCase(prop) || "document".equalsIgnoreCase(prop)) {
-                            return new Sort.Order(order.getDirection(), "p.document");
-                        }
-                        if ("id".equalsIgnoreCase(prop)) {
-                            return new Sort.Order(order.getDirection(), "o.id");
-                        }
-                        if ("totalAmount".equalsIgnoreCase(prop)) {
-                            return new Sort.Order(order.getDirection(), "o.totalAmount");
-                        }
-                        if ("status".equalsIgnoreCase(prop)) {
-                            return new Sort.Order(order.getDirection(), "o.status");
-                        }
-                        if ("createdAt".equalsIgnoreCase(prop)) {
-                            return new Sort.Order(order.getDirection(), "o.createdAt");
-                        }
-                        return order;
-                    }).toList()
-            );
-            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), mappedSort);
-        } else if (pageable != null) {
-            effectivePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "o.createdAt"));
-        }
+    public Page<OrderSummaryResponse> listSummarized(
+            String search,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<OrderStatus> statuses,
+            Long companyId,
+            Pageable pageable
+    ) {
 
         String searchTerm = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
-        return orderRepository.searchSummarized(companyId, searchTerm, effectivePageable);
+
+        boolean hasDateRange = (startDate != null && endDate != null);
+        boolean hasStartDateOnly = (startDate != null && endDate == null);
+        boolean hasEndDateOnly = (startDate == null && endDate != null);
+
+        LocalDateTime startDateTime = null;
+        LocalDateTime endDateTime = null;
+
+        if (hasDateRange) {
+            if (startDate.isAfter(endDate)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data inicial não pode ser posterior à data final.");
+            }
+            startDateTime = startDate.atStartOfDay();
+            endDateTime = endDate.atTime(LocalTime.MAX);
+        } else if (hasStartDateOnly) {
+            startDateTime = startDate.atStartOfDay();
+        } else if (hasEndDateOnly) {
+            endDateTime = endDate.atTime(LocalTime.MAX);
+        }
+
+        boolean hasStatuses = (statuses != null && !statuses.isEmpty());
+        List<OrderStatus> effectiveStatuses = hasStatuses ? statuses : List.of(OrderStatus.OPEN);
+
+        return orderRepository.searchSummarized(
+                companyId,
+                searchTerm,
+                hasDateRange,
+                hasStartDateOnly,
+                hasEndDateOnly,
+                startDateTime,
+                endDateTime,
+                hasStatuses,
+                effectiveStatuses,
+                pageable
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
+        return listSummarized(search, null, null, null, companyId, pageable);
     }
 }

@@ -32,7 +32,11 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
                     "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
                     "(p.partnerIdentifier IS NOT NULL AND LOWER(p.partnerIdentifier) LIKE LOWER(CONCAT('%', :search, '%'))) OR " +
                     "(p.document IS NOT NULL AND LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%'))) OR " +
-                    "LOWER(CAST(o.status AS string)) LIKE LOWER(CONCAT('%', :search, '%')))",
+                    "LOWER(CAST(o.status AS string)) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
+                    "(:hasDateRange = false OR o.createdAt BETWEEN :startDateTime AND :endDateTime) AND " +
+                    "(:hasStartDateOnly = false OR o.createdAt >= :startDateTime) AND " +
+                    "(:hasEndDateOnly = false OR o.createdAt <= :endDateTime) AND " +
+                    "(:hasStatuses = false OR o.status IN (:statuses))",
             countQuery = "SELECT count(o) " +
                     "FROM OrderEntity o JOIN PartnerEntity p ON o.partnerId = p.id " +
                     "WHERE o.companyId = :companyId AND " +
@@ -41,13 +45,28 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
                     "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
                     "(p.partnerIdentifier IS NOT NULL AND LOWER(p.partnerIdentifier) LIKE LOWER(CONCAT('%', :search, '%'))) OR " +
                     "(p.document IS NOT NULL AND LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%'))) OR " +
-                    "LOWER(CAST(o.status AS string)) LIKE LOWER(CONCAT('%', :search, '%')))"
+                    "LOWER(CAST(o.status AS string)) LIKE LOWER(CONCAT('%', :search, '%'))) AND " +
+                    "(:hasDateRange = false OR o.createdAt BETWEEN :startDateTime AND :endDateTime) AND " +
+                    "(:hasStartDateOnly = false OR o.createdAt >= :startDateTime) AND " +
+                    "(:hasEndDateOnly = false OR o.createdAt <= :endDateTime) AND " +
+                    "(:hasStatuses = false OR o.status IN (:statuses))"
     )
     Page<OrderSummaryResponse> searchSummarized(
             @Param("companyId") Long companyId,
             @Param("search") String search,
+            @Param("hasDateRange") boolean hasDateRange,
+            @Param("hasStartDateOnly") boolean hasStartDateOnly,
+            @Param("hasEndDateOnly") boolean hasEndDateOnly,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime,
+            @Param("hasStatuses") boolean hasStatuses,
+            @Param("statuses") List<OrderStatus> statuses,
             Pageable pageable
     );
+
+    default Page<OrderSummaryResponse> searchSummarized(Long companyId, String search, Pageable pageable) {
+        return searchSummarized(companyId, search, false, false, false, null, null, false, List.of(OrderStatus.OPEN), pageable);
+    }
 
     @Query("SELECT SUM(o.totalAmount) FROM OrderEntity o " +
             "WHERE o.companyId = :companyId AND o.status = :status " +
