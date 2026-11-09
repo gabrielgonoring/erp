@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public record PartnerResponse(
         Long id,
         Long companyId,
+        String partnerIdentifier,
         Boolean isCustomer,
         Boolean isSupplier,
         Boolean isCarrier,
@@ -32,10 +33,44 @@ public record PartnerResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
+    public PartnerResponse(
+            Long id,
+            Long companyId,
+            Boolean isCustomer,
+            Boolean isSupplier,
+            Boolean isCarrier,
+            PersonType personType,
+            String document,
+            String name,
+            Integer indicatorIe,
+            String stateRegistration,
+            String email,
+            String phone,
+            String status,
+            String street,
+            String number,
+            String complement,
+            String neighborhood,
+            String ibgeCityCode,
+            String city,
+            String state,
+            String zipCode,
+            String countryCode,
+            String countryName,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+        this(id, companyId, null, isCustomer, isSupplier, isCarrier, personType, document, name,
+                indicatorIe, stateRegistration, email, phone, status, street, number, complement,
+                neighborhood, ibgeCityCode, city, state, zipCode, countryCode, countryName,
+                createdAt, updatedAt);
+    }
+
     public static PartnerResponse fromEntity(PartnerEntity entity) {
         return new PartnerResponse(
                 entity.getId(),
                 entity.getCompanyId(),
+                entity.getPartnerIdentifier(),
                 entity.getIsCustomer(),
                 entity.getIsSupplier(),
                 entity.getIsCarrier(),

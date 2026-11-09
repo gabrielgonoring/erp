@@ -7,6 +7,9 @@ import jakarta.validation.constraints.Size;
 
 public record PartnerUpdateRequest(
 
+        @Size(max = 100, message = "Identificador do parceiro deve ter no máximo 100 caracteres.")
+        String partnerIdentifier,
+
         @NotNull(message = "Informe se o parceiro é um cliente")
         Boolean isCustomer,
 
@@ -54,7 +57,7 @@ public record PartnerUpdateRequest(
         @Size(min = 2, max = 2, message = "Estado (UF) deve ter exatamente 2 caracteres.")
         String state,
 
-        @Pattern(regexp = "\\d{8}", message = "CEP deve conter exatamente 8 dígitos numéricos.")
+        @Pattern(regexp = "^$|\\d{8}", message = "CEP deve conter exatamente 8 dígitos numéricos.")
         String zipCode,
 
         @Size(max = 4, message = "Código do país deve ter no máximo 4 caracteres.")
@@ -62,4 +65,30 @@ public record PartnerUpdateRequest(
 
         @Size(max = 50, message = "Nome do país deve ter no máximo 50 caracteres.")
         String countryName
-) {}
+) {
+    public PartnerUpdateRequest(
+            Boolean isCustomer,
+            Boolean isSupplier,
+            Boolean isCarrier,
+            String document,
+            String name,
+            Integer indicatorIe,
+            String stateRegistration,
+            String email,
+            String phone,
+            String street,
+            String number,
+            String complement,
+            String neighborhood,
+            String ibgeCityCode,
+            String city,
+            String state,
+            String zipCode,
+            String countryCode,
+            String countryName
+    ) {
+        this(null, isCustomer, isSupplier, isCarrier, document, name, indicatorIe,
+                stateRegistration, email, phone, street, number, complement, neighborhood,
+                ibgeCityCode, city, state, zipCode, countryCode, countryName);
+    }
+}

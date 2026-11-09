@@ -25,6 +25,9 @@ public class PartnerEntity {
     @Column(name = "company_id", nullable = false)
     private Long companyId;
 
+    @Column(name = "partner_identifier", length = 100)
+    private String partnerIdentifier;
+
     @Builder.Default
     @Column(name = "is_customer")
     private Boolean isCustomer = false;
@@ -44,7 +47,7 @@ public class PartnerEntity {
     @Column(name = "person_type", nullable = false, length = 2)
     private PersonType personType;
 
-    @Column(name = "document", nullable = false, length = 14)
+    @Column(name = "document", length = 14)
     private String document;
 
     @Column(name = "name", nullable = false)
@@ -57,34 +60,34 @@ public class PartnerEntity {
     @Column(name = "state_registration", length = 20)
     private String stateRegistration;
 
-    @Column(name = "email", nullable = false)
+    @Column(name = "email")
     private String email;
 
     @Column(name = "phone", length = 20)
     private String phone;
 
-    @Column(name = "street", nullable = false)
+    @Column(name = "street")
     private String street;
 
-    @Column(name = "number", nullable = false, length = 20)
+    @Column(name = "number", length = 20)
     private String number;
 
     @Column(name = "complement", length = 100)
     private String complement;
 
-    @Column(name = "neighborhood", nullable = false, length = 100)
+    @Column(name = "neighborhood", length = 100)
     private String neighborhood;
 
-    @Column(name = "ibge_city_code", nullable = false, length = 7)
+    @Column(name = "ibge_city_code", length = 7)
     private String ibgeCityCode;
 
-    @Column(name = "city", nullable = false, length = 100)
+    @Column(name = "city", length = 100)
     private String city;
 
-    @Column(name = "state", nullable = false, length = 2)
+    @Column(name = "state", length = 2)
     private String state;
 
-    @Column(name = "zip_code", nullable = false, length = 8)
+    @Column(name = "zip_code", length = 8)
     private String zipCode;
 
     @Builder.Default

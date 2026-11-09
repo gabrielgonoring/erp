@@ -1,5 +1,6 @@
 package company.aura.erp.service;
 
+import company.aura.erp.dto.partner.PartnerCreateRequest;
 import company.aura.erp.dto.partner.PartnerResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
@@ -9,6 +10,7 @@ import company.aura.erp.enums.PersonType;
 import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.PartnerRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -48,6 +50,7 @@ class PartnerServiceTest {
         activePartner = PartnerEntity.builder()
                 .id(1L)
                 .companyId(10L)
+                .partnerIdentifier("USER-PARTNER-001")
                 .name("Empresa Parceira")
                 .document("12345678000199")
                 .personType(PersonType.PJ)
@@ -64,6 +67,92 @@ class PartnerServiceTest {
                 .zipCode("01001000")
                 .status(PartnerStatus.ACTIVE.name())
                 .build();
+    }
+
+    @Test
+    @DisplayName("Deve salvar parceiro com partner_identifier e campos opcionais nulos")
+    void shouldSavePartnerWithPartnerIdentifierAndOptionalFieldsNull() {
+        PartnerCreateRequest request = new PartnerCreateRequest(
+                "USER-12345",
+                true,
+                false,
+                false,
+                PersonType.PF,
+                null, // document opcional
+                "Cliente Sem Endereço",
+                null,
+                null,
+                null, // email opcional
+                null,
+                null, // street opcional
+                null, // number opcional
+                null,
+                null, // neighborhood opcional
+                null, // ibgeCityCode opcional
+                null, // city opcional
+                null, // state opcional
+                null, // zipCode opcional
+                null,
+                null
+        );
+
+        when(partnerRepository.save(any(PartnerEntity.class))).thenAnswer(invocation -> {
+            PartnerEntity entity = invocation.getArgument(0);
+            entity.setId(50L);
+            return entity;
+        });
+
+        PartnerResponse response = partnerService.save(request, 10L);
+
+        assertNotNull(response);
+        assertEquals(50L, response.id());
+        assertEquals("USER-12345", response.partnerIdentifier());
+        assertNull(response.document());
+        assertNull(response.email());
+        assertNull(response.street());
+        assertNull(response.city());
+        verify(partnerRepository).save(any(PartnerEntity.class));
+    }
+
+    @Test
+    @DisplayName("Deve atualizar parceiro incluindo partner_identifier")
+    void shouldUpdatePartnerWithPartnerIdentifier() {
+        when(partnerRepository.findByIdAndCompanyIdAndStatusNot(1L, 10L, PartnerStatus.DELETED.name()))
+                .thenReturn(Optional.of(activePartner));
+        when(partnerRepository.save(any(PartnerEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PartnerUpdateRequest updateRequest = new PartnerUpdateRequest(
+                "USER-UPDATED-999",
+                true,
+                false,
+                false,
+                null,
+                "Nome Atualizado",
+                9,
+                null,
+                null,
+                "1199999999",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "1058",
+                "Brasil"
+        );
+
+        PartnerResponse response = partnerService.update(1L, updateRequest, 10L);
+
+        assertNotNull(response);
+        assertEquals("USER-UPDATED-999", response.partnerIdentifier());
+        assertEquals("Nome Atualizado", response.name());
+        assertNull(response.document());
+        assertNull(response.email());
+        verify(partnerRepository).save(activePartner);
     }
 
     @Test
@@ -112,6 +201,7 @@ class PartnerServiceTest {
 
         assertNotNull(response);
         assertEquals(1L, response.id());
+        assertEquals("USER-PARTNER-001", response.partnerIdentifier());
         assertEquals("Empresa Parceira", response.name());
         assertFalse(response.isCarrier());
     }

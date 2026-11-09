@@ -36,8 +36,9 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
            "(:isCarrier IS NULL OR COALESCE(p.isCarrier, false) = :isCarrier) AND " +
            "(:search IS NULL OR :search = '' OR " +
            "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
-           "LOWER(p.city) LIKE LOWER(CONCAT('%', :search, '%')))")
+           "(p.partnerIdentifier IS NOT NULL AND LOWER(p.partnerIdentifier) LIKE LOWER(CONCAT('%', :search, '%'))) OR " +
+           "(p.document IS NOT NULL AND LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%'))) OR " +
+           "(p.city IS NOT NULL AND LOWER(p.city) LIKE LOWER(CONCAT('%', :search, '%'))))")
     Page<PartnerEntity> searchByCompanyIdAndTerm(
             @Param("companyId") Long companyId,
             @Param("search") String search,

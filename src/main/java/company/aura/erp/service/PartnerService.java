@@ -15,8 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Optional;
-
 @Service
 @RequiredArgsConstructor
 public class PartnerService {
@@ -31,8 +29,9 @@ public class PartnerService {
     }
 
     private PartnerEntity toEntity(PartnerCreateRequest request, Long companyId) {
-        PartnerEntity partner = PartnerEntity.builder()
+        return PartnerEntity.builder()
                 .companyId(companyId)
+                .partnerIdentifier(request.partnerIdentifier())
                 .isCustomer(request.isCustomer())
                 .isSupplier(request.isSupplier())
                 .isCarrier(request.isCarrier() != null ? request.isCarrier() : false)
@@ -55,15 +54,14 @@ public class PartnerService {
                 .countryCode(request.countryCode() != null ? request.countryCode() : "1058")
                 .countryName(request.countryName() != null ? request.countryName() : "Brasil")
                 .build();
-        return partner;
     }
-
 
     @Transactional
     public PartnerResponse update(Long id, PartnerUpdateRequest request, Long companyId) {
         PartnerEntity partner = partnerRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, PartnerStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não encontrado com ID: " + id));
 
+        partner.setPartnerIdentifier(request.partnerIdentifier());
         partner.setIsCustomer(request.isCustomer());
         partner.setIsSupplier(request.isSupplier());
         if (request.isCarrier() != null) {
