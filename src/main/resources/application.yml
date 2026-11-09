@@ -1,6 +1,8 @@
-﻿spring:
+spring:
   application:
     name: ${SPRING_APPLICATION_NAME:erp}
+  main:
+    banner-mode: ${BANNER_MODE:${SPRING_BANNER_MODE:off}}
 
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/erp_db?useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
@@ -62,6 +64,12 @@ aws:
 server:
   port: ${SERVER_PORT:8080}
 
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:INFO}
@@ -78,5 +86,3 @@ logging:
     org.springframework.cloud.openfeign: ${LOG_LEVEL_OPENFEIGN:WARN}
     io.micrometer: ${LOG_LEVEL_MICROMETER:WARN}
     brave: ${LOG_LEVEL_BRAVE:WARN}
-
-
