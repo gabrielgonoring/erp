@@ -2,6 +2,7 @@ spring:
   application:
     name: ${SPRING_APPLICATION_NAME:erp}
   main:
+    lazy-initialization: ${SPRING_LAZY_INITIALIZATION:true}
     banner-mode: ${BANNER_MODE:${SPRING_BANNER_MODE:off}}
 
   datasource:
