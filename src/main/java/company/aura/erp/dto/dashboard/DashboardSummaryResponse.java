@@ -2,21 +2,14 @@ package company.aura.erp.dto.dashboard;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public record DashboardSummaryResponse(
         LocalDate startDate,
         LocalDate endDate,
-        BigDecimal totalRevenue,
-        SalesVolumeResponse salesVolume,
-        PendingSalesResponse pendingSales
+        List<OrderStatusSummary> salesPerStatus,
+        BigDecimal paidAmount,
+        BigDecimal pendingAmount,
+        BigDecimal totalAmount
 ) {
-    public record SalesVolumeResponse(
-            Long closedOrdersCount,
-            BigDecimal averageTicket
-    ) {}
-
-    public record PendingSalesResponse(
-            BigDecimal totalAmount,
-            Long ordersCount
-    ) {}
 }

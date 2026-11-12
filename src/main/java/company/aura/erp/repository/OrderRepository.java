@@ -1,6 +1,7 @@
 package company.aura.erp.repository;
 
 import company.aura.erp.dto.dashboard.OrderAggregation;
+import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.order.OrderSummaryResponse;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.enums.OrderStatus;
@@ -65,31 +66,20 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
             Pageable pageable
     );
 
-    @Query("SELECT new company.aura.erp.dto.dashboard.OrderAggregation(COUNT(o), SUM(o.totalAmount)) " +
-            "FROM OrderEntity o " +
-            "WHERE o.companyId = :companyId AND o.status = :status " +
-            "AND COALESCE(o.completedAt, o.createdAt) >= :startDate AND COALESCE(o.completedAt, o.createdAt) <= :endDate")
-    OrderAggregation aggregateByStatusAndDateRange(
-            @Param("companyId") Long companyId,
-            @Param("status") OrderStatus status,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
 
-    @Query("SELECT new company.aura.erp.dto.dashboard.OrderAggregation(COUNT(o), SUM(o.totalAmount)) " +
-            "FROM OrderEntity o " +
-            "WHERE o.companyId = :companyId AND o.status IN (:statuses)")
-    OrderAggregation aggregateByStatuses(
+    @Query("""
+        SELECT new company.aura.erp.dto.dashboard.OrderStatusSummary(
+            o.status,
+            COUNT(o)
+        )
+        FROM OrderEntity o
+        WHERE o.companyId = :companyId
+          AND COALESCE(o.completedAt, o.createdAt) >= :startDate
+          AND COALESCE(o.completedAt, o.createdAt) <= :endDate
+        GROUP BY o.status
+    """)
+    List<OrderStatusSummary> summarizeByStatusesAndDateRange(
             @Param("companyId") Long companyId,
-            @Param("statuses") List<OrderStatus> statuses
-    );
-
-    @Query("SELECT SUM(o.totalAmount) FROM OrderEntity o " +
-            "WHERE o.companyId = :companyId AND o.status = :status " +
-            "AND COALESCE(o.completedAt, o.createdAt) >= :startDate AND COALESCE(o.completedAt, o.createdAt) <= :endDate")
-    BigDecimal sumAmountByStatusAndDateRange(
-            @Param("companyId") Long companyId,
-            @Param("status") OrderStatus status,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );

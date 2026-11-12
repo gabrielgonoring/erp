@@ -1,11 +1,9 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse.PendingSalesResponse;
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse.SalesVolumeResponse;
-import company.aura.erp.dto.dashboard.OrderAggregation;
-import company.aura.erp.dto.dashboard.SystemAlertResponse;
+import company.aura.erp.dto.dashboard.*;
+import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
@@ -33,6 +31,8 @@ public class DashboardService {
 
     private final OrderRepository orderRepository;
 
+    private final OrderInstallmentRepository orderInstallmentRepository;
+
     private final List<AlertService> alertsValidations;
 
     private final ExecutorService executorService;
@@ -40,40 +40,36 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
         LocalDate today = LocalDate.now();
-        LocalDate resolvedStartDate = startDate != null ? startDate : today.withDayOfMonth(1);
-        LocalDate resolvedEndDate = endDate != null ? endDate : today;
+        LocalDateTime resolvedStartDate = startDate != null ? startDate.atStartOfDay() : today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime resolvedEndDate = endDate != null ? endDate.atTime(LocalTime.MAX) : today.atTime(LocalTime.MAX);
 
         validateSummaryRequest(resolvedStartDate, resolvedEndDate);
 
-        CompletableFuture<SalesVolumeResponse> salesVolumeFuture = CompletableFuture.supplyAsync(
-                () -> getSalesVolume(companyId, resolvedStartDate, resolvedEndDate),
+        CompletableFuture<List<OrderStatusSummary>> statusSummary = CompletableFuture.supplyAsync(
+                () -> getSalesResponseByOrderStatus(companyId, resolvedStartDate, resolvedEndDate),
                 executorService
         );
 
-        CompletableFuture<PendingSalesResponse> pendingSalesFuture = CompletableFuture.supplyAsync(
-                () -> getPendingSales(companyId),
-                executorService
-        );
-
-        CompletableFuture<BigDecimal> totalRevenueFuture = CompletableFuture.supplyAsync(
-                () -> getTotalRevenue(companyId, today),
+        CompletableFuture<InstallmentPaymentSummary> paymentSummary = CompletableFuture.supplyAsync(
+                () -> getPaymentSummary(companyId, resolvedStartDate, resolvedEndDate),
                 executorService
         );
 
         try {
-            CompletableFuture.allOf(salesVolumeFuture, pendingSalesFuture, totalRevenueFuture).join();
+            CompletableFuture.allOf(paymentSummary, statusSummary).join();
 
-            SalesVolumeResponse salesVolume = salesVolumeFuture.join();
-            PendingSalesResponse pendingSales = pendingSalesFuture.join();
-            BigDecimal totalRevenue = totalRevenueFuture.join();
+            var salesPerStatus = statusSummary.join();
+            var paymentSummaryResponse = paymentSummary.join();
 
             return new DashboardSummaryResponse(
-                    resolvedStartDate,
-                    resolvedEndDate,
-                    totalRevenue,
-                    salesVolume,
-                    pendingSales
+                    resolvedStartDate.toLocalDate(),
+                    resolvedEndDate.toLocalDate(),
+                    salesPerStatus,
+                    paymentSummaryResponse.paidAmount(),
+                    paymentSummaryResponse.pendingAmount(),
+                    paymentSummaryResponse.paidAmount().add(paymentSummaryResponse.pendingAmount())
             );
+
         } catch (CompletionException e) {
             if (e.getCause() instanceof RuntimeException runtimeException) {
                 throw runtimeException;
@@ -82,68 +78,24 @@ public class DashboardService {
         }
     }
 
-    private PendingSalesResponse getPendingSales(Long companyId) {
-        // 3. Vendas em Aberto / Pendentes: Total em R$ e quantidade de pedidos aguardando faturamento ou pagamento
-        List<OrderStatus> pendingStatuses = List.of(OrderStatus.OPEN, OrderStatus.PENDING_PAYMENT);
 
-        OrderAggregation aggregation = orderRepository.aggregateByStatuses(companyId, pendingStatuses);
-
-        long pendingOrdersCount = aggregation != null && aggregation.count() != null ? aggregation.count() : 0L;
-        BigDecimal pendingOrdersAmount = aggregation != null && aggregation.totalAmount() != null
-                ? aggregation.totalAmount().setScale(2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-
-        return new PendingSalesResponse(pendingOrdersAmount, pendingOrdersCount);
+    private List<OrderStatusSummary> getSalesResponseByOrderStatus(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
+        return orderRepository.summarizeByStatusesAndDateRange(companyId, resolvedStartDate, resolvedEndDate);
     }
 
-    private SalesVolumeResponse getSalesVolume(Long companyId, LocalDate resolvedStartDate, LocalDate resolvedEndDate) {
-        LocalDateTime periodStart = resolvedStartDate.atStartOfDay();
-        LocalDateTime periodEnd = resolvedEndDate.atTime(LocalTime.MAX);
 
-        OrderAggregation aggregation = orderRepository.aggregateByStatusAndDateRange(
+    private InstallmentPaymentSummary getPaymentSummary(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
+        return orderInstallmentRepository.getPaymentsSummary(
                 companyId,
-                OrderStatus.COMPLETED,
-                periodStart,
-                periodEnd
+                List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED),
+                List.of(InstallmentStatus.CANCELED),
+                resolvedStartDate,
+                resolvedEndDate
         );
-
-        long closedOrdersCount = aggregation != null && aggregation.count() != null ? aggregation.count() : 0L;
-        BigDecimal closedOrdersAmount = aggregation != null && aggregation.totalAmount() != null
-                ? aggregation.totalAmount().setScale(2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-
-        BigDecimal averageTicket = getAverageTicket(closedOrdersCount, closedOrdersAmount);
-
-        return new SalesVolumeResponse(closedOrdersCount, averageTicket);
     }
 
-    private BigDecimal getAverageTicket(long closedOrdersCount, BigDecimal closedOrdersAmount) {
-        BigDecimal averageTicket = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        if (closedOrdersCount > 0) {
-            averageTicket = closedOrdersAmount.divide(BigDecimal.valueOf(closedOrdersCount), 2, RoundingMode.HALF_UP);
-        }
-        return averageTicket;
-    }
 
-    private BigDecimal getTotalRevenue(Long companyId, LocalDate today) {
-        // 1. Faturamento Total Realizado: Soma dos pedidos concluídos ou pagos no mês
-        LocalDateTime startOfMonth = today.withDayOfMonth(1).atStartOfDay();
-        LocalDateTime endOfMonth = today.atTime(LocalTime.MAX);
-        BigDecimal totalRevenue = orderRepository.sumAmountByStatusAndDateRange(
-                companyId,
-                OrderStatus.COMPLETED,
-                startOfMonth,
-                endOfMonth
-        );
-        if (totalRevenue == null) {
-            totalRevenue = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        } else {
-            totalRevenue = totalRevenue.setScale(2, RoundingMode.HALF_UP);
-        }
-        return totalRevenue;
-    }
-
-    private void validateSummaryRequest(LocalDate resolvedStartDate, LocalDate resolvedEndDate) {
+    private void validateSummaryRequest(LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
         if (resolvedStartDate.isAfter(resolvedEndDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data inicial não pode ser posterior à data final.");
         }

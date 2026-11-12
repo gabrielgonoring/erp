@@ -20,8 +20,6 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
 
-
-
     @GetMapping("/summary")
     public ResponseEntity<DashboardSummaryResponse> getSummary(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
