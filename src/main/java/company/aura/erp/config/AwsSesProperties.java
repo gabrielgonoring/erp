@@ -36,6 +36,11 @@ public class AwsSesProperties {
     private String fromName;
 
     /**
+     * Endereço de e-mail opcional para onde as respostas do destinatário devem ser direcionadas (Reply-To).
+     */
+    private String replyTo;
+
+    /**
      * Configuration Set opcional do SES para rastreamento de métricas e reputação.
      */
     private String configurationSet;

@@ -14,12 +14,24 @@ public class EmailService {
 
     /**
      * Envia e-mail de recuperação de senha contendo a URL de redefinição.
+     * Utiliza o Reply-To padrão configurado na aplicação.
      *
      * @param user     Usuário destinatário
      * @param resetUrl URL completa para redefinição de senha
      */
     public void sendPasswordResetEmail(UserEntity user, String resetUrl) {
-        log.info("sendPasswordResetEmail() - START - email={}", user != null ? user.getEmail() : null);
+        sendPasswordResetEmail(user, resetUrl, null);
+    }
+
+    /**
+     * Envia e-mail de recuperação de senha contendo a URL de redefinição e Reply-To customizado.
+     *
+     * @param user     Usuário destinatário
+     * @param resetUrl URL completa para redefinição de senha
+     * @param replyTo  E-mail para onde o usuário pode responder com dúvidas (opcional, null usa o padrão)
+     */
+    public void sendPasswordResetEmail(UserEntity user, String resetUrl, String replyTo) {
+        log.info("sendPasswordResetEmail() - START - email={}, replyTo={}", user != null ? user.getEmail() : null, replyTo);
 
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
             log.warn("sendPasswordResetEmail() - Usuário ou e-mail inválido, abortando envio.");
@@ -34,7 +46,8 @@ public class EmailService {
                 "Recebemos uma solicitação para redefinir a sua senha no Aura ERP.\n" +
                 "Para redefinir sua senha, acesse o link abaixo:\n\n" +
                 "%s\n\n" +
-                "Se você não solicitou a redefinição de senha, ignore esta mensagem.\n\n" +
+                "Se você não solicitou a redefinição de senha, ignore esta mensagem.\n" +
+                "Caso precise de suporte, basta responder a este e-mail.\n\n" +
                 "Atenciosamente,\nEquipe Aura ERP",
                 userName, resetUrl
         );
@@ -56,14 +69,17 @@ public class EmailService {
                 "    <p>Ou copie e cole o link a seguir no seu navegador:</p>" +
                 "    <p style=\"word-break: break-all; color: #1a73e8;\">%s</p>" +
                 "    <hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\" />" +
-                "    <p style=\"font-size: 12px; color: #777;\">Se você não realizou essa solicitação, nenhuma ação é necessária e seu acesso permanece seguro.</p>" +
+                "    <p style=\"font-size: 12px; color: #777;\">" +
+                "      Se você não realizou essa solicitação, nenhuma ação é necessária e seu acesso permanece seguro.<br />" +
+                "      Esta é uma mensagem automática. Caso tenha alguma dúvida ou precise de ajuda, basta responder a este e-mail." +
+                "    </p>" +
                 "  </div>" +
                 "</body>" +
                 "</html>",
                 userName, resetUrl, resetUrl
         );
 
-        amazonSesService.sendEmail(user.getEmail(), subject, htmlBody, textBody);
-        log.info("sendPasswordResetEmail() - END - E-mail enviado com sucesso para: {}", user.getEmail());
+        var resp = amazonSesService.sendEmail(user.getEmail(), subject, htmlBody, textBody, replyTo);
+        log.info("sendPasswordResetEmail() - END - E-mail enviado com sucesso para: {}, code: {}", user.getEmail(), resp);
     }
 }

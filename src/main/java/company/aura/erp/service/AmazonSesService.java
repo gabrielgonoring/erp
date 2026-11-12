@@ -49,6 +49,22 @@ public class AmazonSesService {
     }
 
     /**
+     * Envia um e-mail com versões HTML e texto simples para um único destinatário com Reply-To customizado.
+     *
+     * @param to Destinatário do e-mail
+     * @param subject Assunto do e-mail
+     * @param htmlBody Conteúdo HTML do e-mail
+     * @param textBody Conteúdo em texto puro (fallback)
+     * @param replyTo Endereço para resposta (Reply-To)
+     * @return Message ID retornado pelo SES
+     */
+    public String sendEmail(String to, String subject, String htmlBody, String textBody, String replyTo) {
+        List<String> recipients = (to != null && !to.isBlank()) ? List.of(to.trim()) : Collections.emptyList();
+        List<String> replyToList = (replyTo != null && !replyTo.isBlank()) ? List.of(replyTo.trim()) : Collections.emptyList();
+        return sendEmail(recipients, Collections.emptyList(), Collections.emptyList(), subject, htmlBody, textBody, replyToList);
+    }
+
+    /**
      * Envia um e-mail para múltiplos destinatários com corpo HTML.
      *
      * @param to Lista de destinatários (TO)
@@ -173,9 +189,15 @@ public class AmazonSesService {
                 requestBuilder.configurationSetName(properties.getConfigurationSet().trim());
             }
 
+            // Define os endereços de Reply-To (prioriza o informado no método; caso vazio, usa o configurado em aws.ses.reply-to)
             List<String> sanitizedReplyTo = filterValidEmails(replyTo);
+            if (sanitizedReplyTo.isEmpty() && properties.getReplyTo() != null && !properties.getReplyTo().isBlank()) {
+                sanitizedReplyTo = filterValidEmails(List.of(properties.getReplyTo().trim()));
+            }
+
             if (!sanitizedReplyTo.isEmpty()) {
                 requestBuilder.replyToAddresses(sanitizedReplyTo);
+                log.debug("sendEmail() - Reply-To configurado: {}", sanitizedReplyTo);
             }
 
             SendEmailResponse response = sesClient.sendEmail(requestBuilder.build());

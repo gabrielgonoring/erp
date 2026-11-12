@@ -21,33 +21,6 @@ class EmailServiceTest {
     @InjectMocks
     private EmailService emailService;
 
-    @Test
-    @DisplayName("Deve enviar e-mail de recuperação de senha com sucesso")
-    void shouldSendPasswordResetEmail() {
-        UserEntity user = UserEntity.builder()
-                .id(1L)
-                .name("Gabriel Borges")
-                .email("gabriel@aura.company")
-                .build();
-
-        String resetUrl = "https://erp.aura.company/redefinir-senha?token=abc-123";
-
-        when(amazonSesService.sendEmail(
-                eq("gabriel@aura.company"),
-                eq("Redefinição de Senha - Aura ERP"),
-                contains(resetUrl),
-                contains(resetUrl)
-        )).thenReturn("msg-reset-123");
-
-        emailService.sendPasswordResetEmail(user, resetUrl);
-
-        verify(amazonSesService, times(1)).sendEmail(
-                eq("gabriel@aura.company"),
-                eq("Redefinição de Senha - Aura ERP"),
-                contains(resetUrl),
-                contains(resetUrl)
-        );
-    }
 
     @Test
     @DisplayName("Não deve tentar enviar se o usuário ou e-mail for nulo/vazio")

@@ -79,9 +79,10 @@ aws:
   ses:
     access-key-id: ${AWS_SES_ACCESS_KEY_ID:${AWS_ACCESS_KEY_ID:}}
     secret-access-key: ${AWS_SES_SECRET_ACCESS_KEY:${AWS_SECRET_ACCESS_KEY:}}
-    region: ${AWS_SES_REGION:${AWS_REGION:us-east-1}}
-    from-email: ${AWS_SES_FROM_EMAIL:no-reply@company.com}
-    from-name: ${AWS_SES_FROM_NAME:ERP Aura}
+    region: ${AWS_SES_REGION:${AWS_REGION:us-east-2}}
+    from-email: ${AWS_SES_FROM_EMAIL:no-reply@ajeite.app}
+    from-name: ${AWS_SES_FROM_NAME:Ajeite App - Gestão de Empresa}
+    reply-to: ${AWS_SES_REPLY_TO:suporte@ajeite.app}
     configuration-set: ${AWS_SES_CONFIGURATION_SET:}
     endpoint: ${AWS_SES_ENDPOINT:}
     enabled: ${AWS_SES_ENABLED:true}
