@@ -3,13 +3,14 @@ package company.aura.erp.service;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse.PendingSalesResponse;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse.SalesVolumeResponse;
+import company.aura.erp.dto.dashboard.OrderAggregation;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,8 @@ import java.util.concurrent.ExecutorService;
 public class DashboardService {
 
     private final OrderRepository orderRepository;
+
+    private final OrderInstallmentRepository orderInstallmentRepository;
 
     private final List<AlertService> alertsValidations;
 
@@ -86,39 +89,35 @@ public class DashboardService {
         // 3. Vendas em Aberto / Pendentes: Total em R$ e quantidade de pedidos aguardando faturamento ou pagamento
         List<OrderStatus> pendingStatuses = List.of(OrderStatus.OPEN, OrderStatus.PENDING_PAYMENT);
 
-        long pendingOrdersCount = orderRepository.countByStatuses(companyId, pendingStatuses);
+        OrderAggregation aggregation = orderRepository.aggregateByStatuses(companyId, pendingStatuses);
 
-        BigDecimal pendingOrdersAmount = getPendingOrdersAmount(companyId, pendingStatuses);
+        long pendingOrdersCount = aggregation != null && aggregation.count() != null ? aggregation.count() : 0L;
+        BigDecimal pendingOrdersAmount = aggregation != null && aggregation.totalAmount() != null
+                ? aggregation.totalAmount().setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
-        PendingSalesResponse pendingSales = new PendingSalesResponse(pendingOrdersAmount, pendingOrdersCount);
-
-        return pendingSales;
+        return new PendingSalesResponse(pendingOrdersAmount, pendingOrdersCount);
     }
 
-    private BigDecimal getPendingOrdersAmount(Long companyId, List<OrderStatus> pendingStatuses) {
-        BigDecimal pendingOrdersAmount = orderRepository.sumAmountByStatuses(companyId, pendingStatuses);
-
-        if (pendingOrdersAmount == null) {
-            pendingOrdersAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        } else {
-            pendingOrdersAmount = pendingOrdersAmount.setScale(2, RoundingMode.HALF_UP);
-        }
-        return pendingOrdersAmount;
-    }
-
-    private @NonNull SalesVolumeResponse getSalesVolume(Long companyId, LocalDate resolvedStartDate, LocalDate resolvedEndDate) {
+    private SalesVolumeResponse getSalesVolume(Long companyId, LocalDate resolvedStartDate, LocalDate resolvedEndDate) {
         LocalDateTime periodStart = resolvedStartDate.atStartOfDay();
         LocalDateTime periodEnd = resolvedEndDate.atTime(LocalTime.MAX);
 
+        OrderAggregation aggregation = orderRepository.aggregateByStatusAndDateRange(
+                companyId,
+                OrderStatus.COMPLETED,
+                periodStart,
+                periodEnd
+        );
 
-        BigDecimal closedOrdersAmount = getClosedOrdersAmount(companyId, periodStart, periodEnd);
-
-        long closedOrdersCount = getClosedOrdersCount(companyId, periodStart, periodEnd);
+        long closedOrdersCount = aggregation != null && aggregation.count() != null ? aggregation.count() : 0L;
+        BigDecimal closedOrdersAmount = aggregation != null && aggregation.totalAmount() != null
+                ? aggregation.totalAmount().setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal averageTicket = getAverageTicket(closedOrdersCount, closedOrdersAmount);
 
-        SalesVolumeResponse salesVolume = new SalesVolumeResponse(closedOrdersCount, averageTicket);
-        return salesVolume;
+        return new SalesVolumeResponse(closedOrdersCount, averageTicket);
     }
 
     private BigDecimal getAverageTicket(long closedOrdersCount, BigDecimal closedOrdersAmount) {
@@ -129,32 +128,7 @@ public class DashboardService {
         return averageTicket;
     }
 
-    private long getClosedOrdersCount(Long companyId, LocalDateTime periodStart, LocalDateTime periodEnd) {
-        // 2. Volume de Vendas: Quantidade de pedidos fechados no período e ticket médio por venda
-        long closedOrdersCount = orderRepository.countByStatusAndDateRange(
-                companyId,
-                OrderStatus.COMPLETED,
-                periodStart,
-                periodEnd
-        );
-        return closedOrdersCount;
-    }
-
-    private @NonNull BigDecimal getClosedOrdersAmount(Long companyId, LocalDateTime periodStart, LocalDateTime periodEnd) {
-        BigDecimal closedOrdersAmount = orderRepository.sumAmountByStatusAndDateRange(
-                companyId,
-                OrderStatus.COMPLETED,
-                periodStart,
-                periodEnd
-        );
-        if (closedOrdersAmount == null) {
-            closedOrdersAmount = BigDecimal.ZERO;
-        }
-        return closedOrdersAmount;
-    }
-
-    private @NonNull BigDecimal getTotalRevenue(Long companyId, LocalDate today) {
-        // 1. Faturamento Total Realizado: Soma dos pedidos concluídos ou pagos no mês
+    private BigDecimal getTotalRevenue(Long companyId, LocalDate today) {
         LocalDateTime startOfMonth = today.withDayOfMonth(1).atStartOfDay();
         LocalDateTime endOfMonth = today.atTime(LocalTime.MAX);
         BigDecimal totalRevenue = orderRepository.sumAmountByStatusAndDateRange(

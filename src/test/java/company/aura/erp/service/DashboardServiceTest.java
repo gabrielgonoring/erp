@@ -1,6 +1,7 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
+import company.aura.erp.dto.dashboard.OrderAggregation;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.repository.OrderRepository;
@@ -61,23 +62,18 @@ class DashboardServiceTest {
         )).thenReturn(new BigDecimal("10000.00"));
 
         // Volume de vendas no período
-        when(orderRepository.countByStatusAndDateRange(
+        when(orderRepository.aggregateByStatusAndDateRange(
                 eq(companyId),
                 eq(OrderStatus.COMPLETED),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(4L);
+        )).thenReturn(new OrderAggregation(4L, new BigDecimal("10000.00")));
 
         // Vendas em aberto / pendentes
-        when(orderRepository.countByStatuses(
+        when(orderRepository.aggregateByStatuses(
                 eq(companyId),
                 anyList()
-        )).thenReturn(2L);
-
-        when(orderRepository.sumAmountByStatuses(
-                eq(companyId),
-                anyList()
-        )).thenReturn(new BigDecimal("3500.00"));
+        )).thenReturn(new OrderAggregation(2L, new BigDecimal("3500.00")));
 
         DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, companyId);
 
@@ -103,22 +99,17 @@ class DashboardServiceTest {
                 any(LocalDateTime.class)
         )).thenReturn(null);
 
-        when(orderRepository.countByStatusAndDateRange(
+        when(orderRepository.aggregateByStatusAndDateRange(
                 eq(companyId),
                 eq(OrderStatus.COMPLETED),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(0L);
+        )).thenReturn(new OrderAggregation(0L, null));
 
-        when(orderRepository.countByStatuses(
+        when(orderRepository.aggregateByStatuses(
                 eq(companyId),
                 anyList()
-        )).thenReturn(0L);
-
-        when(orderRepository.sumAmountByStatuses(
-                eq(companyId),
-                anyList()
-        )).thenReturn(null);
+        )).thenReturn(new OrderAggregation(0L, null));
 
         DashboardSummaryResponse response = dashboardService.getSummary(null, null, companyId);
 

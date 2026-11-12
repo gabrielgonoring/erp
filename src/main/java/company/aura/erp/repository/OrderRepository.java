@@ -1,5 +1,6 @@
 package company.aura.erp.repository;
 
+import company.aura.erp.dto.dashboard.OrderAggregation;
 import company.aura.erp.dto.order.OrderSummaryResponse;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.enums.OrderStatus;
@@ -64,9 +65,24 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
             Pageable pageable
     );
 
-    default Page<OrderSummaryResponse> searchSummarized(Long companyId, String search, Pageable pageable) {
-        return searchSummarized(companyId, search, false, false, false, null, null, false, List.of(OrderStatus.OPEN), pageable);
-    }
+    @Query("SELECT new company.aura.erp.dto.dashboard.OrderAggregation(COUNT(o), SUM(o.totalAmount)) " +
+            "FROM OrderEntity o " +
+            "WHERE o.companyId = :companyId AND o.status = :status " +
+            "AND COALESCE(o.completedAt, o.createdAt) >= :startDate AND COALESCE(o.completedAt, o.createdAt) <= :endDate")
+    OrderAggregation aggregateByStatusAndDateRange(
+            @Param("companyId") Long companyId,
+            @Param("status") OrderStatus status,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    @Query("SELECT new company.aura.erp.dto.dashboard.OrderAggregation(COUNT(o), SUM(o.totalAmount)) " +
+            "FROM OrderEntity o " +
+            "WHERE o.companyId = :companyId AND o.status IN (:statuses)")
+    OrderAggregation aggregateByStatuses(
+            @Param("companyId") Long companyId,
+            @Param("statuses") List<OrderStatus> statuses
+    );
 
     @Query("SELECT SUM(o.totalAmount) FROM OrderEntity o " +
             "WHERE o.companyId = :companyId AND o.status = :status " +
@@ -78,27 +94,4 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
             @Param("endDate") LocalDateTime endDate
     );
 
-    @Query("SELECT COUNT(o) FROM OrderEntity o " +
-            "WHERE o.companyId = :companyId AND o.status = :status " +
-            "AND COALESCE(o.completedAt, o.createdAt) >= :startDate AND COALESCE(o.completedAt, o.createdAt) <= :endDate")
-    long countByStatusAndDateRange(
-            @Param("companyId") Long companyId,
-            @Param("status") OrderStatus status,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
-    @Query("SELECT COUNT(o) FROM OrderEntity o " +
-            "WHERE o.companyId = :companyId AND o.status IN (:statuses)")
-    long countByStatuses(
-            @Param("companyId") Long companyId,
-            @Param("statuses") List<OrderStatus> statuses
-    );
-
-    @Query("SELECT SUM(o.totalAmount) FROM OrderEntity o " +
-            "WHERE o.companyId = :companyId AND o.status IN (:statuses)")
-    BigDecimal sumAmountByStatuses(
-            @Param("companyId") Long companyId,
-            @Param("statuses") List<OrderStatus> statuses
-    );
 }
