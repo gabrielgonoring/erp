@@ -9,6 +9,7 @@ import company.aura.erp.mapper.OrderInstallmentMapper;
 import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,7 +36,7 @@ public class OrderPaymentService {
         return request.installments().stream()
                 .map(installmentRequest -> processSingleInstallment(order, installmentRequest))
                 .toList();
-        
+
     }
 
     public List<OrderInstallmentEntity> findInstallments(Long orderId) {
@@ -53,27 +54,67 @@ public class OrderPaymentService {
     }
 
     public OrderInstallmentResponse payInstallment(OrderEntity order, Long installmentId, PaymentTransactionRequest request) {
-        OrderInstallmentEntity installment = orderInstallmentRepository.findByIdAndCompanyId(installmentId, order.getCompanyId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcela não encontrada com ID: " + installmentId));
+        OrderInstallmentEntity installment = findInstallment(order, installmentId);
 
-        if (!installment.getOrderId().equals(order.getId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A parcela não pertence a este pedido.");
-        }
-
-        if (installment.getStatus() == InstallmentStatus.CANCELED) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível registrar pagamento para uma parcela cancelada.");
-        }
+        validateOrderInstallmentToPay(order, installment);
 
         List<PaymentTransactionEntity> existingTransactions = paymentTransactionRepository.findByInstallmentId(installmentId);
-        BigDecimal currentPaid = existingTransactions.stream()
-                .map(PaymentTransactionEntity::getAmountPaid)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal installmentAmount = installment.getAmount() != null ? installment.getAmount() : BigDecimal.ZERO;
+        BigDecimal currentPaymentAmount = retrieveCurrentPaymentAmount(existingTransactions);
+
+        BigDecimal totalAmount = installment.getAmount() != null ? installment.getAmount() : BigDecimal.ZERO;
+
+        validateRemainingValue(request, totalAmount, currentPaymentAmount);
+
+        BigDecimal newTotalPaid = currentPaymentAmount.add(request.amountPaid());
+
+        installment.setStatus(getInstallmentStatusAfterPayment(newTotalPaid, totalAmount));
+        installment.setPendingAmount(totalAmount.subtract(newTotalPaid));
+
+        OrderInstallmentEntity savedInstallment = orderInstallmentRepository.save(installment);
+
+        List<PaymentTransactionEntity> allTransactions = new ArrayList<>(existingTransactions);
+        PaymentTransactionEntity savedTransaction = savePaymentTransaction(order, request, installment);
+        allTransactions.add(savedTransaction);
+
+        return OrderInstallmentMapper.fromEntity(savedInstallment, allTransactions);
+    }
+
+    private OrderInstallmentEntity findInstallment(OrderEntity order, Long installmentId) {
+        return orderInstallmentRepository.findByIdAndCompanyId(installmentId, order.getCompanyId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcela não encontrada com ID: " + installmentId));
+    }
+
+    private InstallmentStatus getInstallmentStatusAfterPayment(BigDecimal newTotalPaid, BigDecimal installmentAmount) {
+        if (newTotalPaid.compareTo(installmentAmount) >= 0) {
+            return InstallmentStatus.PAID;
+        } else {
+            return InstallmentStatus.PARTIALLY_PAID;
+        }
+    }
+
+    private PaymentTransactionEntity savePaymentTransaction(OrderEntity order, PaymentTransactionRequest request, OrderInstallmentEntity installment) {
+
+        LocalDateTime paidAt = request.paidAt() != null ? request.paidAt() : LocalDateTime.now();
+
+        PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
+                .installmentId(installment.getId())
+                .companyId(order.getCompanyId())
+                .paidAt(paidAt)
+                .amountPaid(request.amountPaid())
+                .paymentMethod(request.paymentMethod())
+                .cardBrand(request.cardBrand())
+                .nsuAuthorization(request.nsuAuthorization())
+                .notes(request.notes())
+                .build();
+
+        return paymentTransactionRepository.save(transaction);
+    }
+
+    private void validateRemainingValue(PaymentTransactionRequest request, BigDecimal installmentAmount, BigDecimal currentPaid) {
         BigDecimal remaining = installmentAmount.subtract(currentPaid);
 
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0 || installment.getStatus() == InstallmentStatus.PAID) {
+        if (remaining.compareTo(BigDecimal.ZERO) <= 0 ) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "A parcela já está totalmente paga.");
         }
 
@@ -86,55 +127,73 @@ public class OrderPaymentService {
                             requestAmountFormatted, remainingFormatted)
             );
         }
+    }
 
-        LocalDateTime paidAt = request.paidAt() != null ? request.paidAt() : LocalDateTime.now();
+    private BigDecimal retrieveCurrentPaymentAmount(List<PaymentTransactionEntity> existingTransactions) {
+        return existingTransactions.stream()
+                .map(PaymentTransactionEntity::getAmountPaid)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void validateOrderInstallmentToPay(OrderEntity order, OrderInstallmentEntity installment) {
+        if (!installment.getOrderId().equals(order.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A parcela não pertence a este pedido.");
+        }
+
+        if (installment.getStatus() == InstallmentStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível registrar pagamento para uma parcela cancelada.");
+        }
+
+        if (installment.getStatus() == InstallmentStatus.PAID) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível registrar pagamento para uma parcela já paga.");
+        }
+
+
+    }
+
+    public OrderInstallmentResponse addInstallment(OrderEntity order, OrderInstallmentCreateRequest request) {
+
+        int installmentNumber = getInstallmentNumber(order, request);
+
+        boolean isPaid = Boolean.TRUE.equals(request.paid());
+
+        BigDecimal amount = request.amount() != null ? request.amount() : BigDecimal.ZERO;
+        BigDecimal pendingAmount = isPaid ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : amount.setScale(2, RoundingMode.HALF_UP);
+
+        OrderInstallmentEntity saved = saveNewInstallment(order, request, installmentNumber, amount, pendingAmount, isPaid);
+
+        if (isPaid) {
+            PaymentTransactionEntity savedTx = savePaymentTransactionFromNewInstallment(order, request, saved);
+            return OrderInstallmentMapper.fromEntity(saved, List.of(savedTx));
+        }
+
+        return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
+    }
+
+    private PaymentTransactionEntity savePaymentTransactionFromNewInstallment(OrderEntity order, OrderInstallmentCreateRequest request, OrderInstallmentEntity saved) {
         PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
-                .installmentId(installment.getId())
+                .installmentId(saved.getId())
                 .companyId(order.getCompanyId())
-                .paidAt(paidAt)
-                .amountPaid(request.amountPaid())
-                .paymentMethod(request.paymentMethod())
+                .paidAt(LocalDateTime.now())
+                .amountPaid(saved.getAmount())
+                .paymentMethod(saved.getPaymentMethod())
                 .cardBrand(request.cardBrand())
                 .nsuAuthorization(request.nsuAuthorization())
                 .notes(request.notes())
                 .build();
-        PaymentTransactionEntity savedTransaction = paymentTransactionRepository.save(transaction);
-
-        BigDecimal newTotalPaid = currentPaid.add(request.amountPaid());
-        if (newTotalPaid.compareTo(installmentAmount) >= 0) {
-            installment.setStatus(InstallmentStatus.PAID);
-        } else {
-            installment.setStatus(InstallmentStatus.PARTIALLY_PAID);
-        }
-        OrderInstallmentEntity savedInstallment = orderInstallmentRepository.save(installment);
-
-        List<PaymentTransactionEntity> allTransactions = new ArrayList<>(existingTransactions);
-        allTransactions.add(savedTransaction);
-
-        return OrderInstallmentMapper.fromEntity(savedInstallment, allTransactions);
+        return paymentTransactionRepository.save(transaction);
     }
 
-    public OrderInstallmentResponse addInstallment(OrderEntity order, OrderInstallmentCreateRequest request) {
-        List<OrderInstallmentEntity> existing = orderInstallmentRepository.findByOrderId(order.getId());
-        int installmentNumber;
-        if (request.installmentNumber() != null && request.installmentNumber() > 0) {
-            installmentNumber = request.installmentNumber();
-        } else {
-            installmentNumber = existing.stream()
-                    .mapToInt(OrderInstallmentEntity::getInstallmentNumber)
-                    .max()
-                    .orElse(0) + 1;
-        }
-
-        boolean isPaid = Boolean.TRUE.equals(request.paid());
-
+    private OrderInstallmentEntity saveNewInstallment(OrderEntity order, OrderInstallmentCreateRequest request, int installmentNumber, BigDecimal amount, BigDecimal pendingAmount, boolean isPaid) {
         OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
                 .orderId(order.getId())
                 .companyId(order.getCompanyId())
                 .partnerId(order.getPartnerId())
                 .installmentNumber(installmentNumber)
                 .dueDate(request.dueDate())
-                .amount(request.amount())
+                .amount(amount)
+                .pendingAmount(pendingAmount)
                 .paymentMethod(request.paymentMethod())
                 .status(isPaid ? InstallmentStatus.PAID : InstallmentStatus.PENDING)
                 .bankSlipCode(request.bankSlipCode())
@@ -142,29 +201,23 @@ public class OrderPaymentService {
                 .notes(request.notes())
                 .build();
 
-        OrderInstallmentEntity saved = orderInstallmentRepository.save(installment);
+        return orderInstallmentRepository.save(installment);
+    }
 
-        if (isPaid) {
-            PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
-                    .installmentId(saved.getId())
-                    .companyId(order.getCompanyId())
-                    .paidAt(LocalDateTime.now())
-                    .amountPaid(saved.getAmount())
-                    .paymentMethod(saved.getPaymentMethod())
-                    .cardBrand(request.cardBrand())
-                    .nsuAuthorization(request.nsuAuthorization())
-                    .notes(request.notes())
-                    .build();
-            PaymentTransactionEntity savedTx = paymentTransactionRepository.save(transaction);
-            return OrderInstallmentMapper.fromEntity(saved, List.of(savedTx));
+    private int getInstallmentNumber(OrderEntity order, OrderInstallmentCreateRequest request) {
+        int installmentNumber;
+
+        if (request.installmentNumber() != null && request.installmentNumber() > 0) {
+            installmentNumber = request.installmentNumber();
+        } else {
+            Integer maxCurrentInstallmentNumber = orderInstallmentRepository.findMaxInstallmentNumberByOrderId(order.getId());
+            installmentNumber = maxCurrentInstallmentNumber + 1;
         }
-
-        return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
+        return installmentNumber;
     }
 
     public OrderInstallmentResponse cancelInstallment(OrderEntity order, Long installmentId) {
-        OrderInstallmentEntity installment = orderInstallmentRepository.findByIdAndCompanyId(installmentId, order.getCompanyId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcela não encontrada com ID: " + installmentId));
+        OrderInstallmentEntity installment = findInstallment(order, installmentId);
 
         if (!installment.getOrderId().equals(order.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A parcela não pertence a este pedido.");
@@ -180,6 +233,7 @@ public class OrderPaymentService {
         }
 
         installment.setStatus(InstallmentStatus.CANCELED);
+        installment.setPendingAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         OrderInstallmentEntity saved = orderInstallmentRepository.save(installment);
 
         return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
@@ -218,15 +272,20 @@ public class OrderPaymentService {
     }
 
     private OrderInstallmentEntity saveInstallment(OrderEntity order, OrderInstallmentRequest installmentRequest) {
+        boolean isPaid = installmentRequest.paid();
+        BigDecimal amount = installmentRequest.amount() != null ? installmentRequest.amount() : BigDecimal.ZERO;
+        BigDecimal pendingAmount = isPaid ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : amount.setScale(2, RoundingMode.HALF_UP);
+
         OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
                 .orderId(order.getId())
                 .companyId(order.getCompanyId())
                 .partnerId(order.getPartnerId())
                 .installmentNumber(installmentRequest.installmentNumber())
                 .dueDate(installmentRequest.dueDate())
-                .amount(installmentRequest.amount())
+                .amount(amount)
+                .pendingAmount(pendingAmount)
                 .paymentMethod(installmentRequest.paymentMethod())
-                .status(installmentRequest.paid() ? InstallmentStatus.PAID : InstallmentStatus.PENDING)
+                .status(isPaid ? InstallmentStatus.PAID : InstallmentStatus.PENDING)
                 .bankSlipCode(installmentRequest.bankSlipCode())
                 .bankSlipUrl(installmentRequest.bankSlipUrl())
                 .notes(installmentRequest.notes())

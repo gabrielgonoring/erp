@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -79,6 +80,8 @@ class OrderPaymentServiceTest {
 
         assertNotNull(result);
         assertEquals(2, result.size());
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), result.get(0).getPendingAmount());
+        assertEquals(BigDecimal.valueOf(35.00).setScale(2, RoundingMode.HALF_UP), result.get(1).getPendingAmount());
         verify(orderInstallmentRepository, times(2)).save(any(OrderInstallmentEntity.class));
         verify(paymentTransactionRepository, times(1)).save(any(PaymentTransactionEntity.class));
     }
@@ -115,6 +118,7 @@ class OrderPaymentServiceTest {
                 .installmentNumber(1)
                 .dueDate(LocalDate.now())
                 .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.valueOf(60.00))
                 .paymentMethod(PaymentMethod.CREDIT_CARD)
                 .status(InstallmentStatus.PARTIALLY_PAID)
                 .build();
@@ -138,6 +142,7 @@ class OrderPaymentServiceTest {
         OrderInstallmentResponse resp = responses.get(0);
         assertEquals(BigDecimal.valueOf(40.00), resp.getPaidAmount());
         assertEquals(BigDecimal.valueOf(60.00), resp.getRemainingAmount());
+        assertEquals(BigDecimal.valueOf(60.00), resp.getPendingAmount());
         assertEquals(1, resp.getTransactions().size());
     }
 
@@ -151,6 +156,7 @@ class OrderPaymentServiceTest {
                 .partnerId(5L)
                 .installmentNumber(1)
                 .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.valueOf(100.00))
                 .status(InstallmentStatus.PENDING)
                 .build();
 
@@ -172,7 +178,8 @@ class OrderPaymentServiceTest {
         assertNotNull(response);
         assertEquals(InstallmentStatus.PARTIALLY_PAID, response.getStatus());
         assertEquals(BigDecimal.valueOf(40.00), response.getPaidAmount());
-        assertEquals(BigDecimal.valueOf(60.00), response.getRemainingAmount());
+        assertEquals(BigDecimal.valueOf(60.00).setScale(2, RoundingMode.HALF_UP), response.getRemainingAmount());
+        assertEquals(BigDecimal.valueOf(60.00).setScale(2, RoundingMode.HALF_UP), response.getPendingAmount());
         assertEquals(1, response.getTransactions().size());
         verify(paymentTransactionRepository).save(any(PaymentTransactionEntity.class));
     }
@@ -187,6 +194,7 @@ class OrderPaymentServiceTest {
                 .partnerId(5L)
                 .installmentNumber(1)
                 .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.valueOf(60.00))
                 .status(InstallmentStatus.PARTIALLY_PAID)
                 .build();
 
@@ -211,6 +219,7 @@ class OrderPaymentServiceTest {
         assertEquals(InstallmentStatus.PAID, response.getStatus());
         assertEquals(BigDecimal.valueOf(100.00), response.getPaidAmount());
         assertEquals(0, BigDecimal.ZERO.compareTo(response.getRemainingAmount()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(response.getPendingAmount()));
         assertEquals(2, response.getTransactions().size());
     }
 
@@ -223,6 +232,7 @@ class OrderPaymentServiceTest {
                 .companyId(10L)
                 .partnerId(5L)
                 .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.valueOf(100.00))
                 .status(InstallmentStatus.PENDING)
                 .build();
 
@@ -251,6 +261,7 @@ class OrderPaymentServiceTest {
                 .companyId(10L)
                 .partnerId(5L)
                 .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.ZERO)
                 .status(InstallmentStatus.CANCELED)
                 .build();
 
@@ -265,6 +276,7 @@ class OrderPaymentServiceTest {
         );
 
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Não é possível registrar pagamento para uma parcela cancelada."));
         verify(paymentTransactionRepository, never()).save(any());
     }
 
@@ -294,6 +306,7 @@ class OrderPaymentServiceTest {
         assertNotNull(response);
         assertEquals(2, response.getInstallmentNumber());
         assertEquals(InstallmentStatus.PENDING, response.getStatus());
+        assertEquals(BigDecimal.valueOf(50.00).setScale(2, RoundingMode.HALF_UP), response.getPendingAmount());
         verify(paymentTransactionRepository, never()).save(any());
     }
 
@@ -322,6 +335,7 @@ class OrderPaymentServiceTest {
         assertNotNull(response);
         assertEquals(InstallmentStatus.PAID, response.getStatus());
         assertEquals(BigDecimal.valueOf(80.00), response.getPaidAmount());
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), response.getPendingAmount());
         assertEquals(1, response.getTransactions().size());
         verify(paymentTransactionRepository).save(any(PaymentTransactionEntity.class));
     }
@@ -335,6 +349,7 @@ class OrderPaymentServiceTest {
                 .companyId(10L)
                 .status(InstallmentStatus.PENDING)
                 .amount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.valueOf(50.00))
                 .build();
 
         when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
@@ -345,6 +360,7 @@ class OrderPaymentServiceTest {
 
         assertNotNull(response);
         assertEquals(InstallmentStatus.CANCELED, response.getStatus());
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), response.getPendingAmount());
         verify(orderInstallmentRepository).save(installment);
     }
 
@@ -356,6 +372,7 @@ class OrderPaymentServiceTest {
                 .orderId(100L)
                 .companyId(10L)
                 .status(InstallmentStatus.PAID)
+                .pendingAmount(BigDecimal.ZERO)
                 .build();
 
         when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));

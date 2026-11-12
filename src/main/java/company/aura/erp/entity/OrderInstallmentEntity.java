@@ -8,6 +8,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -44,6 +45,10 @@ public class OrderInstallmentEntity {
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    @Builder.Default
+    @Column(name = "pending_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal pendingAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method", nullable = false, length = 20)
     private PaymentMethod paymentMethod;
@@ -69,4 +74,17 @@ public class OrderInstallmentEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        if (this.pendingAmount == null) {
+            if (this.status == InstallmentStatus.PAID || this.status == InstallmentStatus.CANCELED) {
+                this.pendingAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            } else if (this.amount != null) {
+                this.pendingAmount = this.amount.setScale(2, RoundingMode.HALF_UP);
+            } else {
+                this.pendingAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            }
+        }
+    }
 }

@@ -31,22 +31,29 @@ public class OrderInstallmentMapper {
                 ? transactions.stream().map(PaymentTransactionMapper::fromEntity).toList()
                 : Collections.emptyList();
 
+        BigDecimal totalAmount = entity.getAmount() != null ? entity.getAmount() : BigDecimal.ZERO;
+
         BigDecimal paid;
-        if (transactions != null && !transactions.isEmpty()) {
-            paid = transactions.stream()
-                    .map(PaymentTransactionEntity::getAmountPaid)
-                    .filter(a -> a != null)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-        } else if (entity.getStatus() == InstallmentStatus.PAID) {
-            paid = entity.getAmount() != null ? entity.getAmount() : BigDecimal.ZERO;
+
+        if(entity.getStatus() == InstallmentStatus.PAID) {
+            paid = totalAmount;
+        } else if (entity.getPendingAmount() != null) {
+            paid = totalAmount.subtract(entity.getPendingAmount());
+            if (paid.compareTo(BigDecimal.ZERO) < 0) {
+                paid = BigDecimal.ZERO;
+            }
         } else {
             paid = BigDecimal.ZERO;
         }
 
-        BigDecimal totalAmount = entity.getAmount() != null ? entity.getAmount() : BigDecimal.ZERO;
-        BigDecimal remaining = totalAmount.subtract(paid);
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-            remaining = BigDecimal.ZERO;
+        BigDecimal remaining;
+        if (entity.getPendingAmount() != null) {
+            remaining = entity.getPendingAmount();
+        } else {
+            remaining = totalAmount.subtract(paid);
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                remaining = BigDecimal.ZERO;
+            }
         }
 
         return OrderInstallmentResponse.builder()
@@ -66,6 +73,7 @@ public class OrderInstallmentMapper {
                 .updatedAt(entity.getUpdatedAt())
                 .paidAmount(paid)
                 .remainingAmount(remaining)
+                .pendingAmount(remaining)
                 .transactions(txResponses)
                 .build();
     }

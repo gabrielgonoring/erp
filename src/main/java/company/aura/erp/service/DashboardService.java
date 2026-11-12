@@ -6,7 +6,6 @@ import company.aura.erp.dto.dashboard.DashboardSummaryResponse.SalesVolumeRespon
 import company.aura.erp.dto.dashboard.OrderAggregation;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
-import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
@@ -33,8 +32,6 @@ import java.util.concurrent.ExecutorService;
 public class DashboardService {
 
     private final OrderRepository orderRepository;
-
-    private final OrderInstallmentRepository orderInstallmentRepository;
 
     private final List<AlertService> alertsValidations;
 
@@ -129,6 +126,7 @@ public class DashboardService {
     }
 
     private BigDecimal getTotalRevenue(Long companyId, LocalDate today) {
+        // 1. Faturamento Total Realizado: Soma dos pedidos concluídos ou pagos no mês
         LocalDateTime startOfMonth = today.withDayOfMonth(1).atStartOfDay();
         LocalDateTime endOfMonth = today.atTime(LocalTime.MAX);
         BigDecimal totalRevenue = orderRepository.sumAmountByStatusAndDateRange(

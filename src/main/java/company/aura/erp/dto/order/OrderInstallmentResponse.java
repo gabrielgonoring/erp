@@ -34,6 +34,7 @@ public class OrderInstallmentResponse {
     private LocalDateTime updatedAt;
     private BigDecimal paidAmount;
     private BigDecimal remainingAmount;
+    private BigDecimal pendingAmount;
     private List<PaymentTransactionResponse> transactions;
 
     public OrderInstallmentResponse(
@@ -69,7 +70,49 @@ public class OrderInstallmentResponse {
                 updatedAt,
                 status == InstallmentStatus.PAID ? amount : BigDecimal.ZERO,
                 status == InstallmentStatus.PAID ? BigDecimal.ZERO : amount,
+                status == InstallmentStatus.PAID ? BigDecimal.ZERO : amount,
                 Collections.emptyList()
+        );
+    }
+
+    public OrderInstallmentResponse(
+            Long id,
+            Long orderId,
+            Long companyId,
+            Long partnerId,
+            Integer installmentNumber,
+            LocalDate dueDate,
+            BigDecimal amount,
+            PaymentMethod paymentMethod,
+            InstallmentStatus status,
+            String bankSlipCode,
+            String bankSlipUrl,
+            String notes,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            BigDecimal paidAmount,
+            BigDecimal remainingAmount,
+            List<PaymentTransactionResponse> transactions
+    ) {
+        this(
+                id,
+                orderId,
+                companyId,
+                partnerId,
+                installmentNumber,
+                dueDate,
+                amount,
+                paymentMethod,
+                status,
+                bankSlipCode,
+                bankSlipUrl,
+                notes,
+                createdAt,
+                updatedAt,
+                paidAmount,
+                remainingAmount,
+                remainingAmount,
+                transactions
         );
     }
 }
