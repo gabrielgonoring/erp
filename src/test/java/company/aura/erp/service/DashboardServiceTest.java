@@ -2,6 +2,7 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
 import company.aura.erp.dto.dashboard.InstallmentPaymentSummary;
+import company.aura.erp.dto.dashboard.PendingInstallmentSummary;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.InstallmentStatus;
@@ -66,6 +67,7 @@ class DashboardServiceTest {
                 new BigDecimal("10000.00"),
                 new BigDecimal("3500.00")
         );
+        PendingInstallmentSummary pendingInstallments = new PendingInstallmentSummary(3L, new BigDecimal("1500.00"));
 
         when(orderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
@@ -81,6 +83,12 @@ class DashboardServiceTest {
                 any(LocalDateTime.class)
         )).thenReturn(paymentSummary);
 
+        when(orderInstallmentRepository.getPendingInstallmentsSummaryByDueDate(
+                eq(companyId),
+                eq(startDate),
+                eq(endDate)
+        )).thenReturn(pendingInstallments);
+
         DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, companyId);
 
         assertNotNull(response);
@@ -90,6 +98,7 @@ class DashboardServiceTest {
         assertEquals(new BigDecimal("10000.00"), response.paidAmount());
         assertEquals(new BigDecimal("3500.00"), response.pendingAmount());
         assertEquals(new BigDecimal("13500.00"), response.totalAmount());
+        assertEquals(pendingInstallments, response.pendingInstallments());
     }
 
     @Test
@@ -111,6 +120,12 @@ class DashboardServiceTest {
                 any(LocalDateTime.class)
         )).thenReturn(new InstallmentPaymentSummary(BigDecimal.ZERO, BigDecimal.ZERO));
 
+        when(orderInstallmentRepository.getPendingInstallmentsSummaryByDueDate(
+                eq(companyId),
+                eq(LocalDate.now().withDayOfMonth(1)),
+                eq(LocalDate.now())
+        )).thenReturn(new PendingInstallmentSummary(0L, BigDecimal.ZERO));
+
         DashboardSummaryResponse response = dashboardService.getSummary(null, null, companyId);
 
         assertNotNull(response);
@@ -120,6 +135,7 @@ class DashboardServiceTest {
         assertEquals(BigDecimal.ZERO, response.paidAmount());
         assertEquals(BigDecimal.ZERO, response.pendingAmount());
         assertEquals(BigDecimal.ZERO, response.totalAmount());
+        assertEquals(new PendingInstallmentSummary(0L, BigDecimal.ZERO), response.pendingInstallments());
     }
 
     @Test

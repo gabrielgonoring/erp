@@ -1,6 +1,7 @@
 package company.aura.erp.repository;
 
 import company.aura.erp.dto.dashboard.InstallmentPaymentSummary;
+import company.aura.erp.dto.dashboard.PendingInstallmentSummary;
 import company.aura.erp.entity.OrderInstallmentEntity;
 import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +46,21 @@ public interface OrderInstallmentRepository extends JpaRepository<OrderInstallme
             @Param("endDate") LocalDateTime endDate
     );
 
-
-
+    @Query("""
+        SELECT new company.aura.erp.dto.dashboard.PendingInstallmentSummary(
+            COUNT(oi),
+            COALESCE(SUM(oi.pendingAmount), 0)
+        )
+        FROM OrderInstallmentEntity oi
+        WHERE oi.companyId = :companyId
+          AND oi.status != company.aura.erp.enums.InstallmentStatus.CANCELED
+          AND oi.pendingAmount > 0
+          AND oi.dueDate >= :startDate
+          AND oi.dueDate <= :endDate
+    """)
+    PendingInstallmentSummary getPendingInstallmentsSummaryByDueDate(
+            @Param("companyId") Long companyId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 }

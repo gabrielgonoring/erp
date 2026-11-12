@@ -63,6 +63,12 @@ public class PartnerEntity {
     @Column(name = "email")
     private String email;
 
+    @Column(name = "billing_email")
+    private String billingEmail;
+
+    @Column(name = "payables_email")
+    private String payablesEmail;
+
     @Column(name = "phone", length = 20)
     private String phone;
 

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -53,11 +54,17 @@ public class DashboardService {
                 executorService
         );
 
+        CompletableFuture<PendingInstallmentSummary> pendingInstallmentsFuture = CompletableFuture.supplyAsync(
+                () -> getPendingInstallmentsSummary(companyId, resolvedStartDate.toLocalDate(), resolvedEndDate.toLocalDate()),
+                executorService
+        );
+
         try {
-            CompletableFuture.allOf(paymentSummary, statusSummary).join();
+            CompletableFuture.allOf(paymentSummary, statusSummary, pendingInstallmentsFuture).join();
 
             var salesPerStatus = statusSummary.join();
             var paymentSummaryResponse = paymentSummary.join();
+            var pendingInstallmentsResponse = pendingInstallmentsFuture.join();
 
             return new DashboardSummaryResponse(
                     resolvedStartDate.toLocalDate(),
@@ -65,7 +72,8 @@ public class DashboardService {
                     salesPerStatus,
                     paymentSummaryResponse.paidAmount(),
                     paymentSummaryResponse.pendingAmount(),
-                    paymentSummaryResponse.paidAmount().add(paymentSummaryResponse.pendingAmount())
+                    paymentSummaryResponse.paidAmount().add(paymentSummaryResponse.pendingAmount()),
+                    pendingInstallmentsResponse
             );
 
         } catch (CompletionException e) {
@@ -90,6 +98,11 @@ public class DashboardService {
                 resolvedStartDate,
                 resolvedEndDate
         );
+    }
+
+    private PendingInstallmentSummary getPendingInstallmentsSummary(Long companyId, LocalDate startDate, LocalDate endDate) {
+        PendingInstallmentSummary summary = orderInstallmentRepository.getPendingInstallmentsSummaryByDueDate(companyId, startDate, endDate);
+        return summary != null ? summary : new PendingInstallmentSummary(0L, BigDecimal.ZERO);
     }
 
 

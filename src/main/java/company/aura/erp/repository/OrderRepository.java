@@ -1,6 +1,5 @@
 package company.aura.erp.repository;
 
-import company.aura.erp.dto.dashboard.OrderAggregation;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.order.OrderSummaryResponse;
 import company.aura.erp.entity.OrderEntity;
@@ -12,7 +11,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
