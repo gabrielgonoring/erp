@@ -1,9 +1,9 @@
 package company.aura.erp.controller;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse.PendingSalesResponse;
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse.SalesVolumeResponse;
+import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
+import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.DashboardService;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,9 +56,10 @@ class DashboardControllerTest {
         DashboardSummaryResponse expectedResponse = new DashboardSummaryResponse(
                 startDate,
                 endDate,
+                List.of(new OrderStatusSummary(OrderStatus.COMPLETED, 2L)),
                 new BigDecimal("5000.00"),
-                new SalesVolumeResponse(2L, new BigDecimal("2500.00")),
-                new PendingSalesResponse(new BigDecimal("1000.00"), 1L)
+                new BigDecimal("1000.00"),
+                new BigDecimal("6000.00")
         );
 
         when(dashboardService.getSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);

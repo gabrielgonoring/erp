@@ -1,9 +1,12 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.OrderAggregation;
+import company.aura.erp.dto.dashboard.InstallmentPaymentSummary;
+import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
+import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
@@ -17,7 +20,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,6 +39,9 @@ class DashboardServiceTest {
     @Mock
     private OrderRepository orderRepository;
 
+    @Mock
+    private OrderInstallmentRepository orderInstallmentRepository;
+
     @Spy
     private ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
 
@@ -53,38 +58,38 @@ class DashboardServiceTest {
         LocalDate startDate = LocalDate.of(2026, 11, 1);
         LocalDate endDate = LocalDate.of(2026, 11, 30);
 
-        // Total faturamento realizado (mês)
-        when(orderRepository.sumAmountByStatusAndDateRange(
+        List<OrderStatusSummary> salesPerStatus = List.of(
+                new OrderStatusSummary(OrderStatus.COMPLETED, 4L),
+                new OrderStatusSummary(OrderStatus.PENDING_PAYMENT, 2L)
+        );
+        InstallmentPaymentSummary paymentSummary = new InstallmentPaymentSummary(
+                new BigDecimal("10000.00"),
+                new BigDecimal("3500.00")
+        );
+
+        when(orderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
-                eq(OrderStatus.COMPLETED),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(new BigDecimal("10000.00"));
+        )).thenReturn(salesPerStatus);
 
-        // Volume de vendas no período
-        when(orderRepository.aggregateByStatusAndDateRange(
+        when(orderInstallmentRepository.getPaymentsSummaryByOrderDate(
                 eq(companyId),
-                eq(OrderStatus.COMPLETED),
+                eq(List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED)),
+                eq(List.of(InstallmentStatus.CANCELED)),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(new OrderAggregation(4L, new BigDecimal("10000.00")));
-
-        // Vendas em aberto / pendentes
-        when(orderRepository.aggregateByStatuses(
-                eq(companyId),
-                anyList()
-        )).thenReturn(new OrderAggregation(2L, new BigDecimal("3500.00")));
+        )).thenReturn(paymentSummary);
 
         DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, companyId);
 
         assertNotNull(response);
         assertEquals(startDate, response.startDate());
         assertEquals(endDate, response.endDate());
-        assertEquals(new BigDecimal("10000.00"), response.totalRevenue());
-        assertEquals(4L, response.salesVolume().closedOrdersCount());
-        assertEquals(new BigDecimal("2500.00"), response.salesVolume().averageTicket());
-        assertEquals(2L, response.pendingSales().ordersCount());
-        assertEquals(new BigDecimal("3500.00"), response.pendingSales().totalAmount());
+        assertEquals(salesPerStatus, response.salesPerStatus());
+        assertEquals(new BigDecimal("10000.00"), response.paidAmount());
+        assertEquals(new BigDecimal("3500.00"), response.pendingAmount());
+        assertEquals(new BigDecimal("13500.00"), response.totalAmount());
     }
 
     @Test
@@ -92,35 +97,29 @@ class DashboardServiceTest {
     void shouldApplyDefaultsWhenDatesAreNull() {
         Long companyId = 1L;
 
-        when(orderRepository.sumAmountByStatusAndDateRange(
+        when(orderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
-                eq(OrderStatus.COMPLETED),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(null);
+        )).thenReturn(Collections.emptyList());
 
-        when(orderRepository.aggregateByStatusAndDateRange(
+        when(orderInstallmentRepository.getPaymentsSummaryByOrderDate(
                 eq(companyId),
-                eq(OrderStatus.COMPLETED),
+                eq(List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED)),
+                eq(List.of(InstallmentStatus.CANCELED)),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(new OrderAggregation(0L, null));
-
-        when(orderRepository.aggregateByStatuses(
-                eq(companyId),
-                anyList()
-        )).thenReturn(new OrderAggregation(0L, null));
+        )).thenReturn(new InstallmentPaymentSummary(BigDecimal.ZERO, BigDecimal.ZERO));
 
         DashboardSummaryResponse response = dashboardService.getSummary(null, null, companyId);
 
         assertNotNull(response);
         assertEquals(LocalDate.now().withDayOfMonth(1), response.startDate());
         assertEquals(LocalDate.now(), response.endDate());
-        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), response.totalRevenue());
-        assertEquals(0L, response.salesVolume().closedOrdersCount());
-        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), response.salesVolume().averageTicket());
-        assertEquals(0L, response.pendingSales().ordersCount());
-        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), response.pendingSales().totalAmount());
+        assertEquals(Collections.emptyList(), response.salesPerStatus());
+        assertEquals(BigDecimal.ZERO, response.paidAmount());
+        assertEquals(BigDecimal.ZERO, response.pendingAmount());
+        assertEquals(BigDecimal.ZERO, response.totalAmount());
     }
 
     @Test
@@ -163,6 +162,7 @@ class DashboardServiceTest {
 
         DashboardService service = new DashboardService(
                 orderRepository,
+                orderInstallmentRepository,
                 List.of(alertService1, alertService2),
                 executorService
         );

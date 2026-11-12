@@ -13,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -85,7 +83,7 @@ public class DashboardService {
 
 
     private InstallmentPaymentSummary getPaymentSummary(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
-        return orderInstallmentRepository.getPaymentsSummary(
+        return orderInstallmentRepository.getPaymentsSummaryByOrderDate(
                 companyId,
                 List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED),
                 List.of(InstallmentStatus.CANCELED),

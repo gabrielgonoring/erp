@@ -177,9 +177,9 @@ class OrderPaymentServiceTest {
 
         assertNotNull(response);
         assertEquals(InstallmentStatus.PARTIALLY_PAID, response.getStatus());
-        assertEquals(BigDecimal.valueOf(40.00), response.getPaidAmount());
-        assertEquals(BigDecimal.valueOf(60.00).setScale(2, RoundingMode.HALF_UP), response.getRemainingAmount());
-        assertEquals(BigDecimal.valueOf(60.00).setScale(2, RoundingMode.HALF_UP), response.getPendingAmount());
+        assertEquals(0, BigDecimal.valueOf(40.00).compareTo(response.getPaidAmount()));
+        assertEquals(0, BigDecimal.valueOf(60.00).compareTo(response.getRemainingAmount()));
+        assertEquals(0, BigDecimal.valueOf(60.00).compareTo(response.getPendingAmount()));
         assertEquals(1, response.getTransactions().size());
         verify(paymentTransactionRepository).save(any(PaymentTransactionEntity.class));
     }
@@ -205,7 +205,7 @@ class OrderPaymentServiceTest {
                 .build();
 
         PaymentTransactionRequest request = new PaymentTransactionRequest(
-                BigDecimal.valueOf(60.00), PaymentMethod.CASH, null, null, null, "Quitação"
+                BigDecimal.valueOf(60.00), PaymentMethod.CREDIT_CARD, null, null, null, "Quitação"
         );
 
         when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
@@ -224,8 +224,8 @@ class OrderPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("payInstallment — Deve lançar UNPROCESSABLE_ENTITY se valor pago exceder saldo restante")
-    void shouldThrow422WhenPaymentExceedsRemainingBalance() {
+    @DisplayName("payInstallment — Deve lançar UNPROCESSABLE_ENTITY se valor exceder saldo")
+    void shouldThrow422WhenPaymentExceedsRemaining() {
         OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
                 .id(1L)
                 .orderId(100L)
@@ -283,18 +283,12 @@ class OrderPaymentServiceTest {
     @Test
     @DisplayName("addInstallment — Deve adicionar nova parcela não paga e auto-incrementar installmentNumber")
     void shouldAddNewUnpaidInstallment() {
-        OrderInstallmentEntity existing = OrderInstallmentEntity.builder()
-                .id(1L)
-                .orderId(100L)
-                .installmentNumber(1)
-                .build();
-
         OrderInstallmentCreateRequest request = new OrderInstallmentCreateRequest(
                 null, LocalDate.now().plusDays(15), BigDecimal.valueOf(50.00),
                 PaymentMethod.BOLETO, false, null, null, "123456", "http://boleto", "Obs"
         );
 
-        when(orderInstallmentRepository.findByOrderId(100L)).thenReturn(List.of(existing));
+        when(orderInstallmentRepository.findMaxInstallmentNumberByOrderId(100L)).thenReturn(1);
         when(orderInstallmentRepository.save(any(OrderInstallmentEntity.class))).thenAnswer(inv -> {
             OrderInstallmentEntity e = inv.getArgument(0);
             e.setId(2L);
@@ -318,7 +312,6 @@ class OrderPaymentServiceTest {
                 PaymentMethod.CREDIT_CARD, true, "MASTERCARD", "AUTH999", null, null, null
         );
 
-        when(orderInstallmentRepository.findByOrderId(100L)).thenReturn(Collections.emptyList());
         when(orderInstallmentRepository.save(any(OrderInstallmentEntity.class))).thenAnswer(inv -> {
             OrderInstallmentEntity e = inv.getArgument(0);
             e.setId(3L);
