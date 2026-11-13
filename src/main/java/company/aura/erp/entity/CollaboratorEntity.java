@@ -32,7 +32,7 @@ public class CollaboratorEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "cpf", length = 14)
+    @Column(name = "document", length = 14)
     private String cpf;
 
     @Column(name = "email")
@@ -75,7 +75,7 @@ public class CollaboratorEntity {
     private String ibgeCityCode;
 
     // Campos trabalhistas / exigidos por lei (CLT / eSocial)
-    @Column(name = "rg", length = 20)
+    @Column(name = "state_registration", length = 20)
     private String rg;
 
     @Column(name = "birth_date")

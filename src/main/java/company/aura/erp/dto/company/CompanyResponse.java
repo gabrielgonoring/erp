@@ -21,8 +21,7 @@ public record CompanyResponse(
         String state,
         String zipCode,
         String countryCode,
-        String countryName,
-        LocalDateTime certificateExpirationDate
+        String countryName
 ) {
     public static CompanyResponse fromEntity(CompanyEntity entity) {
         return new CompanyResponse(
@@ -42,8 +41,7 @@ public record CompanyResponse(
                 entity.getState(),
                 entity.getZipCode(),
                 entity.getCountryCode(),
-                entity.getCountryName(),
-                entity.getCertificateExpirationDate()
+                entity.getCountryName()
         );
     }
 }

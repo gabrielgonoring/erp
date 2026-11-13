@@ -75,12 +75,6 @@ public class CompanyEntity {
     @Column(name = "country_name", length = 50)
     private String countryName = "Brasil";
 
-    @Column(name = "certificate_expiration_date")
-    private LocalDateTime certificateExpirationDate;
-
-    @Column(name = "notaas_company_id", length = 100)
-    private String notaasCompanyId;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -18,10 +18,6 @@ public interface CollaboratorRepository extends JpaRepository<CollaboratorEntity
 
     Optional<CollaboratorEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, String status);
 
-    List<CollaboratorEntity> findByCompanyId(Long companyId);
-
-    boolean existsByIdAndCompanyId(Long id, Long companyId);
-
     @Query("SELECT c FROM CollaboratorEntity c WHERE c.companyId = :companyId " +
            "AND (:status IS NULL OR :status = '' OR UPPER(c.status) = UPPER(:status)) " +
            "AND (:search IS NULL OR :search = '' OR " +

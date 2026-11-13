@@ -13,6 +13,7 @@ import company.aura.erp.security.JwtService;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -23,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -37,6 +39,7 @@ public class AuthService {
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
+        log.info("login() - [START] - email: {}",request.email());
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
@@ -58,6 +61,7 @@ public class AuthService {
 
     @Transactional
     public void requestPasswordReset(ForgotPasswordRequest request) {
+        log.info("requestPasswordReset() - [START] - email: {}",request.email());
         UserEntity user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado: " + request.email()));
 
@@ -76,6 +80,7 @@ public class AuthService {
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
+        log.info("resetPassword() - [START] - code: {}",request.code());
         UserEntity user = userRepository.findByResetPasswordToken(request.code())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código de redefinição de senha inválido ou inexistente."));
 
