@@ -5,6 +5,7 @@ import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.OrderRepository;
+import company.aura.erp.repository.PaymentTransactionRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,8 @@ public class DashboardService {
     private final OrderRepository orderRepository;
 
     private final OrderInstallmentRepository orderInstallmentRepository;
+
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     private final List<AlertService> alertsValidations;
 
@@ -59,12 +62,18 @@ public class DashboardService {
                 executorService
         );
 
+        CompletableFuture<PaymentTransactionSummary> revenue = CompletableFuture.supplyAsync(
+                () -> getPaymentForPeriod(companyId, resolvedStartDate, resolvedEndDate),
+                executorService
+        );
+
         try {
             CompletableFuture.allOf(paymentSummary, statusSummary, pendingInstallmentsFuture).join();
 
             var salesPerStatus = statusSummary.join();
             var paymentSummaryResponse = paymentSummary.join();
             var pendingInstallmentsResponse = pendingInstallmentsFuture.join();
+            var revenueResponse = revenue.join();
 
             return new DashboardSummaryResponse(
                     resolvedStartDate.toLocalDate(),
@@ -73,7 +82,9 @@ public class DashboardService {
                     paymentSummaryResponse.paidAmount(),
                     paymentSummaryResponse.pendingAmount(),
                     paymentSummaryResponse.paidAmount().add(paymentSummaryResponse.pendingAmount()),
-                    pendingInstallmentsResponse
+                    pendingInstallmentsResponse,
+                    revenueResponse
+
             );
 
         } catch (CompletionException e) {
@@ -87,6 +98,15 @@ public class DashboardService {
 
     private List<OrderStatusSummary> getSalesResponseByOrderStatus(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
         return orderRepository.summarizeByStatusesAndDateRange(companyId, resolvedStartDate, resolvedEndDate);
+    }
+
+    private PaymentTransactionSummary getPaymentForPeriod(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
+        return paymentTransactionRepository.getPaymentsSummaryByStatusInAndDateRange(
+                companyId,
+                List.of(InstallmentStatus.PAID, InstallmentStatus.PARTIALLY_PAID),
+                resolvedStartDate,
+                resolvedEndDate
+        );
     }
 
 

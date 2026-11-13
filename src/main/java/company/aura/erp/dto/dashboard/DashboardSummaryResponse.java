@@ -11,16 +11,7 @@ public record DashboardSummaryResponse(
         BigDecimal paidAmount,
         BigDecimal pendingAmount,
         BigDecimal totalAmount,
-        PendingInstallmentSummary pendingInstallments
+        PendingInstallmentSummary pendingInstallments,
+        PaymentTransactionSummary revenue
 ) {
-    public DashboardSummaryResponse(
-            LocalDate startDate,
-            LocalDate endDate,
-            List<OrderStatusSummary> salesPerStatus,
-            BigDecimal paidAmount,
-            BigDecimal pendingAmount,
-            BigDecimal totalAmount
-    ) {
-        this(startDate, endDate, salesPerStatus, paidAmount, pendingAmount, totalAmount, null);
-    }
 }
