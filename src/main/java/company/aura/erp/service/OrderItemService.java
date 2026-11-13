@@ -38,7 +38,7 @@ public class OrderItemService {
                 .map(itemReq -> createItem(itemReq, savedOrder))
                 .toList();
 
-        log.info("saveInitialItems() = END - orderId={}, savedCount={}",
+        log.info("saveInitialItems() - END - orderId={}, savedCount={}",
                 savedOrder != null ? savedOrder.getId() : null, items.size());
         return items;
     }
@@ -76,7 +76,7 @@ public class OrderItemService {
                 .build();
 
         OrderItemEntity saved = orderItemRepository.save(item);
-        log.info("createItem() = END - itemId={}, orderId={}, professionalId={}",
+        log.info("createItem() - END - itemId={}, orderId={}, professionalId={}",
                 saved.getId(), saved.getOrderId(), saved.getProfessionalId());
         return saved;
     }
@@ -108,7 +108,7 @@ public class OrderItemService {
         item.setTotalPrice(totalPrice);
 
         OrderItemEntity saved = orderItemRepository.save(item);
-        log.info("updateOrderItem() = END - itemId={}, orderId={}, professionalId={}",
+        log.info("updateOrderItem() - END - itemId={}, orderId={}, professionalId={}",
                 saved.getId(), saved.getOrderId(), saved.getProfessionalId());
         return saved;
     }
@@ -117,7 +117,7 @@ public class OrderItemService {
         log.info("deleteItem() - START - orderId={}, itemId={}", orderId, itemId);
         OrderItemEntity item = findOrderItem(orderId, itemId);
         orderItemRepository.delete(item);
-        log.info("deleteItem() = END - orderId={}, itemId={}", orderId, itemId);
+        log.info("deleteItem() - END - orderId={}, itemId={}", orderId, itemId);
     }
 
     public List<OrderItemEntity> closeItem(Long orderId) {
@@ -134,7 +134,7 @@ public class OrderItemService {
             }
         }
 
-        log.info("closeItem() = END - orderId={}, closedCount={}", orderId, items.size());
+        log.info("closeItem() - END - orderId={}, closedCount={}", orderId, items.size());
         return items;
     }
 
@@ -144,7 +144,7 @@ public class OrderItemService {
         collaboratorRepository.findByIdAndCompanyIdAndStatusNot(professionalId, companyId, CollaboratorStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Colaborador não encontrado com ID: " + professionalId));
 
-        log.info("validateCollaborator() = END - professionalId={}", professionalId);
+        log.info("validateCollaborator() - END - professionalId={}", professionalId);
     }
 
     private void validateItemsToClose(List<OrderItemEntity> items) {
@@ -154,7 +154,10 @@ public class OrderItemService {
     }
 
     public List<OrderItemEntity> findOrderItems(Long orderId) {
-        return orderItemRepository.findByOrderId(orderId);
+        log.info("findOrderItems() - START - orderId={}", orderId);
+        List<OrderItemEntity> items = orderItemRepository.findByOrderId(orderId);
+        log.info("findOrderItems() - END - orderId={}, totalItems={}", orderId, items.size());
+        return items;
     }
 
     private OrderItemEntity findOrderItem(Long orderId, Long itemId) {

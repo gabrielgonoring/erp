@@ -9,6 +9,7 @@ import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.OrderRepository;
+import company.aura.erp.repository.PaymentTransactionRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +43,9 @@ class DashboardServiceTest {
 
     @Mock
     private OrderInstallmentRepository orderInstallmentRepository;
+
+    @Mock
+    private PaymentTransactionRepository paymentTransactionRepository;
 
     @Spy
     private ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
@@ -179,6 +183,7 @@ class DashboardServiceTest {
         DashboardService service = new DashboardService(
                 orderRepository,
                 orderInstallmentRepository,
+                paymentTransactionRepository,
                 List.of(alertService1, alertService2),
                 executorService
         );

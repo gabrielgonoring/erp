@@ -9,6 +9,7 @@ import company.aura.erp.repository.PaymentTransactionRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DashboardService {
@@ -41,6 +43,8 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DashboardSummaryResponse getSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
+        log.info("getSummary() - START - companyId={}, startDate={}, endDate={}", companyId, startDate, endDate);
+
         LocalDate today = LocalDate.now();
         LocalDateTime resolvedStartDate = startDate != null ? startDate.atStartOfDay() : today.withDayOfMonth(1).atStartOfDay();
         LocalDateTime resolvedEndDate = endDate != null ? endDate.atTime(LocalTime.MAX) : today.atTime(LocalTime.MAX);
@@ -75,7 +79,7 @@ public class DashboardService {
             var pendingInstallmentsResponse = pendingInstallmentsFuture.join();
             var revenueResponse = revenue.join();
 
-            return new DashboardSummaryResponse(
+            DashboardSummaryResponse response = new DashboardSummaryResponse(
                     resolvedStartDate.toLocalDate(),
                     resolvedEndDate.toLocalDate(),
                     salesPerStatus,
@@ -84,8 +88,10 @@ public class DashboardService {
                     paymentSummaryResponse.paidAmount().add(paymentSummaryResponse.pendingAmount()),
                     pendingInstallmentsResponse,
                     revenueResponse
-
             );
+
+            log.info("getSummary() - END - companyId={}, startDate={}, endDate={}", companyId, response.startDate(), response.endDate());
+            return response;
 
         } catch (CompletionException e) {
             if (e.getCause() instanceof RuntimeException runtimeException) {
@@ -133,7 +139,10 @@ public class DashboardService {
     }
 
     public List<SystemAlertResponse> getAlerts(UserPrincipal userPrincipal) {
+        log.info("getAlerts() - START - userId={}, companyId={}", userPrincipal != null ? userPrincipal.getId() : null, userPrincipal != null ? userPrincipal.getCompanyId() : null);
+
         if (alertsValidations == null || alertsValidations.isEmpty()) {
+            log.info("getAlerts() - END - totalAlerts=0");
             return Collections.emptyList();
         }
 
@@ -142,10 +151,13 @@ public class DashboardService {
                     .map(alertService -> CompletableFuture.supplyAsync(() -> alertService.getAlert(userPrincipal), executorService))
                     .toList();
 
-            return futures.stream()
+            List<SystemAlertResponse> alerts = futures.stream()
                     .map(CompletableFuture::join)
                     .filter(Objects::nonNull)
                     .toList();
+
+            log.info("getAlerts() - END - userId={}, companyId={}, totalAlerts={}", userPrincipal != null ? userPrincipal.getId() : null, userPrincipal != null ? userPrincipal.getCompanyId() : null, alerts.size());
+            return alerts;
         } catch (CompletionException e) {
             if (e.getCause() instanceof RuntimeException runtimeException) {
                 throw runtimeException;
@@ -155,6 +167,9 @@ public class DashboardService {
     }
 
     public List<SystemAlertResponse> getAlerts() {
-        return getAlerts(null);
+        log.info("getAlerts() - START");
+        List<SystemAlertResponse> alerts = getAlerts(null);
+        log.info("getAlerts() - END - totalAlerts={}", alerts.size());
+        return alerts;
     }
 }

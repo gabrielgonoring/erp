@@ -47,7 +47,7 @@ public class UserService {
         UserEntity savedUser = userRepository.save(user);
         UserResponse response = UserResponse.fromEntity(savedUser);
 
-        log.info("registerUser() = END - userId={}, email={}", response.id(), response.email());
+        log.info("registerUser() - END - userId={}, email={}", response.id(), response.email());
         return response;
     }
 
@@ -77,7 +77,7 @@ public class UserService {
         UserEntity savedUser = userRepository.save(user);
         UserResponse response = UserResponse.fromEntity(savedUser);
 
-        log.info("createUserForCompany() = END - userId={}, email={}, temporaryPassword={}", response.id(), response.email(), isTemp);
+        log.info("createUserForCompany() - END - userId={}, email={}, temporaryPassword={}", response.id(), response.email(), isTemp);
         return response;
     }
 
@@ -104,7 +104,7 @@ public class UserService {
         user.setStatus(UserStatus.DELETED.name());
         userRepository.save(user);
 
-        log.info("deleteUser() = END - id={}, status={}", id, user.getStatus());
+        log.info("deleteUser() - END - id={}, status={}", id, user.getStatus());
     }
 
     @Transactional
@@ -132,7 +132,7 @@ public class UserService {
         user.setTemporaryPassword(false);
         userRepository.save(user);
 
-        log.info("changePassword() = END - userId={}", userId);
+        log.info("changePassword() - END - userId={}", userId);
     }
 
     @Transactional
@@ -146,14 +146,14 @@ public class UserService {
             }
         });
 
-        log.info("recordLogin() = END - email={}", email);
+        log.info("recordLogin() - END - email={}", email);
     }
 
     public List<UserResponse> findAllByCompanyId(Long companyId, String status) {
         log.info("findAllByCompanyId() - START - companyId={}, status={}", companyId, status);
 
         if (companyId == null) {
-            log.info("findAllByCompanyId() = END - totalUsers=0");
+            log.info("findAllByCompanyId() - END - totalUsers=0");
             return Collections.emptyList();
         }
 
@@ -161,7 +161,7 @@ public class UserService {
                 .map(UserResponse::fromEntity)
                 .toList();
 
-        log.info("findAllByCompanyId() = END - companyId={}, status={}, totalUsers={}", companyId, status, users.size());
+        log.info("findAllByCompanyId() - END - companyId={}, status={}, totalUsers={}", companyId, status, users.size());
         return users;
     }
 
@@ -178,7 +178,7 @@ public class UserService {
 
         UserResponse userResponse = UserResponse.fromEntity(user);
 
-        log.info("findUserById() = END - userId={}, user: {}", userId, userResponse);
+        log.info("findUserById() - END - userId={}, user: {}", userId, userResponse);
         return userResponse;
     }
 }

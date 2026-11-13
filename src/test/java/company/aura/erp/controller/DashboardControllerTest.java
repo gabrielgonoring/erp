@@ -62,7 +62,8 @@ class DashboardControllerTest {
                 new BigDecimal("5000.00"),
                 new BigDecimal("1000.00"),
                 new BigDecimal("6000.00"),
-                pendingInstallments
+                pendingInstallments,
+                null
         );
 
         when(dashboardService.getSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);

@@ -9,6 +9,7 @@ import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.repository.CatalogItemRepository;
 import company.aura.erp.repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CatalogItemService {
@@ -27,6 +29,8 @@ public class CatalogItemService {
 
     @Transactional
     public CatalogItemResponse savePhysical(CatalogPhysicalItemCreateRequest request, Long companyId) {
+        log.info("savePhysical() - START - companyId={}, internalCode={}, description={}", companyId, request != null ? request.internalCode() : null, request != null ? request.description() : null);
+
         if (!companyRepository.existsById(companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId);
         }
@@ -61,11 +65,16 @@ public class CatalogItemService {
         item.setPhysicalItem(physicalItem);
 
         CatalogItemEntity saved = catalogItemRepository.save(item);
-        return CatalogItemResponse.fromEntity(saved);
+        CatalogItemResponse response = CatalogItemResponse.fromEntity(saved);
+
+        log.info("savePhysical() - END - id={}, companyId={}", response.id(), companyId);
+        return response;
     }
 
     @Transactional
     public CatalogItemResponse saveService(CatalogServiceItemCreateRequest request, Long companyId) {
+        log.info("saveService() - START - companyId={}, internalCode={}, description={}", companyId, request != null ? request.internalCode() : null, request != null ? request.description() : null);
+
         if (!companyRepository.existsById(companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId);
         }
@@ -91,11 +100,16 @@ public class CatalogItemService {
         item.setServiceItem(serviceItem);
 
         CatalogItemEntity saved = catalogItemRepository.save(item);
-        return CatalogItemResponse.fromEntity(saved);
+        CatalogItemResponse response = CatalogItemResponse.fromEntity(saved);
+
+        log.info("saveService() - END - id={}, companyId={}", response.id(), companyId);
+        return response;
     }
 
     @Transactional
     public CatalogItemResponse updatePhysical(Long id, CatalogPhysicalItemUpdateRequest request, Long companyId) {
+        log.info("updatePhysical() - START - id={}, companyId={}, internalCode={}", id, companyId, request != null ? request.internalCode() : null);
+
         CatalogItemEntity item = catalogItemRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, CatalogItemStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item do catálogo não encontrado com ID: " + id));
 
@@ -130,11 +144,16 @@ public class CatalogItemService {
         physicalItem.setCofinsRate(request.cofinsRate());
 
         CatalogItemEntity updated = catalogItemRepository.save(item);
-        return CatalogItemResponse.fromEntity(updated);
+        CatalogItemResponse response = CatalogItemResponse.fromEntity(updated);
+
+        log.info("updatePhysical() - END - id={}, companyId={}", response.id(), companyId);
+        return response;
     }
 
     @Transactional
     public CatalogItemResponse updateService(Long id, CatalogServiceItemUpdateRequest request, Long companyId) {
+        log.info("updateService() - START - id={}, companyId={}, internalCode={}", id, companyId, request != null ? request.internalCode() : null);
+
         CatalogItemEntity item = catalogItemRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, CatalogItemStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item do catálogo não encontrado com ID: " + id));
 
@@ -160,31 +179,47 @@ public class CatalogItemService {
         serviceItem.setIssWithheld(Boolean.TRUE.equals(request.issWithheld()));
 
         CatalogItemEntity updated = catalogItemRepository.save(item);
-        return CatalogItemResponse.fromEntity(updated);
-    }
+        CatalogItemResponse response = CatalogItemResponse.fromEntity(updated);
 
+        log.info("updateService() - END - id={}, companyId={}", response.id(), companyId);
+        return response;
+    }
 
     @Transactional(readOnly = true)
     public CatalogItemResponse findById(Long id, Long companyId) {
+        log.info("findById() - START - id={}, companyId={}", id, companyId);
+
         CatalogItemEntity item = catalogItemRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, CatalogItemStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item do catálogo não encontrado com ID: " + id));
 
-        return CatalogItemResponse.fromEntity(item);
+        CatalogItemResponse response = CatalogItemResponse.fromEntity(item);
+
+        log.info("findById() - END - id={}, companyId={}", response.id(), companyId);
+        return response;
     }
 
     @Transactional
     public void delete(Long id, Long companyId) {
+        log.info("delete() - START - id={}, companyId={}", id, companyId);
+
         CatalogItemEntity item = catalogItemRepository.findByIdAndCompanyIdAndStatusNot(id, companyId, CatalogItemStatus.DELETED.name())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item do catálogo não encontrado com ID: " + id));
 
         item.setStatus(CatalogItemStatus.DELETED.name());
         catalogItemRepository.save(item);
+
+        log.info("delete() - END - id={}, companyId={}, status={}", id, companyId, item.getStatus());
     }
 
     @Transactional(readOnly = true)
     public Page<CatalogItemSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
+        log.info("listSummarized() - START - companyId={}, search={}", companyId, search);
+
         String cleanSearch = (search != null && !search.isBlank()) ? search.trim() : null;
-        return catalogItemRepository.searchByCompanyIdAndTerm(companyId, cleanSearch, pageable)
+        Page<CatalogItemSummaryResponse> page = catalogItemRepository.searchByCompanyIdAndTerm(companyId, cleanSearch, pageable)
                 .map(CatalogItemSummaryResponse::fromEntity);
+
+        log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
     }
 }

@@ -9,6 +9,7 @@ import company.aura.erp.mapper.OrderInstallmentMapper;
 import company.aura.erp.repository.OrderInstallmentRepository;
 import company.aura.erp.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderPaymentService {
@@ -30,30 +32,43 @@ public class OrderPaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
 
     public List<OrderInstallmentEntity> processInstallments(OrderCloseRequest request, OrderEntity order) {
+        Long orderId = order != null ? order.getId() : null;
+        log.info("processInstallments() - START - orderId={}, totalInstallments={}", orderId, request != null && request.installments() != null ? request.installments().size() : 0);
 
         validateOrderPayment(request, order);
 
-        return request.installments().stream()
+        List<OrderInstallmentEntity> list = request.installments().stream()
                 .map(installmentRequest -> processSingleInstallment(order, installmentRequest))
                 .toList();
 
+        log.info("processInstallments() - END - orderId={}, processedCount={}", orderId, list.size());
+        return list;
     }
 
     public List<OrderInstallmentEntity> findInstallments(Long orderId) {
-        return orderInstallmentRepository.findByOrderId(orderId);
+        log.info("findInstallments() - START - orderId={}", orderId);
+        List<OrderInstallmentEntity> installments = orderInstallmentRepository.findByOrderId(orderId);
+        log.info("findInstallments() - END - orderId={}, totalInstallments={}", orderId, installments.size());
+        return installments;
     }
 
     public List<OrderInstallmentResponse> findInstallmentResponses(Long orderId) {
+        log.info("findInstallmentResponses() - START - orderId={}", orderId);
         List<OrderInstallmentEntity> installments = orderInstallmentRepository.findByOrderId(orderId);
-        return installments.stream()
+        List<OrderInstallmentResponse> responses = installments.stream()
                 .map(installment -> {
                     List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByInstallmentId(installment.getId());
                     return OrderInstallmentMapper.fromEntity(installment, transactions);
                 })
                 .toList();
+        log.info("findInstallmentResponses() - END - orderId={}, totalResponses={}", orderId, responses.size());
+        return responses;
     }
 
     public OrderInstallmentResponse payInstallment(OrderEntity order, Long installmentId, PaymentTransactionRequest request) {
+        Long orderId = order != null ? order.getId() : null;
+        log.info("payInstallment() - START - orderId={}, installmentId={}, amountPaid={}", orderId, installmentId, request != null ? request.amountPaid() : null);
+
         OrderInstallmentEntity installment = findInstallment(order, installmentId);
 
         validateOrderInstallmentToPay(order, installment);
@@ -77,7 +92,9 @@ public class OrderPaymentService {
         PaymentTransactionEntity savedTransaction = savePaymentTransaction(order, request, installment);
         allTransactions.add(savedTransaction);
 
-        return OrderInstallmentMapper.fromEntity(savedInstallment, allTransactions);
+        OrderInstallmentResponse response = OrderInstallmentMapper.fromEntity(savedInstallment, allTransactions);
+        log.info("payInstallment() - END - orderId={}, installmentId={}, status={}", orderId, installmentId, response != null ? response.getStatus() : null);
+        return response;
     }
 
     private OrderInstallmentEntity findInstallment(OrderEntity order, Long installmentId) {
@@ -153,6 +170,8 @@ public class OrderPaymentService {
     }
 
     public OrderInstallmentResponse addInstallment(OrderEntity order, OrderInstallmentCreateRequest request) {
+        Long orderId = order != null ? order.getId() : null;
+        log.info("addInstallment() - START - orderId={}, amount={}, paid={}", orderId, request != null ? request.amount() : null, request != null ? request.paid() : null);
 
         int installmentNumber = getInstallmentNumber(order, request);
 
@@ -165,10 +184,14 @@ public class OrderPaymentService {
 
         if (isPaid) {
             PaymentTransactionEntity savedTx = savePaymentTransactionFromNewInstallment(order, request, saved);
-            return OrderInstallmentMapper.fromEntity(saved, List.of(savedTx));
+            OrderInstallmentResponse response = OrderInstallmentMapper.fromEntity(saved, List.of(savedTx));
+            log.info("addInstallment() - END - orderId={}, installmentId={}, status={}", orderId, response != null ? response.getId() : null, response != null ? response.getStatus() : null);
+            return response;
         }
 
-        return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
+        OrderInstallmentResponse response = OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
+        log.info("addInstallment() - END - orderId={}, installmentId={}, status={}", orderId, response != null ? response.getId() : null, response != null ? response.getStatus() : null);
+        return response;
     }
 
     private PaymentTransactionEntity savePaymentTransactionFromNewInstallment(OrderEntity order, OrderInstallmentCreateRequest request, OrderInstallmentEntity saved) {
@@ -217,6 +240,9 @@ public class OrderPaymentService {
     }
 
     public OrderInstallmentResponse cancelInstallment(OrderEntity order, Long installmentId) {
+        Long orderId = order != null ? order.getId() : null;
+        log.info("cancelInstallment() - START - orderId={}, installmentId={}", orderId, installmentId);
+
         OrderInstallmentEntity installment = findInstallment(order, installmentId);
 
         if (!installment.getOrderId().equals(order.getId())) {
@@ -236,7 +262,9 @@ public class OrderPaymentService {
         installment.setPendingAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         OrderInstallmentEntity saved = orderInstallmentRepository.save(installment);
 
-        return OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
+        OrderInstallmentResponse response = OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
+        log.info("cancelInstallment() - END - orderId={}, installmentId={}, status={}", orderId, installmentId, response != null ? response.getStatus() : null);
+        return response;
     }
 
     private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {

@@ -5,12 +5,14 @@ import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderShippingEntity;
 import company.aura.erp.repository.OrderShippingRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderShippingService {
@@ -22,18 +24,25 @@ public class OrderShippingService {
     }
 
     public Optional<OrderShippingEntity> findByOrderId(Long orderId) {
-        return orderShippingRepository.findByOrderId(orderId);
+        log.info("findByOrderId() - START - orderId={}", orderId);
+        Optional<OrderShippingEntity> shipping = orderShippingRepository.findByOrderId(orderId);
+        log.info("findByOrderId() - END - orderId={}, isPresent={}", orderId, shipping.isPresent());
+        return shipping;
     }
 
     @Transactional
     public void deleteShipping(Long orderId) {
+        log.info("deleteShipping() - START - orderId={}", orderId);
         orderShippingRepository.deleteByOrderId(orderId);
+        log.info("deleteShipping() - END - orderId={}", orderId);
     }
 
     @Transactional
     public OrderShippingEntity updateShipping(Long orderId, OrderShippingRequest request) {
+        log.info("updateShipping() - START - orderId={}", orderId);
         if (request == null) {
             deleteShipping(orderId);
+            log.info("updateShipping() - END - orderId={}, deleted=true", orderId);
             return null;
         }
 
@@ -64,11 +73,17 @@ public class OrderShippingService {
         shippingEntity.setTrackingCode(request.trackingCode());
         shippingEntity.setShippingNotes(request.shippingNotes());
 
-        return orderShippingRepository.save(shippingEntity);
+        OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);
+        log.info("updateShipping() - END - orderId={}, shippingId={}", orderId, saved.getId());
+        return saved;
     }
 
     public OrderShippingEntity saveInitialShipping(OrderCreateRequest request, OrderEntity savedOrder) {
+        Long orderId = savedOrder != null ? savedOrder.getId() : null;
+        log.info("saveInitialShipping() - START - orderId={}", orderId);
+
         if (!isShippingProvided(request)) {
+            log.info("saveInitialShipping() - END - orderId={}, shippingProvided=false", orderId);
             return null;
         }
 
@@ -93,13 +108,17 @@ public class OrderShippingService {
                 .shippingNotes(shippingReq != null ? shippingReq.shippingNotes() : null)
                 .build();
 
-        return orderShippingRepository.save(shippingEntity);
+        OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);
+        log.info("saveInitialShipping() - END - orderId={}, shippingId={}", orderId, saved.getId());
+        return saved;
     }
 
     public OrderShippingEntity upsertShippingOnClose(Long orderId, OrderCloseRequest request) {
+        log.info("upsertShippingOnClose() - START - orderId={}", orderId);
 
         if (request.shipping() == null) {
             orderShippingRepository.deleteByOrderId(orderId);
+            log.info("upsertShippingOnClose() - END - orderId={}, deleted=true", orderId);
             return null;
         }
 
@@ -121,7 +140,9 @@ public class OrderShippingService {
         shippingEntity.setTrackingCode(shippingReq.trackingCode());
         shippingEntity.setShippingNotes(shippingReq.shippingNotes());
 
-        return orderShippingRepository.save(shippingEntity);
+        OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);
+        log.info("upsertShippingOnClose() - END - orderId={}, shippingId={}", orderId, saved.getId());
+        return saved;
     }
 
 }

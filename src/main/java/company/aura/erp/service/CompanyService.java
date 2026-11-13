@@ -10,11 +10,13 @@ import company.aura.erp.repository.CompanyRepository;
 import company.aura.erp.repository.UserRepository;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CompanyService {
@@ -25,8 +27,9 @@ public class CompanyService {
 
     @Transactional
     public CompanyResponse save(CompanyCreateRequest request, UserPrincipal userPrincipal) {
+        log.info("save() - START - userId={}, cnpj={}, corporateName={}", userPrincipal != null ? userPrincipal.getId() : null, request != null ? request.cnpj() : null, request != null ? request.corporateName() : null);
 
-        if (userPrincipal.getCompanyId()!=null){
+        if (userPrincipal.getCompanyId() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse usuário já está vinculada a uma empresa, caso deseje alterar as informações da empresa vá em configurações");
         }
 
@@ -44,8 +47,9 @@ public class CompanyService {
         user.setCompanyId(saved.getId());
         userRepository.save(user);
 
-
-        return CompanyResponse.fromEntity(saved);
+        CompanyResponse response = CompanyResponse.fromEntity(saved);
+        log.info("save() - END - companyId={}, userId={}", response.id(), userPrincipal != null ? userPrincipal.getId() : null);
+        return response;
     }
 
     private static CompanyEntity fromCreateRequest(CompanyCreateRequest request) {
@@ -72,7 +76,9 @@ public class CompanyService {
 
     @Transactional
     public CompanyResponse update(UserPrincipal userPrincipal, CompanyUpdateRequest request) {
-        if (userPrincipal.getCompanyId()==null){
+        log.info("update() - START - companyId={}, userId={}", userPrincipal != null ? userPrincipal.getCompanyId() : null, userPrincipal != null ? userPrincipal.getId() : null);
+
+        if (userPrincipal.getCompanyId() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse usuário não possui empresa vinculada entre em contato com o administrador");
         }
 
@@ -96,17 +102,23 @@ public class CompanyService {
         company.setCountryName(request.countryName());
 
         CompanyEntity updated = companyRepository.save(company);
-        return CompanyResponse.fromEntity(updated);
+        CompanyResponse response = CompanyResponse.fromEntity(updated);
+        log.info("update() - END - companyId={}, userId={}", response.id(), userPrincipal != null ? userPrincipal.getId() : null);
+        return response;
     }
 
     public CompanyResponse findById(UserPrincipal userPrincipal) {
-        if (userPrincipal.getCompanyId()==null){
+        log.info("findById() - START - companyId={}, userId={}", userPrincipal != null ? userPrincipal.getCompanyId() : null, userPrincipal != null ? userPrincipal.getId() : null);
+
+        if (userPrincipal.getCompanyId() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esse usuário não possui empresa vinculada entre em contato com o administrador");
         }
 
         CompanyEntity company = companyRepository.findById(userPrincipal.getCompanyId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada"));
 
-        return CompanyResponse.fromEntity(company);
+        CompanyResponse response = CompanyResponse.fromEntity(company);
+        log.info("findById() - END - companyId={}, userId={}", response.id(), userPrincipal != null ? userPrincipal.getId() : null);
+        return response;
     }
 }

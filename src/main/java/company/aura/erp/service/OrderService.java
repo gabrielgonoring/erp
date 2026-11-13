@@ -1,6 +1,5 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.*;
@@ -11,10 +10,9 @@ import company.aura.erp.mapper.OrderShippingMapper;
 import company.aura.erp.repository.*;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -44,6 +43,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
+        log.info("openOrder() - START - companyId={}, partnerId={}", companyId, request != null ? request.partnerId() : null);
 
         PartnerEntity partner = validateInitialOrder(request, companyId);
 
@@ -56,7 +56,9 @@ public class OrderService {
         String customerName = partner != null ? partner.getName() : null;
 
         if (request.items() == null || request.items().isEmpty()) {
-            return OrderMapper.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
+            OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
+            log.info("openOrder() - END - orderId={}, companyId={}", response.getId(), companyId);
+            return response;
         }
 
         List<OrderItemEntity> savedItems = orderItemService.saveInitialItems(request, savedOrder);
@@ -65,7 +67,9 @@ public class OrderService {
 
         savedOrder = orderRepository.save(savedOrder);
 
-        return OrderMapper.fromEntity(savedOrder, customerName, savedItems, Collections.emptyList(), savedShipping);
+        OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, savedItems, Collections.emptyList(), savedShipping);
+        log.info("openOrder() - END - orderId={}, companyId={}", response.getId(), companyId);
+        return response;
     }
 
     private PartnerEntity validateInitialOrder(OrderCreateRequest request, Long companyId) {
@@ -108,6 +112,8 @@ public class OrderService {
 
     @Transactional
     public OrderItemResponse addItem(Long orderId, OrderItemCreateRequest request, Long companyId) {
+        log.info("addItem() - START - orderId={}, companyId={}", orderId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -116,11 +122,15 @@ public class OrderService {
 
         recalculateOrderTotals(order);
 
-        return OrderItemMapper.fromEntity(item);
+        OrderItemResponse response = OrderItemMapper.fromEntity(item);
+        log.info("addItem() - END - orderId={}, itemId={}, companyId={}", orderId, response.getId(), companyId);
+        return response;
     }
 
     @Transactional
     public OrderItemResponse updateItem(Long orderId, Long itemId, OrderItemUpdateRequest request, Long companyId) {
+        log.info("updateItem() - START - orderId={}, itemId={}, companyId={}", orderId, itemId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -129,11 +139,15 @@ public class OrderService {
 
         recalculateOrderTotals(order);
 
-        return OrderItemMapper.fromEntity(item);
+        OrderItemResponse response = OrderItemMapper.fromEntity(item);
+        log.info("updateItem() - END - orderId={}, itemId={}, companyId={}", orderId, response.getId(), companyId);
+        return response;
     }
 
     @Transactional
     public void removeItem(Long orderId, Long itemId, Long companyId) {
+        log.info("removeItem() - START - orderId={}, itemId={}, companyId={}", orderId, itemId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -141,10 +155,14 @@ public class OrderService {
         orderItemService.deleteItem(orderId, itemId);
 
         recalculateOrderTotals(order);
+
+        log.info("removeItem() - END - orderId={}, itemId={}, companyId={}", orderId, itemId, companyId);
     }
 
     @Transactional
     public OrderResponse updateOrder(Long orderId, OrderUpdateRequest request, Long companyId) {
+        log.info("updateOrder() - START - orderId={}, companyId={}", orderId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -171,11 +189,15 @@ public class OrderService {
         List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        return OrderMapper.fromEntity(savedOrder, customerName, items, installments, shipping, null);
+        OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, items, installments, shipping, null);
+        log.info("updateOrder() - END - orderId={}, companyId={}", response.getId(), companyId);
+        return response;
     }
 
     @Transactional
     public void deleteShipping(Long orderId, Long companyId) {
+        log.info("deleteShipping() - START - orderId={}, companyId={}", orderId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -183,10 +205,14 @@ public class OrderService {
         orderShippingService.deleteShipping(orderId);
         order.setFreightAmount(BigDecimal.ZERO);
         recalculateOrderTotals(order);
+
+        log.info("deleteShipping() - END - orderId={}, companyId={}", orderId, companyId);
     }
 
     @Transactional
     public OrderShippingResponse updateShipping(Long orderId, OrderShippingRequest request, Long companyId) {
+        log.info("updateShipping() - START - orderId={}, companyId={}", orderId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -201,11 +227,15 @@ public class OrderService {
 
         recalculateOrderTotals(order);
 
-        return OrderShippingMapper.fromEntity(shipping);
+        OrderShippingResponse response = OrderShippingMapper.fromEntity(shipping);
+        log.info("updateShipping() - END - orderId={}, companyId={}", orderId, companyId);
+        return response;
     }
 
 
     public OrderResponse findById(Long orderId, Long companyId) {
+        log.info("findById() - START - orderId={}, companyId={}", orderId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         String customerName = order.getPartnerId() != null
@@ -219,30 +249,38 @@ public class OrderService {
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
         List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(order.getId(), companyId);
 
-        return OrderMapper.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
+        OrderResponse response = OrderMapper.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
+        log.info("findById() - END - orderId={}, companyId={}", response.getId(), companyId);
+        return response;
     }
 
     @Transactional
     public OrderInstallmentResponse payInstallment(Long orderId, Long installmentId, PaymentTransactionRequest request, Long companyId) {
+        log.info("payInstallment() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
         OrderEntity order = findOrder(orderId, companyId);
         OrderInstallmentResponse response = orderPaymentService.payInstallment(order, installmentId, request);
         syncOrderStatusAfterInstallmentChange(order);
+        log.info("payInstallment() - END - orderId={}, installmentId={}, companyId={}, status={}", orderId, installmentId, companyId, response != null ? response.getStatus() : null);
         return response;
     }
 
     @Transactional
     public OrderInstallmentResponse addInstallment(Long orderId, OrderInstallmentCreateRequest request, Long companyId) {
+        log.info("addInstallment() - START - orderId={}, companyId={}", orderId, companyId);
         OrderEntity order = findOrder(orderId, companyId);
         OrderInstallmentResponse response = orderPaymentService.addInstallment(order, request);
         syncOrderStatusAfterInstallmentChange(order);
+        log.info("addInstallment() - END - orderId={}, installmentId={}, companyId={}", orderId, response != null ? response.getId() : null, companyId);
         return response;
     }
 
     @Transactional
     public OrderInstallmentResponse cancelInstallment(Long orderId, Long installmentId, Long companyId) {
+        log.info("cancelInstallment() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
         OrderEntity order = findOrder(orderId, companyId);
         OrderInstallmentResponse response = orderPaymentService.cancelInstallment(order, installmentId);
         syncOrderStatusAfterInstallmentChange(order);
+        log.info("cancelInstallment() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
         return response;
     }
 
@@ -270,6 +308,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse closeOrder(Long orderId, OrderCloseRequest request, Long companyId) {
+        log.info("closeOrder() - START - orderId={}, companyId={}", orderId, companyId);
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
@@ -296,11 +335,14 @@ public class OrderService {
                         .orElse(null)
                 : null;
 
-        return OrderMapper.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping, null);
+        OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping, null);
+        log.info("closeOrder() - END - orderId={}, companyId={}, status={}", response.getId(), companyId, savedOrder.getStatus());
+        return response;
     }
 
     @Transactional
     public InvoiceResponse linkExternalInvoice(Long orderId, OrderExternalInvoiceRequest request, MultipartFile xmlFile, MultipartFile pdfFile, UserPrincipal currentUser) {
+        log.info("linkExternalInvoice() - START - orderId={}, userId={}, companyId={}", orderId, currentUser != null ? currentUser.getId() : null, currentUser != null ? currentUser.getCompanyId() : null);
 
         OrderEntity order = findOrder(orderId, currentUser.getCompanyId());
 
@@ -308,22 +350,30 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível vincular nota fiscal a um pedido cancelado.");
         }
 
-        return orderInvoiceService.linkExternalInvoice(order, request, xmlFile, pdfFile, currentUser);
+        InvoiceResponse response = orderInvoiceService.linkExternalInvoice(order, request, xmlFile, pdfFile, currentUser);
+        log.info("linkExternalInvoice() - END - orderId={}, invoiceId={}", orderId, response != null ? response.getId() : null);
+        return response;
     }
 
     @Transactional
     public OrderInvoiceResponse linkInvoice(Long orderId, Long invoiceId, LinkOrderInvoice request, UserPrincipal currentUser) {
+        log.info("linkInvoice() - START - orderId={}, invoiceId={}, userId={}, companyId={}", orderId, invoiceId, currentUser != null ? currentUser.getId() : null, currentUser != null ? currentUser.getCompanyId() : null);
+
         OrderEntity order = findOrder(orderId, currentUser.getCompanyId());
 
         if (order.getStatus() == OrderStatus.CANCELED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível vincular nota fiscal a um pedido cancelado.");
         }
 
-        return orderInvoiceService.linkInvoice(invoiceId, request, currentUser, order);
+        OrderInvoiceResponse response = orderInvoiceService.linkInvoice(invoiceId, request, currentUser, order);
+        log.info("linkInvoice() - END - orderId={}, invoiceId={}", orderId, invoiceId);
+        return response;
     }
 
     @Transactional
     public void unlinkInvoice(Long orderId, Long invoiceId, Long companyId) {
+        log.info("unlinkInvoice() - START - orderId={}, invoiceId={}, companyId={}", orderId, invoiceId, companyId);
+
         OrderEntity order = findOrder(orderId, companyId);
 
         if (order.getStatus() == OrderStatus.CANCELED) {
@@ -331,11 +381,15 @@ public class OrderService {
         }
 
         orderInvoiceService.unlinkInvoice(order.getId(), invoiceId, companyId);
+        log.info("unlinkInvoice() - END - orderId={}, invoiceId={}, companyId={}", orderId, invoiceId, companyId);
     }
 
     public List<OrderInvoiceResponse> findInvoicesByOrderId(Long orderId, Long companyId) {
+        log.info("findInvoicesByOrderId() - START - orderId={}, companyId={}", orderId, companyId);
         validIfIsCompanyOrder(orderId, companyId);
-        return orderInvoiceService.findInvoicesByOrderId(companyId, orderId);
+        List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(companyId, orderId);
+        log.info("findInvoicesByOrderId() - END - orderId={}, companyId={}, totalInvoices={}", orderId, companyId, invoices.size());
+        return invoices;
     }
 
 
@@ -417,6 +471,7 @@ public class OrderService {
             Long companyId,
             Pageable pageable
     ) {
+        log.info("listSummarized() - START - companyId={}, search={}, startDate={}, endDate={}, statuses={}", companyId, search, startDate, endDate, statuses);
 
         String searchTerm = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
 
@@ -442,7 +497,7 @@ public class OrderService {
         boolean hasStatuses = (statuses != null && !statuses.isEmpty());
         List<OrderStatus> effectiveStatuses = hasStatuses ? statuses : List.of(OrderStatus.OPEN);
 
-        return orderRepository.searchSummarized(
+        Page<OrderSummaryResponse> page = orderRepository.searchSummarized(
                 companyId,
                 searchTerm,
                 hasDateRange,
@@ -454,10 +509,16 @@ public class OrderService {
                 effectiveStatuses,
                 pageable
         );
+
+        log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
     }
 
     @Transactional(readOnly = true)
     public Page<OrderSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
-        return listSummarized(search, null, null, null, companyId, pageable);
+        log.info("listSummarized() - START - companyId={}, search={}", companyId, search);
+        Page<OrderSummaryResponse> page = listSummarized(search, null, null, null, companyId, pageable);
+        log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
     }
 }
