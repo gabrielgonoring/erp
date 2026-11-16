@@ -3,6 +3,7 @@ package company.aura.erp.controller;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.enums.DocumentType;
+import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.OrderService;
@@ -182,6 +183,16 @@ public class OrderController {
         return ResponseEntity.ok(new BankSlipUrlResponse(temporaryUrl));
     }
 
+    @DeleteMapping("/{id}/installments/{installmentId}/bank-slip")
+    public ResponseEntity<Void> deleteBankSlip(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        orderService.deleteBankSlip(id, installmentId, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/close")
     public ResponseEntity<OrderResponse> closeOrder(
             @PathVariable Long id,
@@ -255,6 +266,26 @@ public class OrderController {
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
         Page<OrderSummaryResponse> page = orderService.listSummarized(
+                search,
+                startDate,
+                endDate,
+                status,
+                userPrincipal.getCompanyId(),
+                pageable
+        );
+        return ResponseEntity.ok(page);
+    }
+
+    @GetMapping("/installments")
+    public ResponseEntity<Page<OrderInstallmentSummaryResponse>> listInstallments(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) List<InstallmentStatus> status,
+            @PageableDefault(size = 20, sort = "dueDate", direction = Sort.Direction.ASC) Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<OrderInstallmentSummaryResponse> page = orderService.listInstallments(
                 search,
                 startDate,
                 endDate,

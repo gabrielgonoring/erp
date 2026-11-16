@@ -302,6 +302,14 @@ public class OrderService {
         return temporaryUrl;
     }
 
+    @Transactional
+    public void deleteBankSlip(Long orderId, Long installmentId, Long companyId) {
+        log.info("deleteBankSlip() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
+        OrderEntity order = findOrder(orderId, companyId);
+        orderPaymentService.deleteBankSlip(order, installmentId);
+        log.info("deleteBankSlip() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
+    }
+
     private void syncOrderStatusAfterInstallmentChange(OrderEntity order) {
         if (order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.CANCELED) {
             return;
@@ -537,6 +545,22 @@ public class OrderService {
         log.info("listSummarized() - START - companyId={}, search={}", companyId, search);
         Page<OrderSummaryResponse> page = listSummarized(search, null, null, null, companyId, pageable);
         log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderInstallmentSummaryResponse> listInstallments(
+            String search,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<InstallmentStatus> statuses,
+            Long companyId,
+            Pageable pageable
+    ) {
+        log.info("listInstallments() - START - companyId={}, search={}, startDate={}, endDate={}, statuses={}",
+                companyId, search, startDate, endDate, statuses);
+        Page<OrderInstallmentSummaryResponse> page = orderPaymentService.listInstallments(search, startDate, endDate, statuses, companyId, pageable);
+        log.info("listInstallments() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
         return page;
     }
 }

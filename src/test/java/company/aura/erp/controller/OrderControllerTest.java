@@ -341,6 +341,15 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("DELETE /api/orders/{id}/installments/{installmentId}/bank-slip — Deve apagar o boleto da parcela e retornar HTTP 204")
+    void shouldDeleteBankSlip() {
+        ResponseEntity<Void> response = orderController.deleteBankSlip(1L, 2L, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(orderService).deleteBankSlip(1L, 2L, 10L);
+    }
+
+    @Test
     @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda e retornar HTTP 200")
     void shouldCloseOrder() {
         OrderCloseRequest request = new OrderCloseRequest(List.of(
@@ -463,5 +472,45 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(page, response.getBody());
         verify(orderService).listSummarized("Teste", startDate, endDate, statuses, 10L, pageable);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders/installments — Deve listar parcelas de forma paginada sem filtros opcionais")
+    void shouldListInstallmentsWithoutFilters() {
+        Pageable pageable = PageRequest.of(0, 20);
+        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, LocalDate.of(2026, 12, 1)
+        );
+        Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderService.listInstallments(null, null, null, null, 10L, pageable)).thenReturn(page);
+
+        ResponseEntity<Page<OrderInstallmentSummaryResponse>> response = orderController.listInstallments(null, null, null, null, pageable, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(page, response.getBody());
+        verify(orderService).listInstallments(null, null, null, null, 10L, pageable);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders/installments — Deve listar parcelas de forma paginada com filtros opcionais")
+    void shouldListInstallmentsWithFilters() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 30);
+        List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING);
+
+        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, LocalDate.of(2026, 11, 15)
+        );
+        Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderService.listInstallments("Cliente", startDate, endDate, statuses, 10L, pageable)).thenReturn(page);
+
+        ResponseEntity<Page<OrderInstallmentSummaryResponse>> response = orderController.listInstallments("Cliente", startDate, endDate, statuses, pageable, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(page, response.getBody());
+        verify(orderService).listInstallments("Cliente", startDate, endDate, statuses, 10L, pageable);
     }
 }

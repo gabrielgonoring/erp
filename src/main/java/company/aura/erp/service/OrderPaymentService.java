@@ -14,6 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDate;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -345,6 +349,80 @@ public class OrderPaymentService {
         String temporaryUrl = r2Service.generateTemporaryUrl(bankSlipUrl, Duration.ofMinutes(5));
         log.info("getBankSlipUrl() - END - orderId={}, installmentId={}, temporaryUrl={}", orderId, installmentId, temporaryUrl);
         return temporaryUrl;
+    }
+
+    public void deleteBankSlip(OrderEntity order, Long installmentId) {
+        log.info("deleteBankSlip() - START - orderId={}, installmentId={}", order.getId(), installmentId);
+
+        OrderInstallmentEntity installment = findInstallment(order, installmentId);
+
+        validateDeleteBankSlip(order, installment);
+
+        deleteOldBankSlip(installment);
+
+        installment.setBankSlipUrl(null);
+        installment.setBankSlipCode(null);
+
+        orderInstallmentRepository.save(installment);
+
+        log.info("deleteBankSlip() - END - orderId={}, installmentId={}", order.getId(), installmentId);
+    }
+
+    private void validateDeleteBankSlip(OrderEntity order, OrderInstallmentEntity installment) {
+        if (!installment.getOrderId().equals(order.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A parcela não pertence a este pedido.");
+        }
+
+        if (installment.getStatus() == InstallmentStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível remover boleto de uma parcela cancelada.");
+        }
+
+        if (!isBackSlipAlreadyLinked(installment)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo do boleto não encontrado para esta parcela.");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderInstallmentSummaryResponse> listInstallments(
+            String search,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<InstallmentStatus> statuses,
+            Long companyId,
+            Pageable pageable
+    ) {
+        log.info("listInstallments() - START - companyId={}, search={}, startDate={}, endDate={}, statuses={}",
+                companyId, search, startDate, endDate, statuses);
+
+        String searchTerm = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+
+        boolean hasDateRange = (startDate != null && endDate != null);
+        boolean hasStartDateOnly = (startDate != null && endDate == null);
+        boolean hasEndDateOnly = (startDate == null && endDate != null);
+
+        if (hasDateRange && startDate.isAfter(endDate)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data inicial não pode ser posterior à data final.");
+        }
+
+        boolean hasStatuses = (statuses != null && !statuses.isEmpty());
+        List<InstallmentStatus> effectiveStatuses = hasStatuses ? statuses : List.of(InstallmentStatus.PENDING);
+
+        Page<OrderInstallmentSummaryResponse> page = orderInstallmentRepository.searchSummarized(
+                companyId,
+                searchTerm,
+                hasDateRange,
+                hasStartDateOnly,
+                hasEndDateOnly,
+                startDate,
+                endDate,
+                hasStatuses,
+                effectiveStatuses,
+                pageable
+        );
+
+        log.info("listInstallments() - END - companyId={}, totalElements={}, totalPages={}",
+                companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
     }
 
     private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {

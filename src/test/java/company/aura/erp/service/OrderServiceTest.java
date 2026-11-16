@@ -994,4 +994,40 @@ class OrderServiceTest {
         assertEquals("http://r2/temporary-url", url);
         verify(orderPaymentService).getBankSlipUrl(sampleOrder, 10L);
     }
+
+    @Test
+    @DisplayName("deleteBankSlip - Deve delegar exclusão do boleto para orderPaymentService")
+    void shouldDelegateDeleteBankSlip() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        orderService.deleteBankSlip(100L, 10L, companyId);
+
+        verify(orderPaymentService).deleteBankSlip(sampleOrder, 10L);
+    }
+
+    @Test
+    @DisplayName("listInstallments - Deve delegar busca de parcelas paginadas para orderPaymentService")
+    void shouldDelegateListInstallmentsToOrderPaymentService() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 30);
+        List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING);
+
+        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, LocalDate.of(2026, 11, 15)
+        );
+        Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderPaymentService.listInstallments("Cliente", startDate, endDate, statuses, companyId, pageable))
+                .thenReturn(page);
+
+        Page<OrderInstallmentSummaryResponse> result = orderService.listInstallments(
+                "Cliente", startDate, endDate, statuses, companyId, pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals(summary, result.getContent().get(0));
+        verify(orderPaymentService).listInstallments("Cliente", startDate, endDate, statuses, companyId, pageable);
+    }
 }

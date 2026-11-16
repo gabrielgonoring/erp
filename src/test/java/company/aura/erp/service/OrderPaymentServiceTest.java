@@ -16,6 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -415,6 +419,16 @@ class OrderPaymentServiceTest {
     @Test
     @DisplayName("uploadBankSlip — Deve lançar BAD_REQUEST quando arquivo for nulo ou vazio")
     void shouldThrowBadRequestWhenFileIsEmpty() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .partnerId(5L)
+                .status(InstallmentStatus.PENDING)
+                .build();
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+
         MockMultipartFile emptyFile = new MockMultipartFile("file", "", "application/pdf", new byte[0]);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
@@ -482,5 +496,137 @@ class OrderPaymentServiceTest {
         );
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("deleteBankSlip — Deve excluir boleto com sucesso e limpar os campos da parcela")
+    void shouldDeleteBankSlipSuccessfully() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .bankSlipUrl("http://r2/boleto.pdf")
+                .bankSlipCode("CODE-999")
+                .build();
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+        when(r2Service.extractKeyFromUrl("http://r2/boleto.pdf")).thenReturn("key-123");
+
+        orderPaymentService.deleteBankSlip(sampleOrder, 1L);
+
+        assertNull(installment.getBankSlipUrl());
+        assertNull(installment.getBankSlipCode());
+        verify(r2Service).delete("key-123");
+        verify(orderInstallmentRepository).save(installment);
+    }
+
+    @Test
+    @DisplayName("deleteBankSlip — Deve lançar NOT_FOUND quando parcela não possuir boleto")
+    void shouldThrowNotFoundWhenDeletingNonExistentBankSlip() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .bankSlipUrl(null)
+                .build();
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderPaymentService.deleteBankSlip(sampleOrder, 1L)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(r2Service, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("deleteBankSlip — Deve lançar UNPROCESSABLE_ENTITY se parcela estiver cancelada")
+    void shouldThrowUnprocessableEntityWhenDeletingFromCanceledInstallment() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .status(InstallmentStatus.CANCELED)
+                .bankSlipUrl("http://r2/boleto.pdf")
+                .build();
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderPaymentService.deleteBankSlip(sampleOrder, 1L)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(r2Service, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("listInstallments — Deve listar parcelas sem filtros opcionais com sucesso")
+    void shouldListInstallmentsSuccessfully() {
+        Pageable pageable = PageRequest.of(0, 20);
+        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, LocalDate.of(2026, 12, 1)
+        );
+        Page<OrderInstallmentSummaryResponse> expectedPage = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderInstallmentRepository.searchSummarized(
+                eq(10L), isNull(), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), eq(pageable)
+        )).thenReturn(expectedPage);
+
+        Page<OrderInstallmentSummaryResponse> result = orderPaymentService.listInstallments(
+                null, null, null, null, 10L, pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals(summary, result.getContent().get(0));
+        verify(orderInstallmentRepository).searchSummarized(
+                eq(10L), isNull(), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), eq(pageable)
+        );
+    }
+
+    @Test
+    @DisplayName("listInstallments — Deve listar parcelas com filtros opcionais de busca, data e status")
+    void shouldListInstallmentsWithFilters() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 30);
+        List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING, InstallmentStatus.PARTIALLY_PAID);
+
+        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, LocalDate.of(2026, 11, 15)
+        );
+        Page<OrderInstallmentSummaryResponse> expectedPage = new PageImpl<>(List.of(summary), pageable, 1);
+
+        when(orderInstallmentRepository.searchSummarized(
+                eq(10L), eq("Cliente"), eq(true), eq(false), eq(false), eq(startDate), eq(endDate), eq(true), eq(statuses), eq(pageable)
+        )).thenReturn(expectedPage);
+
+        Page<OrderInstallmentSummaryResponse> result = orderPaymentService.listInstallments(
+                "  Cliente  ", startDate, endDate, statuses, 10L, pageable
+        );
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals(summary, result.getContent().get(0));
+        verify(orderInstallmentRepository).searchSummarized(
+                eq(10L), eq("Cliente"), eq(true), eq(false), eq(false), eq(startDate), eq(endDate), eq(true), eq(statuses), eq(pageable)
+        );
+    }
+
+    @Test
+    @DisplayName("listInstallments — Deve lançar BAD_REQUEST quando startDate for posterior a endDate")
+    void shouldThrowBadRequestWhenStartDateAfterEndDateInListInstallments() {
+        Pageable pageable = PageRequest.of(0, 20);
+        LocalDate startDate = LocalDate.of(2026, 12, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 1);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderPaymentService.listInstallments(null, startDate, endDate, null, 10L, pageable)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(orderInstallmentRepository, never()).searchSummarized(any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), anyBoolean(), any(), any());
     }
 }

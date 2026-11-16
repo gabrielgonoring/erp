@@ -15,6 +15,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -121,6 +122,18 @@ public class GlobalExceptionHandler {
         log.error("handleMediaTypeNotSupported() - ERROR - Tipo de mídia não suportado - error: {}", ex.getMessage(), ex);
         ErrorResponse response = new ErrorResponse("Unsupported Media Type", "Tipo de mídia '" + ex.getContentType() + "' não suportado.");
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(response);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
+        log.error("handleMaxUploadSizeExceeded() - ERROR - Tamanho máximo de upload excedido - error: {}", ex.getMessage(), ex);
+        String description = "O tamanho do arquivo enviado excede o limite máximo permitido.";
+        if (ex.getMaxUploadSize() > 0) {
+            long maxMb = ex.getMaxUploadSize() / (1024 * 1024);
+            description = "O tamanho do arquivo enviado excede o limite máximo permitido de " + maxMb + "MB.";
+        }
+        ErrorResponse response = new ErrorResponse("Payload Too Large", description);
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(response);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
