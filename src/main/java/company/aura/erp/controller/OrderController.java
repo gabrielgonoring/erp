@@ -160,6 +160,28 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping(value = "/{id}/installments/{installmentId}/bank-slip", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OrderInstallmentResponse> uploadBankSlip(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "bankSlipCode", required = false) String bankSlipCode,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderInstallmentResponse response = orderService.uploadBankSlip(id, installmentId, file, bankSlipCode, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping(value = "/{id}/installments/{installmentId}/bank-slip")
+    public ResponseEntity<BankSlipUrlResponse> getBankSlip(
+            @PathVariable Long id,
+            @PathVariable Long installmentId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        String temporaryUrl = orderService.getBankSlipUrl(id, installmentId, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(new BankSlipUrlResponse(temporaryUrl));
+    }
+
     @PostMapping("/{id}/close")
     public ResponseEntity<OrderResponse> closeOrder(
             @PathVariable Long id,

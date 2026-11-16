@@ -1,5 +1,6 @@
 package company.aura.erp.service;
 
+import company.aura.erp.constants.BucketFolders;
 import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderInstallmentEntity;
@@ -13,10 +14,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +33,7 @@ public class OrderPaymentService {
 
     private final OrderInstallmentRepository orderInstallmentRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final CloudflareR2Service r2Service;
 
     public List<OrderInstallmentEntity> processInstallments(OrderCloseRequest request, OrderEntity order) {
         Long orderId = order != null ? order.getId() : null;
@@ -265,6 +269,82 @@ public class OrderPaymentService {
         OrderInstallmentResponse response = OrderInstallmentMapper.fromEntity(saved, Collections.emptyList());
         log.info("cancelInstallment() - END - orderId={}, installmentId={}, status={}", orderId, installmentId, response != null ? response.getStatus() : null);
         return response;
+    }
+
+    public OrderInstallmentResponse uploadBankSlip(OrderEntity order, Long installmentId, MultipartFile file, String bankSlipCode) {
+        log.info("uploadBankSlip() - START - orderId={}, installmentId={}, originalFilename={}", order.getId(), installmentId, file != null ? file.getOriginalFilename() : null);
+
+        OrderInstallmentEntity installment = findInstallment(order, installmentId);
+
+        validateUploadBankSlip(order, file, installment);
+
+        if (isBackSlipAlreadyLinked(installment)) {
+            deleteOldBankSlip(installment);
+        }
+
+        String folder = BucketFolders.BANK_SLIP + order.getCompanyId() + "/" + order.getId();
+        String fileKey = r2Service.upload(file, folder);
+        String fileUrl = r2Service.getFileUrl(fileKey);
+
+        installment.setBankSlipUrl(fileUrl);
+
+        if (bankSlipCode != null && !bankSlipCode.isBlank()) {
+            installment.setBankSlipCode(bankSlipCode.trim());
+        }
+
+        OrderInstallmentEntity saved = orderInstallmentRepository.save(installment);
+        List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByInstallmentId(installmentId);
+        OrderInstallmentResponse response = OrderInstallmentMapper.fromEntity(saved, transactions);
+
+        log.info("uploadBankSlip() - END - orderId={}, installmentId={}, bankSlipUrl={}", order.getId(), installmentId, fileUrl);
+        return response;
+    }
+
+    private boolean isBackSlipAlreadyLinked(OrderInstallmentEntity installment) {
+        return installment.getBankSlipUrl() != null && !installment.getBankSlipUrl().isBlank();
+    }
+
+    private void validateUploadBankSlip(OrderEntity order, MultipartFile file, OrderInstallmentEntity installment) {
+        if (!installment.getOrderId().equals(order.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A parcela não pertence a este pedido.");
+        }
+
+        if (installment.getStatus() == InstallmentStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível anexar boleto a uma parcela cancelada.");
+        }
+
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O arquivo do boleto é obrigatório.");
+        }
+    }
+
+    private void deleteOldBankSlip(OrderInstallmentEntity installment) {
+        try {
+            String oldKey = r2Service.extractKeyFromUrl(installment.getBankSlipUrl());
+            r2Service.delete(oldKey);
+        } catch (Exception ex) {
+            log.warn("uploadBankSlip() - WARN - Falha ao remover boleto anterior no bucket: {}", ex.getMessage());
+        }
+    }
+
+    public String getBankSlipUrl(OrderEntity order, Long installmentId) {
+        Long orderId = order != null ? order.getId() : null;
+        log.info("getBankSlipUrl() - START - orderId={}, installmentId={}", orderId, installmentId);
+
+        OrderInstallmentEntity installment = findInstallment(order, installmentId);
+
+        if (!installment.getOrderId().equals(order.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A parcela não pertence a este pedido.");
+        }
+
+        String bankSlipUrl = installment.getBankSlipUrl();
+        if (bankSlipUrl == null || bankSlipUrl.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo do boleto não encontrado para esta parcela.");
+        }
+
+        String temporaryUrl = r2Service.generateTemporaryUrl(bankSlipUrl, Duration.ofMinutes(5));
+        log.info("getBankSlipUrl() - END - orderId={}, installmentId={}, temporaryUrl={}", orderId, installmentId, temporaryUrl);
+        return temporaryUrl;
     }
 
     private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {

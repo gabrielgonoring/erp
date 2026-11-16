@@ -17,10 +17,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -39,6 +41,9 @@ class OrderPaymentServiceTest {
 
     @Mock
     private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Mock
+    private CloudflareR2Service r2Service;
 
     @InjectMocks
     private OrderPaymentService orderPaymentService;
@@ -376,5 +381,106 @@ class OrderPaymentServiceTest {
 
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
         verify(orderInstallmentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("uploadBankSlip — Deve fazer upload do boleto com sucesso e atualizar a parcela")
+    void shouldUploadBankSlipSuccessfully() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .partnerId(5L)
+                .status(InstallmentStatus.PENDING)
+                .amount(BigDecimal.valueOf(50.00))
+                .build();
+
+        MockMultipartFile file = new MockMultipartFile("file", "boleto.pdf", "application/pdf", "content".getBytes());
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+        when(r2Service.upload(eq(file), eq("bank-slips/10/100"))).thenReturn("key-123");
+        when(r2Service.getFileUrl("key-123")).thenReturn("http://r2/boleto.pdf");
+        when(orderInstallmentRepository.save(any(OrderInstallmentEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentTransactionRepository.findByInstallmentId(1L)).thenReturn(Collections.emptyList());
+
+        OrderInstallmentResponse response = orderPaymentService.uploadBankSlip(sampleOrder, 1L, file, "CODE-999");
+
+        assertNotNull(response);
+        assertEquals("http://r2/boleto.pdf", response.getBankSlipUrl());
+        assertEquals("CODE-999", response.getBankSlipCode());
+        verify(r2Service).upload(file, "bank-slips/10/100");
+        verify(orderInstallmentRepository).save(installment);
+    }
+
+    @Test
+    @DisplayName("uploadBankSlip — Deve lançar BAD_REQUEST quando arquivo for nulo ou vazio")
+    void shouldThrowBadRequestWhenFileIsEmpty() {
+        MockMultipartFile emptyFile = new MockMultipartFile("file", "", "application/pdf", new byte[0]);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderPaymentService.uploadBankSlip(sampleOrder, 1L, emptyFile, null)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(r2Service, never()).upload(any(), any());
+    }
+
+    @Test
+    @DisplayName("uploadBankSlip — Deve lançar UNPROCESSABLE_ENTITY se parcela estiver cancelada")
+    void shouldThrowUnprocessableEntityWhenUploadingToCanceledInstallment() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .status(InstallmentStatus.CANCELED)
+                .build();
+
+        MockMultipartFile file = new MockMultipartFile("file", "boleto.pdf", "application/pdf", "content".getBytes());
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderPaymentService.uploadBankSlip(sampleOrder, 1L, file, null)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(r2Service, never()).upload(any(), any());
+    }
+
+    @Test
+    @DisplayName("getBankSlipUrl — Deve gerar url temporária para download com sucesso")
+    void shouldGetBankSlipUrlSuccessfully() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .bankSlipUrl("http://r2/boleto.pdf")
+                .build();
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+        when(r2Service.generateTemporaryUrl(eq("http://r2/boleto.pdf"), eq(Duration.ofMinutes(5))))
+                .thenReturn("http://r2/presigned-url");
+
+        String url = orderPaymentService.getBankSlipUrl(sampleOrder, 1L);
+
+        assertEquals("http://r2/presigned-url", url);
+    }
+
+    @Test
+    @DisplayName("getBankSlipUrl — Deve lançar NOT_FOUND quando parcela não possuir arquivo")
+    void shouldThrowNotFoundWhenInstallmentHasNoBankSlipUrl() {
+        OrderInstallmentEntity installment = OrderInstallmentEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(10L)
+                .bankSlipUrl(null)
+                .build();
+
+        when(orderInstallmentRepository.findByIdAndCompanyId(1L, 10L)).thenReturn(Optional.of(installment));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderPaymentService.getBankSlipUrl(sampleOrder, 1L)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
 }

@@ -965,4 +965,33 @@ class OrderServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verifyNoInteractions(orderInvoiceService);
     }
+
+    @Test
+    @DisplayName("uploadBankSlip - Deve delegar upload do boleto para orderPaymentService")
+    void shouldDelegateUploadBankSlip() {
+        MockMultipartFile file = new MockMultipartFile("file", "boleto.pdf", "application/pdf", "content".getBytes());
+        OrderInstallmentResponse expectedResponse = new OrderInstallmentResponse();
+        expectedResponse.setId(10L);
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderPaymentService.uploadBankSlip(sampleOrder, 10L, file, "CODE123")).thenReturn(expectedResponse);
+
+        OrderInstallmentResponse response = orderService.uploadBankSlip(100L, 10L, file, "CODE123", companyId);
+
+        assertNotNull(response);
+        assertEquals(expectedResponse, response);
+        verify(orderPaymentService).uploadBankSlip(sampleOrder, 10L, file, "CODE123");
+    }
+
+    @Test
+    @DisplayName("getBankSlipUrl - Deve delegar busca da url temporária para orderPaymentService")
+    void shouldDelegateGetBankSlipUrl() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderPaymentService.getBankSlipUrl(sampleOrder, 10L)).thenReturn("http://r2/temporary-url");
+
+        String url = orderService.getBankSlipUrl(100L, 10L, companyId);
+
+        assertEquals("http://r2/temporary-url", url);
+        verify(orderPaymentService).getBankSlipUrl(sampleOrder, 10L);
+    }
 }

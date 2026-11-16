@@ -312,6 +312,35 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/orders/{id}/installments/{installmentId}/bank-slip — Deve fazer upload do boleto e retornar HTTP 200")
+    void shouldUploadBankSlip() {
+        MockMultipartFile file = new MockMultipartFile("file", "boleto.pdf", "application/pdf", "content".getBytes());
+        OrderInstallmentResponse installmentResponse = new OrderInstallmentResponse();
+        installmentResponse.setId(2L);
+        installmentResponse.setBankSlipUrl("http://storage/boleto.pdf");
+
+        when(orderService.uploadBankSlip(1L, 2L, file, "12345", 10L)).thenReturn(installmentResponse);
+
+        ResponseEntity<OrderInstallmentResponse> response = orderController.uploadBankSlip(1L, 2L, file, "12345", userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(installmentResponse, response.getBody());
+        verify(orderService).uploadBankSlip(1L, 2L, file, "12345", 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/orders/{id}/installments/{installmentId}/bank-slip — Deve retornar URL temporária do boleto")
+    void shouldGetBankSlip() {
+        when(orderService.getBankSlipUrl(1L, 2L, 10L)).thenReturn("http://storage/presigned-url");
+
+        ResponseEntity<BankSlipUrlResponse> response = orderController.getBankSlip(1L, 2L, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(new BankSlipUrlResponse("http://storage/presigned-url"), response.getBody());
+        verify(orderService).getBankSlipUrl(1L, 2L, 10L);
+    }
+
+    @Test
     @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda e retornar HTTP 200")
     void shouldCloseOrder() {
         OrderCloseRequest request = new OrderCloseRequest(List.of(

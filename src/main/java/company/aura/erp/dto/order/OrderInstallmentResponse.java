@@ -37,43 +37,6 @@ public class OrderInstallmentResponse {
     private BigDecimal pendingAmount;
     private List<PaymentTransactionResponse> transactions;
 
-    public OrderInstallmentResponse(
-            Long id,
-            Long orderId,
-            Long companyId,
-            Long partnerId,
-            Integer installmentNumber,
-            LocalDate dueDate,
-            BigDecimal amount,
-            PaymentMethod paymentMethod,
-            InstallmentStatus status,
-            String bankSlipCode,
-            String bankSlipUrl,
-            String notes,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
-    ) {
-        this(
-                id,
-                orderId,
-                companyId,
-                partnerId,
-                installmentNumber,
-                dueDate,
-                amount,
-                paymentMethod,
-                status,
-                bankSlipCode,
-                bankSlipUrl,
-                notes,
-                createdAt,
-                updatedAt,
-                status == InstallmentStatus.PAID ? amount : BigDecimal.ZERO,
-                status == InstallmentStatus.PAID ? BigDecimal.ZERO : amount,
-                status == InstallmentStatus.PAID ? BigDecimal.ZERO : amount,
-                Collections.emptyList()
-        );
-    }
 
     public OrderInstallmentResponse(
             Long id,

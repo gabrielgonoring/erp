@@ -284,6 +284,24 @@ public class OrderService {
         return response;
     }
 
+    @Transactional
+    public OrderInstallmentResponse uploadBankSlip(Long orderId, Long installmentId, MultipartFile file, String bankSlipCode, Long companyId) {
+        log.info("uploadBankSlip() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
+        OrderEntity order = findOrder(orderId, companyId);
+        OrderInstallmentResponse response = orderPaymentService.uploadBankSlip(order, installmentId, file, bankSlipCode);
+        log.info("uploadBankSlip() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public String getBankSlipUrl(Long orderId, Long installmentId, Long companyId) {
+        log.info("getBankSlipUrl() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
+        OrderEntity order = findOrder(orderId, companyId);
+        String temporaryUrl = orderPaymentService.getBankSlipUrl(order, installmentId);
+        log.info("getBankSlipUrl() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
+        return temporaryUrl;
+    }
+
     private void syncOrderStatusAfterInstallmentChange(OrderEntity order) {
         if (order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.CANCELED) {
             return;
