@@ -1,14 +1,14 @@
 package company.aura.erp.service;
 
-import company.aura.erp.email.domain.Customer;
-import company.aura.erp.email.domain.NotificationRequest;
-import company.aura.erp.email.domain.Payload;
-import company.aura.erp.email.domain.template.EmailTemplate;
-import company.aura.erp.email.enumerate.NotificationType;
-import company.aura.erp.email.exception.NotificationException;
-import company.aura.erp.email.service.AmazonSesService;
-import company.aura.erp.email.service.EmailService;
-import company.aura.erp.email.service.TemplateResolverService;
+import company.aura.erp.modules.email.domain.Customer;
+import company.aura.erp.modules.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.domain.Payload;
+import company.aura.erp.modules.email.domain.template.EmailTemplate;
+import company.aura.erp.modules.email.enumerate.NotificationType;
+import company.aura.erp.modules.email.exception.NotificationException;
+import company.aura.erp.modules.email.service.AmazonSesService;
+import company.aura.erp.modules.email.service.EmailService;
+import company.aura.erp.modules.email.service.TemplateResolverService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

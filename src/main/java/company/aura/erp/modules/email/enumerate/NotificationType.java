@@ -1,6 +1,6 @@
-package company.aura.erp.email.enumerate;
+package company.aura.erp.modules.email.enumerate;
 
-import company.aura.erp.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.domain.NotificationRequest;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static company.aura.erp.email.enumerate.Field.*;
+import static company.aura.erp.modules.email.enumerate.Field.*;
 @Getter
 @AllArgsConstructor
 public enum NotificationType {

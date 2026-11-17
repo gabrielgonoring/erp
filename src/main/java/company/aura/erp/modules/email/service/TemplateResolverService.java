@@ -1,8 +1,8 @@
-package company.aura.erp.email.service;
+package company.aura.erp.modules.email.service;
 
-import company.aura.erp.email.domain.template.EmailTemplate;
-import company.aura.erp.email.enumerate.NotificationType;
-import company.aura.erp.email.exception.NotificationException;
+import company.aura.erp.modules.email.domain.template.EmailTemplate;
+import company.aura.erp.modules.email.enumerate.NotificationType;
+import company.aura.erp.modules.email.exception.NotificationException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

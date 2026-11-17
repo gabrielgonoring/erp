@@ -1,9 +1,9 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.job.OrderInstallmentDueNotice;
-import company.aura.erp.email.domain.NotificationRequest;
-import company.aura.erp.email.enumerate.NotificationType;
-import company.aura.erp.email.service.EmailService;
+import company.aura.erp.modules.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.enumerate.NotificationType;
+import company.aura.erp.modules.email.service.EmailService;
 import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.repository.OrderInstallmentRepository;

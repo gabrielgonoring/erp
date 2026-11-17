@@ -1,4 +1,4 @@
-package company.aura.erp.email.domain.template;
+package company.aura.erp.modules.email.domain.template;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

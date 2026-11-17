@@ -1,4 +1,4 @@
-package company.aura.erp.email.exception;
+package company.aura.erp.modules.email.exception;
 
 public class NotificationException extends RuntimeException{
     public NotificationException() {

@@ -1,8 +1,8 @@
-package company.aura.erp.email.service;
+package company.aura.erp.modules.email.service;
 
-import company.aura.erp.email.domain.NotificationRequest;
-import company.aura.erp.email.domain.template.EmailTemplate;
-import company.aura.erp.email.enumerate.NotificationType;
+import company.aura.erp.modules.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.domain.template.EmailTemplate;
+import company.aura.erp.modules.email.enumerate.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;

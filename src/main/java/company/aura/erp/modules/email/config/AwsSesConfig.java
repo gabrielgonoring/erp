@@ -1,4 +1,4 @@
-package company.aura.erp.email.config;
+package company.aura.erp.modules.email.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

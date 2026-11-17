@@ -1,6 +1,6 @@
-package company.aura.erp.service;
+package company.aura.erp.modules.bucket.service;
 
-import company.aura.erp.config.CloudflareR2Properties;
+import company.aura.erp.modules.bucket.config.CloudflareR2Properties;
 import company.aura.erp.dto.storage.R2FileInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

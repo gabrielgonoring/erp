@@ -1,8 +1,8 @@
 package company.aura.erp.service;
 
-import company.aura.erp.email.service.AmazonSesService;
+import company.aura.erp.modules.email.service.AmazonSesService;
 
-import company.aura.erp.email.config.AwsSesProperties;
+import company.aura.erp.modules.email.config.AwsSesProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

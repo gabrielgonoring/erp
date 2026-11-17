@@ -1,6 +1,7 @@
 package company.aura.erp.service;
 
-import company.aura.erp.config.CloudflareR2Properties;
+import company.aura.erp.modules.bucket.service.CloudflareR2Service;
+import company.aura.erp.modules.bucket.config.CloudflareR2Properties;
 import company.aura.erp.dto.storage.R2FileInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +24,6 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 import java.io.ByteArrayInputStream;
 import java.net.URI;
-import java.net.URL;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;

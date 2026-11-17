@@ -1,8 +1,8 @@
-package company.aura.erp.email.enumerate;
+package company.aura.erp.modules.email.enumerate;
 
-import company.aura.erp.email.domain.Customer;
-import company.aura.erp.email.domain.NotificationRequest;
-import company.aura.erp.email.domain.Payload;
+import company.aura.erp.modules.email.domain.Customer;
+import company.aura.erp.modules.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.domain.Payload;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
