@@ -80,9 +80,7 @@ public class TemplateResolverService {
               <p style="margin: 5px 0;"><strong>Data de Vencimento:</strong> ${installmentDueDate}</p>
               <p style="margin: 5px 0;"><strong>Valor a Pagar:</strong> R$ ${amount}</p>
               <p style="margin: 5px 0;"><strong>Forma de Pagamento:</strong> ${paymentMethod}</p>
-              ${bankSlipCodeBlock}
             </div>
-            ${bankSlipUrlBlock}
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
             <p style="font-size: 12px; color: #777;">
               Caso já tenha efetuado o pagamento, por favor desconsidere este e-mail.<br />

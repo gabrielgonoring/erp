@@ -12,7 +12,7 @@ import static company.aura.erp.modules.email.enumerate.Field.*;
 @Getter
 @AllArgsConstructor
 public enum NotificationType {
-    INSTALLMENT_NOTIFY(List.of(CUSTOMER_NAME,AMOUNT,INSTALLMENT_NUMBER,INSTALLMENT_DUE_DATE,PAYMENT_METHOD)),
+    INSTALLMENT_NOTIFY(List.of(CUSTOMER_NAME,ORDER_ID, AMOUNT,INSTALLMENT_NUMBER,INSTALLMENT_DUE_DATE,PAYMENT_METHOD)),
     FORGOT_PASSWORD(List.of(CUSTOMER_NAME, RESET_PASSWORD_URL));
 
     private final List<Field> fields;

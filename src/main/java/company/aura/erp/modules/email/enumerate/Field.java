@@ -18,6 +18,7 @@ import java.util.function.Function;
 @AllArgsConstructor
 public enum Field {
     CUSTOMER_NAME("customerName", request -> Field.getStringInCustomer(request, Customer::getName, "Cliente")),
+    ORDER_ID("orderId", request -> Field.getNumberInPayload(request, Payload::getOrderId)),
     AMOUNT("amount", request -> Field.getAmountInPayload(request, Payload::getAmount)),
     INSTALLMENT_NUMBER("installmentNumber", request -> Field.getNumberInPayload(request, Payload::getInstallmentNumber)),
     INSTALLMENT_DUE_DATE("installmentDueDate", request -> Field.getDateInPayload(request, Payload::getInstallmentDueDate)),
