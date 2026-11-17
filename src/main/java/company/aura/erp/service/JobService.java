@@ -1,10 +1,8 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.job.OrderInstallmentDueNotice;
-import company.aura.erp.modules.email.domain.Company;
-import company.aura.erp.modules.email.domain.Customer;
-import company.aura.erp.modules.email.domain.NotificationRequest;
-import company.aura.erp.modules.email.domain.Payload;
+import company.aura.erp.modules.email.domain.*;
+import company.aura.erp.modules.email.enumerate.AttachmentSource;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.service.EmailService;
 import company.aura.erp.enums.InstallmentStatus;
@@ -90,6 +88,12 @@ public class JobService {
             request.getPayload().setInstallmentNumber(installment.installmentNumber());
             request.getPayload().setOrderId(installment.orderId());
             request.getPayload().setPaymentMethod(installment.paymentMethod().getHumanDescription());
+
+            if (StringUtils.isNotBlank(installment.bankSlipUrl())){
+                Attachment attachment = new Attachment();
+                attachment.setSource(AttachmentSource.BUCKET);
+                attachment.setUrl(installment.bankSlipUrl());
+            }
 
             emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
             return true;
