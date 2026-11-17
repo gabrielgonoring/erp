@@ -2,6 +2,7 @@ package company.aura.erp.service;
 
 import company.aura.erp.modules.email.domain.template.EmailTemplate;
 import company.aura.erp.modules.email.enumerate.NotificationType;
+import company.aura.erp.modules.email.exception.NotificationException;
 import company.aura.erp.modules.email.service.TemplateResolverService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,9 +14,15 @@ class TemplateResolverServiceTest {
     private final TemplateResolverService templateResolverService = new TemplateResolverService();
 
     @Test
-    @DisplayName("Deve resolver template e mensagem de texto para todos os tipos de notificação")
+    @DisplayName("Deve resolver template e mensagem de texto para todos os tipos de notificação enviáveis")
     void shouldResolveTemplateAndTextForAllNotificationTypes() {
         for (NotificationType type : NotificationType.values()) {
+            if (type == NotificationType.DEFAULT) {
+                assertThrows(NotificationException.class, () -> templateResolverService.getEmailTemplate(type));
+                assertThrows(NotificationException.class, () -> templateResolverService.getTextMessage(type));
+                continue;
+            }
+
             EmailTemplate template = templateResolverService.getEmailTemplate(type);
             String textMessage = templateResolverService.getTextMessage(type);
 

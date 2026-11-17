@@ -30,7 +30,7 @@ import java.util.Optional;
 public class CompanyEmailService {
 
     private final CompanyEmailConfigRepository companyEmailConfigRepository;
-    private AwsSesProperties awsSesProperties;
+    private final AwsSesProperties awsSesProperties;
 
     @Transactional
     public CompanyEmailResponse create(CompanyEmailCreateRequest request, Long companyId) {

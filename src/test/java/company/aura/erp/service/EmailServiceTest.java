@@ -23,6 +23,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -37,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,7 +109,7 @@ class EmailServiceTest {
 
         when(templateResolverService.getEmailTemplate(NotificationType.FORGOT_PASSWORD)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.FORGOT_PASSWORD)).thenReturn(textMessage);
-        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-123");
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-123");
 
         emailService.sendNotification(NotificationType.FORGOT_PASSWORD, request);
 
@@ -118,7 +120,8 @@ class EmailServiceTest {
                 eq("usuario@aura.company"),
                 eq("Redefinição de Senha - Gabriel Borges"),
                 eq("<p>Olá Gabriel Borges, redefina em: https://erp.aura.company/redefinir-senha?token=abc-123</p>"),
-                eq("Olá Gabriel Borges, redefina em: https://erp.aura.company/redefinir-senha?token=abc-123")
+                eq("Olá Gabriel Borges, redefina em: https://erp.aura.company/redefinir-senha?token=abc-123"),
+                eq(Collections.emptyList())
         );
     }
 
@@ -180,7 +183,7 @@ class EmailServiceTest {
                 eq("resposta@empresa10.com.br"),
                 eq(Collections.emptyList())
         );
-        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString());
+        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
@@ -278,7 +281,7 @@ class EmailServiceTest {
 
         when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(textMessage);
-        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-456");
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-456");
 
         emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
 
@@ -288,7 +291,8 @@ class EmailServiceTest {
                 eq("financeiro@cliente.com"),
                 eq("Parcela 1 - Vencimento 15/12/2026"),
                 eq("<p>Prezado Aura Sistemas, parcela 1 no valor de R$ 250,75 vence em 15/12/2026. Pagamento: BOLETO</p>"),
-                eq("Prezado Aura Sistemas, parcela 1 no valor de R$ 250,75 vence em 15/12/2026. Pagamento: BOLETO")
+                eq("Prezado Aura Sistemas, parcela 1 no valor de R$ 250,75 vence em 15/12/2026. Pagamento: BOLETO"),
+                eq(Collections.emptyList())
         );
     }
 
@@ -427,7 +431,7 @@ class EmailServiceTest {
         when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
         when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(Collections.emptyList());
-        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-fallback-456");
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-fallback-456");
 
         assertDoesNotThrow(() -> emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request));
 
@@ -436,9 +440,10 @@ class EmailServiceTest {
                 eq("cliente@dominio.com"),
                 eq("Cobrança"),
                 eq("<p>Segue seu boleto</p>"),
-                eq("Segue seu boleto")
+                eq("Segue seu boleto"),
+                eq(Collections.emptyList())
         );
-        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString(), anyList());
+        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -461,7 +466,8 @@ class EmailServiceTest {
         when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
         when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(null);
-        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-vazio");
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), ArgumentMatchers.<List<DownloadedAttachment>>isNull()))
+                .thenReturn("ses-msg-vazio");
 
         emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
 
@@ -470,9 +476,10 @@ class EmailServiceTest {
                 eq("cliente@dominio.com"),
                 eq("Cobrança"),
                 eq("<p>Segue seu boleto</p>"),
-                eq("Segue seu boleto")
+                eq("Segue seu boleto"),
+                ArgumentMatchers.<List<DownloadedAttachment>>isNull()
         );
-        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString(), anyList());
+        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -507,7 +514,7 @@ class EmailServiceTest {
 
         when(templateResolverService.getEmailTemplate(NotificationType.FORGOT_PASSWORD)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.FORGOT_PASSWORD)).thenReturn("Texto");
-        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString()))
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList()))
                 .thenThrow(new RuntimeException("Falha de comunicação com AWS SES"));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
@@ -515,6 +522,6 @@ class EmailServiceTest {
         );
 
         assertEquals("Falha de comunicação com AWS SES", ex.getMessage());
-        verify(amazonSesService, times(1)).sendEmail(anyString(), anyString(), anyString(), anyString());
+        verify(amazonSesService, times(1)).sendEmail(anyString(), anyString(), anyString(), anyString(), anyList());
     }
 }

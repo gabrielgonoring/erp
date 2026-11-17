@@ -54,8 +54,7 @@ class CompanyEmailControllerTest {
                 "DEFAULT",
                 "contato@empresa.com",
                 "Empresa",
-                "resposta@empresa.com",
-                CompanyEmailConfigStatus.ACTIVE
+                "resposta@empresa.com"
         );
         CompanyEmailResponse expected = CompanyEmailResponse.builder()
                 .id(1L)
@@ -130,8 +129,7 @@ class CompanyEmailControllerTest {
                 "FORGOT_PASSWORD",
                 "suporte@empresa.com",
                 "Suporte",
-                null,
-                CompanyEmailConfigStatus.ACTIVE
+                null
         );
         CompanyEmailResponse expected = CompanyEmailResponse.builder()
                 .id(5L)

@@ -5,6 +5,7 @@ import company.aura.erp.dto.email.CompanyEmailResponse;
 import company.aura.erp.dto.email.CompanyEmailUpdateRequest;
 import company.aura.erp.entity.CompanyEmailConfigEntity;
 import company.aura.erp.enums.CompanyEmailConfigStatus;
+import company.aura.erp.modules.email.config.AwsSesProperties;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.repository.CompanyEmailConfigRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,9 @@ class CompanyEmailServiceTest {
     @Mock
     private CompanyEmailConfigRepository companyEmailConfigRepository;
 
+    @Mock
+    private AwsSesProperties awsSesProperties;
+
     @InjectMocks
     private CompanyEmailService companyEmailService;
 
@@ -45,8 +49,7 @@ class CompanyEmailServiceTest {
                 "   ",
                 " contato@empresa.com ",
                 " Empresa Teste ",
-                " suporte@empresa.com ",
-                null
+                " suporte@empresa.com "
         );
 
         when(companyEmailConfigRepository.existsByCompanyIdAndNotificationType(10L, "DEFAULT")).thenReturn(false);
@@ -79,8 +82,7 @@ class CompanyEmailServiceTest {
                 "invoice_linked",
                 "fiscal@empresa.com",
                 "Fiscal Empresa",
-                " ",
-                CompanyEmailConfigStatus.INACTIVE
+                " "
         );
 
         when(companyEmailConfigRepository.existsByCompanyIdAndNotificationType(10L, "INVOICE_LINKED")).thenReturn(false);
@@ -95,7 +97,33 @@ class CompanyEmailServiceTest {
         assertEquals(2L, response.getId());
         assertEquals("INVOICE_LINKED", response.getNotificationType());
         assertNull(response.getReplyTo());
-        assertEquals(CompanyEmailConfigStatus.INACTIVE, response.getStatus());
+        assertEquals(CompanyEmailConfigStatus.ACTIVE, response.getStatus());
+    }
+
+    @Test
+    @DisplayName("Deve usar fromEmail padrão do AwsSesProperties quando fromEmail da requisição for em branco")
+    void shouldUseDefaultFromEmailFromAwsSesPropertiesWhenBlank() {
+        CompanyEmailCreateRequest request = new CompanyEmailCreateRequest(
+                "DEFAULT",
+                " ",
+                "Empresa Teste",
+                null
+        );
+
+        when(awsSesProperties.getFromEmail()).thenReturn("noreply@aurasistemas.com.br");
+        when(companyEmailConfigRepository.existsByCompanyIdAndNotificationType(10L, "DEFAULT")).thenReturn(false);
+        when(companyEmailConfigRepository.save(any(CompanyEmailConfigEntity.class))).thenAnswer(invocation -> {
+            CompanyEmailConfigEntity entity = invocation.getArgument(0);
+            entity.setId(3L);
+            return entity;
+        });
+
+        CompanyEmailResponse response = companyEmailService.create(request, 10L);
+
+        assertEquals(3L, response.getId());
+        assertEquals("noreply@aurasistemas.com.br", response.getFromEmail());
+        assertEquals("Empresa Teste", response.getFromName());
+        assertEquals(CompanyEmailConfigStatus.ACTIVE, response.getStatus());
     }
 
     @Test
@@ -105,8 +133,7 @@ class CompanyEmailServiceTest {
                 "INSTALLMENT_NOTIFY",
                 "cobranca@empresa.com",
                 "Cobrança",
-                null,
-                CompanyEmailConfigStatus.ACTIVE
+                null
         );
 
         when(companyEmailConfigRepository.existsByCompanyIdAndNotificationType(10L, "INSTALLMENT_NOTIFY")).thenReturn(true);
@@ -125,8 +152,7 @@ class CompanyEmailServiceTest {
                 "UNKNOWN_TYPE",
                 "contato@empresa.com",
                 "Empresa",
-                null,
-                CompanyEmailConfigStatus.ACTIVE
+                null
         );
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -143,8 +169,7 @@ class CompanyEmailServiceTest {
                 "DEFAULT",
                 "contato@empresa.com",
                 "Empresa",
-                null,
-                CompanyEmailConfigStatus.ACTIVE
+                null
         );
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -164,28 +189,27 @@ class CompanyEmailServiceTest {
                 .fromEmail("antigo@empresa.com")
                 .fromName("Antigo")
                 .replyTo("antigo-reply@empresa.com")
-                .status(CompanyEmailConfigStatus.ACTIVE)
+                .status(CompanyEmailConfigStatus.INACTIVE)
                 .build();
 
         CompanyEmailUpdateRequest request = new CompanyEmailUpdateRequest(
-                "FORGOT_PASSWORD",
-                "seguranca@empresa.com",
-                "Segurança",
-                null,
-                CompanyEmailConfigStatus.INACTIVE
+                "INVOICE_LINKED",
+                "fiscal@empresa.com",
+                "Fiscal",
+                null
         );
 
         when(companyEmailConfigRepository.findByIdAndCompanyId(5L, 10L)).thenReturn(Optional.of(existing));
-        when(companyEmailConfigRepository.existsByCompanyIdAndNotificationTypeAndIdNot(10L, "FORGOT_PASSWORD", 5L)).thenReturn(false);
+        when(companyEmailConfigRepository.existsByCompanyIdAndNotificationTypeAndIdNot(10L, "INVOICE_LINKED", 5L)).thenReturn(false);
         when(companyEmailConfigRepository.save(existing)).thenReturn(existing);
 
         CompanyEmailResponse response = companyEmailService.update(5L, request, 10L);
 
-        assertEquals("FORGOT_PASSWORD", response.getNotificationType());
-        assertEquals("seguranca@empresa.com", response.getFromEmail());
-        assertEquals("Segurança", response.getFromName());
+        assertEquals("INVOICE_LINKED", response.getNotificationType());
+        assertEquals("fiscal@empresa.com", response.getFromEmail());
+        assertEquals("Fiscal", response.getFromName());
         assertNull(response.getReplyTo());
-        assertEquals(CompanyEmailConfigStatus.INACTIVE, response.getStatus());
+        assertEquals(CompanyEmailConfigStatus.ACTIVE, response.getStatus());
     }
 
     @Test
@@ -204,8 +228,7 @@ class CompanyEmailServiceTest {
                 "INVOICE_LINKED",
                 "fiscal@empresa.com",
                 "Fiscal",
-                null,
-                CompanyEmailConfigStatus.ACTIVE
+                null
         );
 
         when(companyEmailConfigRepository.findByIdAndCompanyId(5L, 10L)).thenReturn(Optional.of(existing));
@@ -219,7 +242,7 @@ class CompanyEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Deve deletar configuração existente com sucesso")
+    @DisplayName("Deve inativar configuração existente com sucesso ao deletar")
     void shouldDeleteConfigSuccessfully() {
         CompanyEmailConfigEntity existing = CompanyEmailConfigEntity.builder()
                 .id(3L)
@@ -234,7 +257,9 @@ class CompanyEmailServiceTest {
 
         companyEmailService.delete(3L, 10L);
 
-        verify(companyEmailConfigRepository).delete(existing);
+        assertEquals(CompanyEmailConfigStatus.INACTIVE, existing.getStatus());
+        verify(companyEmailConfigRepository).save(existing);
+        verify(companyEmailConfigRepository, never()).delete(any());
     }
 
     @Test
@@ -278,7 +303,7 @@ class CompanyEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Deve resolver configuração ativa priorizando tipo específico e retornando primeiro resultado")
+    @DisplayName("Deve resolver configuração ativa priorizando tipo específico sobre DEFAULT")
     void shouldResolveActiveConfigPrioritizingSpecificOverDefault() {
         CompanyEmailConfigEntity specific = CompanyEmailConfigEntity.builder()
                 .id(10L)
@@ -299,8 +324,8 @@ class CompanyEmailServiceTest {
                 .build();
 
         when(companyEmailConfigRepository.findActiveConfigsForNotification(
-                1L, "INVOICE_LINKED", CompanyEmailConfigStatus.ACTIVE
-        )).thenReturn(List.of(specific, defaultCfg));
+                1L, List.of("INVOICE_LINKED", "DEFAULT"), CompanyEmailConfigStatus.ACTIVE
+        )).thenReturn(List.of(defaultCfg, specific));
 
         Optional<CompanyEmailConfigEntity> resolved = companyEmailService.resolveActiveConfig(1L, NotificationType.INVOICE_LINKED);
 
@@ -309,16 +334,39 @@ class CompanyEmailServiceTest {
     }
 
     @Test
-    @DisplayName("Deve retornar Optional.empty quando não houver configuração ou parâmetros forem nulos")
-    void shouldReturnEmptyWhenNoConfigOrNullParams() {
-        assertTrue(companyEmailService.resolveActiveConfig(null, NotificationType.FORGOT_PASSWORD).isEmpty());
+    @DisplayName("Deve fazer fallback para DEFAULT quando tipo específico não existir")
+    void shouldFallbackToDefaultWhenSpecificConfigDoesNotExist() {
+        CompanyEmailConfigEntity defaultCfg = CompanyEmailConfigEntity.builder()
+                .id(11L)
+                .companyId(1L)
+                .notificationType("DEFAULT")
+                .fromEmail("contato@empresa.com")
+                .fromName("Contato")
+                .status(CompanyEmailConfigStatus.ACTIVE)
+                .build();
+
+        when(companyEmailConfigRepository.findActiveConfigsForNotification(
+                1L, List.of("INSTALLMENT_NOTIFY", "DEFAULT"), CompanyEmailConfigStatus.ACTIVE
+        )).thenReturn(List.of(defaultCfg));
+
+        Optional<CompanyEmailConfigEntity> resolved = companyEmailService.resolveActiveConfig(1L, NotificationType.INSTALLMENT_NOTIFY);
+
+        assertTrue(resolved.isPresent());
+        assertEquals("DEFAULT", resolved.get().getNotificationType());
+    }
+
+    @Test
+    @DisplayName("Deve retornar Optional.empty quando não houver configuração, notificação for interna ou parâmetros forem nulos")
+    void shouldReturnEmptyWhenNoConfigInternalOrNullParams() {
+        assertTrue(companyEmailService.resolveActiveConfig(null, NotificationType.INSTALLMENT_NOTIFY).isEmpty());
         assertTrue(companyEmailService.resolveActiveConfig(1L, null).isEmpty());
+        assertTrue(companyEmailService.resolveActiveConfig(1L, NotificationType.FORGOT_PASSWORD).isEmpty());
         verifyNoInteractions(companyEmailConfigRepository);
 
         when(companyEmailConfigRepository.findActiveConfigsForNotification(
-                1L, "FORGOT_PASSWORD", CompanyEmailConfigStatus.ACTIVE
+                1L, List.of("INSTALLMENT_NOTIFY", "DEFAULT"), CompanyEmailConfigStatus.ACTIVE
         )).thenReturn(Collections.emptyList());
 
-        assertTrue(companyEmailService.resolveActiveConfig(1L, NotificationType.FORGOT_PASSWORD).isEmpty());
+        assertTrue(companyEmailService.resolveActiveConfig(1L, NotificationType.INSTALLMENT_NOTIFY).isEmpty());
     }
 }
