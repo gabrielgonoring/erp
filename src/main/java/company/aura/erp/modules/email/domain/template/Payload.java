@@ -13,4 +13,7 @@ public class Payload {
     LocalDate installmentDueDate;
     String paymentMethod;
     String resetPasswordUrl;
+    Long invoiceId;
+    String invoiceNumber;
+    String documentType;
 }

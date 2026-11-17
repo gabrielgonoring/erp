@@ -1,6 +1,6 @@
 package company.aura.erp.service;
 
-import company.aura.erp.modules.email.domain.template.Attachment;
+import company.aura.erp.modules.email.domain.DownloadedAttachment;
 import company.aura.erp.modules.email.service.AmazonSesService;
 
 import company.aura.erp.modules.email.config.AwsSesProperties;
@@ -80,7 +80,7 @@ class AmazonSesServiceTest {
                 .build();
         when(sesClient.sendRawEmail(any(SendRawEmailRequest.class))).thenReturn(mockRawResponse);
 
-        Attachment attachment = Attachment.builder()
+        DownloadedAttachment attachment = DownloadedAttachment.builder()
                 .fileName("boleto.pdf")
                 .contentType("application/pdf")
                 .data("fake-pdf-content".getBytes())

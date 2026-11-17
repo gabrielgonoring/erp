@@ -1,7 +1,8 @@
 package company.aura.erp.service;
 
-import company.aura.erp.modules.bucket.service.CloudflareR2Service;
+import company.aura.erp.modules.email.domain.DownloadedAttachment;
 import company.aura.erp.modules.email.domain.template.Attachment;
+import company.aura.erp.modules.email.domain.template.Company;
 import company.aura.erp.modules.email.domain.template.Customer;
 import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import company.aura.erp.modules.email.domain.template.Payload;
@@ -10,6 +11,7 @@ import company.aura.erp.modules.email.enumerate.AttachmentSource;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.exception.NotificationException;
 import company.aura.erp.modules.email.service.AmazonSesService;
+import company.aura.erp.modules.email.service.AttachmentService;
 import company.aura.erp.modules.email.service.EmailService;
 import company.aura.erp.modules.email.service.TemplateResolverService;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,7 +46,7 @@ class EmailServiceTest {
     private TemplateResolverService templateResolverService;
 
     @Mock
-    private CloudflareR2Service cloudflareR2Service;
+    private AttachmentService attachmentService;
 
     @InjectMocks
     private EmailService emailService;
@@ -55,7 +58,7 @@ class EmailServiceTest {
 
         verifyNoInteractions(templateResolverService);
         verifyNoInteractions(amazonSesService);
-        verifyNoInteractions(cloudflareR2Service);
+        verifyNoInteractions(attachmentService);
     }
 
     @ParameterizedTest
@@ -70,7 +73,7 @@ class EmailServiceTest {
 
         verifyNoInteractions(templateResolverService);
         verifyNoInteractions(amazonSesService);
-        verifyNoInteractions(cloudflareR2Service);
+        verifyNoInteractions(attachmentService);
     }
 
     @Test
@@ -152,8 +155,69 @@ class EmailServiceTest {
     }
 
     @Test
-    @DisplayName("Deve baixar arquivo do R2 com sucesso e anexar no e-mail enviado")
-    void shouldDownloadAttachmentFromR2AndSendEmailSuccessfully() {
+    @DisplayName("Deve enviar notificação de nota fiscal vinculada (INVOICE_LINKED) com substituição de variáveis e anexos")
+    void shouldSendInvoiceLinkedNotificationSuccessfully() {
+        NotificationRequest request = new NotificationRequest();
+        request.setReceiveEmail("fiscal@cliente.com");
+
+        Company company = new Company();
+        company.setId(10L);
+        company.setName("Aura Sistemas");
+        request.setCompany(company);
+
+        Customer customer = new Customer();
+        customer.setName("Cliente LTDA");
+        request.setCustomer(customer);
+
+        Payload payload = new Payload();
+        payload.setOrderId(100L);
+        payload.setInvoiceId(555L);
+        payload.setInvoiceNumber("9876");
+        payload.setDocumentType("NFE");
+        payload.setAmount(new BigDecimal("1250.90"));
+        request.setPayload(payload);
+
+        Attachment pdfAtt = Attachment.builder().source(AttachmentSource.BUCKET).url("https://pub-r2.com/nfe.pdf").build();
+        Attachment xmlAtt = Attachment.builder().source(AttachmentSource.BUCKET).url("https://pub-r2.com/nfe.xml").build();
+        request.setAttachment(List.of(pdfAtt, xmlAtt));
+
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+                .subject("Nota Fiscal Disponível - Pedido #${orderId}")
+                .html("<p>Olá ${customerName}, ${companyName} vinculou ${documentType} ${invoiceNumber} (#${invoiceId}) de R$ ${amount}</p>")
+                .build();
+
+        String textMessage = "Olá ${customerName}, ${companyName} vinculou ${documentType} ${invoiceNumber} (#${invoiceId}) de R$ ${amount}";
+
+        DownloadedAttachment pdfDownloaded = DownloadedAttachment.builder()
+                .fileName("nfe.pdf")
+                .contentType("application/pdf")
+                .data("pdf".getBytes())
+                .build();
+        DownloadedAttachment xmlDownloaded = DownloadedAttachment.builder()
+                .fileName("nfe.xml")
+                .contentType("application/xml")
+                .data("<xml/>".getBytes())
+                .build();
+
+        when(templateResolverService.getEmailTemplate(NotificationType.INVOICE_LINKED)).thenReturn(emailTemplate);
+        when(templateResolverService.getTextMessage(NotificationType.INVOICE_LINKED)).thenReturn(textMessage);
+        when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(List.of(pdfDownloaded, xmlDownloaded));
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-inv-1");
+
+        emailService.sendNotification(NotificationType.INVOICE_LINKED, request);
+
+        verify(amazonSesService, times(1)).sendEmail(
+                eq("fiscal@cliente.com"),
+                eq("Nota Fiscal Disponível - Pedido #100"),
+                eq("<p>Olá Cliente LTDA, Aura Sistemas vinculou NFE 9876 (#555) de R$ 1250,90</p>"),
+                eq("Olá Cliente LTDA, Aura Sistemas vinculou NFE 9876 (#555) de R$ 1250,90"),
+                eq(List.of(pdfDownloaded, xmlDownloaded))
+        );
+    }
+
+    @Test
+    @DisplayName("Deve baixar anexo com sucesso e enviar e-mail com a lista de anexos baixados")
+    void shouldDownloadAttachmentAndSendEmailSuccessfully() {
         NotificationRequest request = new NotificationRequest();
         request.setReceiveEmail("cliente@dominio.com");
 
@@ -170,19 +234,25 @@ class EmailServiceTest {
 
         when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
-        when(cloudflareR2Service.extractKeyFromUrl(attachment.getUrl())).thenReturn("orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf");
 
         byte[] pdfBytes = "PDF content simulated".getBytes();
-        when(cloudflareR2Service.download("orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf")).thenReturn(pdfBytes);
-        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-att-123");
+        DownloadedAttachment downloadedAttachment = DownloadedAttachment.builder()
+                .fileName("boleto.pdf")
+                .contentType("application/pdf")
+                .data(pdfBytes)
+                .build();
+
+        when(attachmentService.downloadAttachments(request.getAttachment()))
+                .thenReturn(List.of(downloadedAttachment));
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList()))
+                .thenReturn("ses-msg-att-123");
 
         emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
 
-        verify(cloudflareR2Service, times(1)).extractKeyFromUrl(attachment.getUrl());
-        verify(cloudflareR2Service, times(1)).download("orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf");
+        verify(attachmentService, times(1)).downloadAttachments(request.getAttachment());
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Attachment>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<DownloadedAttachment>> captor = ArgumentCaptor.forClass(List.class);
         verify(amazonSesService, times(1)).sendEmail(
                 eq("cliente@dominio.com"),
                 eq("Cobrança"),
@@ -191,17 +261,17 @@ class EmailServiceTest {
                 captor.capture()
         );
 
-        List<Attachment> capturedAttachments = captor.getValue();
+        List<DownloadedAttachment> capturedAttachments = captor.getValue();
         assertEquals(1, capturedAttachments.size());
-        Attachment captured = capturedAttachments.get(0);
+        DownloadedAttachment captured = capturedAttachments.get(0);
         assertEquals("boleto.pdf", captured.getFileName());
         assertEquals("application/pdf", captured.getContentType());
         assertArrayEquals(pdfBytes, captured.getData());
     }
 
     @Test
-    @DisplayName("Deve enviar e-mail sem anexo caso o download no bucket R2 falhe com exceção")
-    void shouldSendEmailWithoutAttachmentWhenDownloadFails() {
+    @DisplayName("Deve enviar e-mail sem anexo caso a lista de anexos baixados seja vazia")
+    void shouldSendEmailWithoutAttachmentWhenDownloadedAttachmentsIsEmpty() {
         NotificationRequest request = new NotificationRequest();
         request.setReceiveEmail("cliente@dominio.com");
 
@@ -218,11 +288,12 @@ class EmailServiceTest {
 
         when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
-        when(cloudflareR2Service.extractKeyFromUrl(attachment.getUrl())).thenThrow(new RuntimeException("R2 timeout error"));
+        when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(Collections.emptyList());
         when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-fallback-456");
 
         assertDoesNotThrow(() -> emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request));
 
+        verify(attachmentService, times(1)).downloadAttachments(request.getAttachment());
         verify(amazonSesService, times(1)).sendEmail(
                 eq("cliente@dominio.com"),
                 eq("Cobrança"),
@@ -233,8 +304,8 @@ class EmailServiceTest {
     }
 
     @Test
-    @DisplayName("Deve enviar e-mail sem anexo caso o download retorne array de bytes vazio")
-    void shouldSendEmailWithoutAttachmentWhenDownloadReturnsEmptyBytes() {
+    @DisplayName("Deve enviar e-mail sem anexo caso o serviço retorne lista nula de anexos baixados")
+    void shouldSendEmailWithoutAttachmentWhenDownloadedAttachmentsIsNull() {
         NotificationRequest request = new NotificationRequest();
         request.setReceiveEmail("cliente@dominio.com");
 
@@ -251,12 +322,12 @@ class EmailServiceTest {
 
         when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
-        when(cloudflareR2Service.extractKeyFromUrl(attachment.getUrl())).thenReturn("orders/vazio.pdf");
-        when(cloudflareR2Service.download("orders/vazio.pdf")).thenReturn(new byte[0]);
+        when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(null);
         when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-vazio");
 
         emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
 
+        verify(attachmentService, times(1)).downloadAttachments(request.getAttachment());
         verify(amazonSesService, times(1)).sendEmail(
                 eq("cliente@dominio.com"),
                 eq("Cobrança"),
@@ -281,6 +352,7 @@ class EmailServiceTest {
 
         assertEquals("Template não encontrado", ex.getMessage());
         verifyNoInteractions(amazonSesService);
+        verifyNoInteractions(attachmentService);
     }
 
     @Test

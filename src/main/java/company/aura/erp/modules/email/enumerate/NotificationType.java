@@ -9,15 +9,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static company.aura.erp.modules.email.enumerate.Field.*;
+
 @Getter
 @AllArgsConstructor
 public enum NotificationType {
-    INSTALLMENT_NOTIFY(List.of(CUSTOMER_NAME,ORDER_ID, AMOUNT,INSTALLMENT_NUMBER,INSTALLMENT_DUE_DATE,PAYMENT_METHOD)),
-    FORGOT_PASSWORD(List.of(CUSTOMER_NAME, RESET_PASSWORD_URL));
+    INSTALLMENT_NOTIFY(List.of(CUSTOMER_NAME, ORDER_ID, AMOUNT, INSTALLMENT_NUMBER, INSTALLMENT_DUE_DATE, PAYMENT_METHOD)),
+    FORGOT_PASSWORD(List.of(CUSTOMER_NAME, RESET_PASSWORD_URL)),
+    INVOICE_LINKED(List.of(CUSTOMER_NAME, COMPANY_NAME, ORDER_ID, INVOICE_ID, INVOICE_NUMBER, DOCUMENT_TYPE, AMOUNT));
 
     private final List<Field> fields;
 
-    public Map<String, String> buildReplacer(NotificationRequest notificationRequest){
+    public Map<String, String> buildReplacer(NotificationRequest notificationRequest) {
         return this.fields.stream().collect(Collectors.toMap(Field::getReplaceCode, field -> field.retrieveValueInRequest(notificationRequest)));
     }
 }

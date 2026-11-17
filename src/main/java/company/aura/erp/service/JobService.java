@@ -35,7 +35,6 @@ public class JobService {
     private static final int DAYS_AHEAD = 2;
     private static final int PAGE_SIZE = 50;
 
-
     @Async
     @Transactional(readOnly = true)
     public void notifyUpcomingInstallments() {
@@ -45,13 +44,16 @@ public class JobService {
         int pageNumber = 0;
         Page<OrderInstallmentDueNotice> page;
 
+        long totalProcessed = 0;
         long emailsSent = 0;
 
         do {
+            log.info("notifyUpcomingInstallments() - Processing page - pageNumber={}, pageSize={}", pageNumber, PAGE_SIZE);
             page = getInstallmentsToProcess(pageNumber, targetDueDate);
+            totalProcessed += page.getNumberOfElements();
 
             List<CompletableFuture<Boolean>> futures = page.getContent().stream()
-                    .map(notice-> CompletableFuture.supplyAsync(() -> sendBillingNotification(notice), executorService))
+                    .map(notice -> CompletableFuture.supplyAsync(() -> sendBillingNotification(notice), executorService))
                     .toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -61,17 +63,20 @@ public class JobService {
             pageNumber++;
         } while (page.hasNext());
 
-        log.info("notifyUpcomingInstallments() - END - targetDueDate={}, totalProcessed={}, emailsSent={}", targetDueDate, page.getTotalElements(), emailsSent);
+        log.info("notifyUpcomingInstallments() - END - targetDueDate={}, totalProcessed={}, emailsSent={}", targetDueDate, totalProcessed, emailsSent);
     }
 
     private Page<OrderInstallmentDueNotice> getInstallmentsToProcess(int pageNumber, LocalDate targetDueDate) {
+        log.info("getInstallmentsToProcess() - START - pageNumber={}, targetDueDate={}", pageNumber, targetDueDate);
         List<InstallmentStatus> excludedStatuses = List.of(InstallmentStatus.PAID, InstallmentStatus.CANCELED);
         Pageable pageable = PageRequest.of(pageNumber, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "id"));
-        return orderInstallmentRepository.findInstallmentsDueNotice(targetDueDate, excludedStatuses, pageable);
+        Page<OrderInstallmentDueNotice> page = orderInstallmentRepository.findInstallmentsDueNotice(targetDueDate, excludedStatuses, pageable);
+        log.info("getInstallmentsToProcess() - END - pageNumber={}, totalElements={}, totalPages={}", pageNumber, page.getTotalElements(), page.getTotalPages());
+        return page;
     }
 
-
     private boolean sendBillingNotification(OrderInstallmentDueNotice installment) {
+        log.info("sendBillingNotification() - START - installmentId={}, orderId={}, companyId={}", installment.installmentId(), installment.orderId(), installment.companyId());
         try {
             NotificationRequest request = new NotificationRequest();
             request.setCompany(new Company());
@@ -89,7 +94,7 @@ public class JobService {
             request.getPayload().setOrderId(installment.orderId());
             request.getPayload().setPaymentMethod(installment.paymentMethod().getHumanDescription());
 
-            if (StringUtils.isNotBlank(installment.bankSlipUrl())){
+            if (StringUtils.isNotBlank(installment.bankSlipUrl())) {
                 Attachment attachment = new Attachment();
                 attachment.setSource(AttachmentSource.BUCKET);
                 attachment.setUrl(installment.bankSlipUrl());
@@ -97,9 +102,10 @@ public class JobService {
             }
 
             emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
+            log.info("sendBillingNotification() - END - installmentId={}, orderId={}", installment.installmentId(), installment.orderId());
             return true;
         } catch (Exception ex) {
-            log.error("sendBillingNotification() - Unexpected error - installment: {} - error: {}", installment, ex.getMessage(), ex);
+            log.error("sendBillingNotification() - ERROR - Error when sending billing notification - installmentId={}, orderId={}, error: {}", installment.installmentId(), installment.orderId(), ex.getMessage(), ex);
             return false;
         }
     }

@@ -23,35 +23,45 @@ public class EmailService {
     private final AttachmentService attachmentService;
 
     public void sendNotification(NotificationType type, NotificationRequest request) {
-        log.info("sendNotification() - START - type: {}, request: {}", type, request);
+        String recipientEmail = (request != null) ? request.getReceiveEmail() : null;
+        log.info("sendNotification() - START - type={}, recipientEmail={}", type, recipientEmail);
 
         if (request == null || StringUtils.isBlank(request.getReceiveEmail())) {
-            log.warn("sendNotification() - Invalid recipientEmail cancelling notification.");
+            log.warn("sendNotification() - WARN - Invalid recipientEmail cancelling notification - type={}, request={}", type, request);
             return;
         }
 
-        Map<String, String> replacers = getReplacersByNotificationType(type, request);
+        try {
+            Map<String, String> replacers = getReplacersByNotificationType(type, request);
 
-        EmailTemplate emailTemplate = templateResolverService.getEmailTemplate(type);
+            EmailTemplate emailTemplate = templateResolverService.getEmailTemplate(type);
 
-        String subject = StringSubstitutor.replace(emailTemplate.getSubject(), replacers);
-        String textBody = StringSubstitutor.replace(templateResolverService.getTextMessage(type), replacers);
-        String htmlBody = StringSubstitutor.replace(emailTemplate.getHtml(), replacers);
+            String subject = StringSubstitutor.replace(emailTemplate.getSubject(), replacers);
+            String textBody = StringSubstitutor.replace(templateResolverService.getTextMessage(type), replacers);
+            String htmlBody = StringSubstitutor.replace(emailTemplate.getHtml(), replacers);
 
-        List<DownloadedAttachment> downloadedAttachments = attachmentService.downloadAttachments(request.getAttachment());
+            List<DownloadedAttachment> downloadedAttachments = attachmentService.downloadAttachments(request.getAttachment());
 
-        String resp;
-        if (!downloadedAttachments.isEmpty()) {
-            resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody, downloadedAttachments);
-        } else {
-            resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody);
+            log.info("sendNotification() - Sending email - type={}, recipientEmail={}, subject={}, attachmentsCount={}", type, recipientEmail, subject, downloadedAttachments != null ? downloadedAttachments.size() : 0);
+
+            String resp;
+            if (downloadedAttachments != null && !downloadedAttachments.isEmpty()) {
+                resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody, downloadedAttachments);
+            } else {
+                resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody);
+            }
+
+            log.info("sendNotification() - END - type={}, recipientEmail={}, messageId={}", type, recipientEmail, resp);
+        } catch (Exception ex) {
+            log.error("sendNotification() - ERROR - Error when sending notification - type={}, recipientEmail={}, error: {}", type, recipientEmail, ex.getMessage());
+            throw ex;
         }
-
-        log.info("sendNotification() - END - request: {}, code: {}", request, resp);
     }
 
-
     private Map<String, String> getReplacersByNotificationType(NotificationType type, NotificationRequest request) {
-        return type.buildReplacer(request);
+        log.info("getReplacersByNotificationType() - START - type={}", type);
+        Map<String, String> replacers = type.buildReplacer(request);
+        log.info("getReplacersByNotificationType() - END - type={}, totalReplacers={}", type, replacers != null ? replacers.size() : 0);
+        return replacers;
     }
 }

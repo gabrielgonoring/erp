@@ -21,33 +21,52 @@ public class AttachmentService {
     private CloudflareR2Service cloudflareR2Service;
 
     public List<DownloadedAttachment> downloadAttachments(List<Attachment> attachments) {
+        int count = (attachments != null) ? attachments.size() : 0;
+        log.info("downloadAttachments() - START - totalAttachments={}", count);
 
         if (attachments == null || attachments.isEmpty()) {
+            log.info("downloadAttachments() - END - attachments is empty, returning empty list");
             return Collections.emptyList();
         }
 
-        return attachments.stream().map(this::downloadAttachment).filter(Objects::nonNull).toList();
+        List<DownloadedAttachment> downloadedAttachments = attachments.stream()
+                .map(this::downloadAttachment)
+                .filter(Objects::nonNull)
+                .toList();
+
+        log.info("downloadAttachments() - END - requestedAttachments={}, downloadedAttachments={}",
+                count, downloadedAttachments.size());
+        return downloadedAttachments;
     }
 
     private DownloadedAttachment downloadAttachment(Attachment attachment) {
-        return switch (attachment.getSource()){
+        log.info("downloadAttachment() - START - source={}", attachment != null ? attachment.getSource() : null);
+
+        DownloadedAttachment downloaded = switch (attachment.getSource()) {
             case BUCKET -> downloadedAttachmentInBucket(attachment);
         };
+
+        log.info("downloadAttachment() - END - source={}, downloaded={}",
+                attachment.getSource(), downloaded != null);
+        return downloaded;
     }
 
     private DownloadedAttachment downloadedAttachmentInBucket(Attachment attachment) {
+        String url = (attachment != null) ? attachment.getUrl() : null;
+        log.info("downloadedAttachmentInBucket() - START - url={}", url);
 
-        if (attachment == null || StringUtils.isBlank(attachment.getUrl())) {
+        if (attachment == null || StringUtils.isBlank(url)) {
+            log.warn("downloadedAttachmentInBucket() - WARN - Attachment or URL is null or blank");
             return null;
         }
 
         try {
-            String key = cloudflareR2Service.extractKeyFromUrl(attachment.getUrl());
+            String key = cloudflareR2Service.extractKeyFromUrl(url);
 
             byte[] data = cloudflareR2Service.download(key);
 
             if (data != null && data.length > 0) {
-                String fileName = extractFileName(key, attachment.getUrl());
+                String fileName = extractFileName(key, url);
                 String contentType = determineContentType(fileName);
 
                 DownloadedAttachment downloadedAttachment = new DownloadedAttachment();
@@ -55,13 +74,15 @@ public class AttachmentService {
                 downloadedAttachment.setData(data);
                 downloadedAttachment.setContentType(contentType);
 
-                log.info("downloadAttachments() - Successfully downloaded attachment: fileName={}, size={}", fileName, data.length);
+                log.info("downloadedAttachmentInBucket() - END - fileName={}, contentType={}, size={}",
+                        fileName, contentType, data.length);
                 return downloadedAttachment;
             } else {
-                log.warn("downloadAttachments() - Downloaded file is empty for url: {}", attachment.getUrl());
+                log.warn("downloadedAttachmentInBucket() - WARN - Downloaded file is empty for url: {}", url);
             }
         } catch (Exception ex) {
-            log.warn("downloadAttachments() - Could not download attachment from url: {}, error: {}", attachment.getUrl(), ex.getMessage());
+            log.error("downloadedAttachmentInBucket() - ERROR - Could not download attachment from bucket - url: {}, error: {}",
+                    url, ex.getMessage());
         }
 
         return null;
@@ -91,6 +112,8 @@ public class AttachmentService {
         String lower = fileName.toLowerCase();
         if (lower.endsWith(".pdf")) {
             return MediaType.APPLICATION_PDF_VALUE;
+        } else if (lower.endsWith(".xml")) {
+            return MediaType.APPLICATION_XML_VALUE;
         } else if (lower.endsWith(".png")) {
             return MediaType.IMAGE_PNG_VALUE;
         } else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {

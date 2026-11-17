@@ -17,6 +17,7 @@ public class TemplateResolverService {
         return switch (type){
             case INSTALLMENT_NOTIFY -> getInstallmentMessage();
             case FORGOT_PASSWORD -> getChangePassWordMessage();
+            case INVOICE_LINKED -> getInvoiceLinkedMessage();
             default -> throw new NotificationException("Invalid notification type");
         };
     }
@@ -25,10 +26,10 @@ public class TemplateResolverService {
         return switch (type){
             case INSTALLMENT_NOTIFY -> getInstallmentEmailTemplate();
             case FORGOT_PASSWORD -> getChangePassEmailTemplate();
+            case INVOICE_LINKED -> getInvoiceLinkedEmailTemplate();
             default -> throw new NotificationException("Invalid notification type");
         };
     }
-
 
 
 
@@ -146,6 +147,67 @@ public class TemplateResolverService {
             <p style="font-size: 12px; color: #777;">
               Se você não realizou essa solicitação, nenhuma ação é necessária e seu acesso permanece seguro.<br />
               Esta é uma mensagem automática. Caso tenha alguma dúvida ou precise de ajuda, basta responder a este e-mail.
+            </p>
+          </div>
+        </body>
+        </html>""";
+    }
+
+
+
+
+
+
+
+
+
+
+    // ----------------------------------------- INVOICE LINKED -----------------------------------
+
+    private String getInvoiceLinkedMessage(){
+        return """
+        Olá, ${customerName}!
+
+        A nota fiscal referente ao pedido #${orderId} foi vinculada por ${companyName}.
+
+        Tipo de Documento: ${documentType}
+        Número da Nota: ${invoiceNumber}
+        Valor Total: R$ ${amount}
+
+        Os arquivos disponíveis da nota fiscal (PDF e/ou XML) seguem em anexo neste e-mail.
+
+        Atenciosamente,
+        Equipe ${companyName}""";
+    }
+
+    private EmailTemplate getInvoiceLinkedEmailTemplate(){
+        return EmailTemplate.builder()
+                .subject("Nota Fiscal Disponível - Pedido #${orderId}")
+                .html(getInvoiceLinkedEmailHtml())
+                .build();
+    }
+
+    private String getInvoiceLinkedEmailHtml(){
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h2 style="color: #1a73e8; margin-top: 0;">Nota Fiscal Disponível</h2>
+            <p>Olá, <strong>${customerName}</strong>!</p>
+            <p>Informamos que a nota fiscal referente ao pedido <strong>#${orderId}</strong> foi vinculada por <strong>${companyName}</strong>:</p>
+            <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #1a73e8; margin: 15px 0;">
+              <p style="margin: 5px 0;"><strong>Tipo de Documento:</strong> ${documentType}</p>
+              <p style="margin: 5px 0;"><strong>Número da Nota:</strong> ${invoiceNumber}</p>
+              <p style="margin: 5px 0;"><strong>Valor Total:</strong> R$ ${amount}</p>
+            </div>
+            <p>Os arquivos disponíveis da nota fiscal (PDF e/ou XML) seguem em anexo neste e-mail.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #777;">
+              Esta é uma mensagem automática enviada pelo sistema Ajeite em nome de ${companyName}.
             </p>
           </div>
         </body>
