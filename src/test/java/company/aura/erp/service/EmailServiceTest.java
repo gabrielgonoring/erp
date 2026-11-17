@@ -1,5 +1,7 @@
 package company.aura.erp.service;
 
+import company.aura.erp.entity.CompanyEmailConfigEntity;
+import company.aura.erp.enums.CompanyEmailConfigStatus;
 import company.aura.erp.modules.email.domain.DownloadedAttachment;
 import company.aura.erp.modules.email.domain.template.Attachment;
 import company.aura.erp.modules.email.domain.template.Company;
@@ -29,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -48,6 +51,9 @@ class EmailServiceTest {
     @Mock
     private AttachmentService attachmentService;
 
+    @Mock
+    private CompanyEmailService companyEmailService;
+
     @InjectMocks
     private EmailService emailService;
 
@@ -59,6 +65,7 @@ class EmailServiceTest {
         verifyNoInteractions(templateResolverService);
         verifyNoInteractions(amazonSesService);
         verifyNoInteractions(attachmentService);
+        verifyNoInteractions(companyEmailService);
     }
 
     @ParameterizedTest
@@ -74,6 +81,7 @@ class EmailServiceTest {
         verifyNoInteractions(templateResolverService);
         verifyNoInteractions(amazonSesService);
         verifyNoInteractions(attachmentService);
+        verifyNoInteractions(companyEmailService);
     }
 
     @Test
@@ -105,11 +113,141 @@ class EmailServiceTest {
 
         verify(templateResolverService, times(1)).getEmailTemplate(NotificationType.FORGOT_PASSWORD);
         verify(templateResolverService, times(1)).getTextMessage(NotificationType.FORGOT_PASSWORD);
+        verify(companyEmailService, times(1)).resolveActiveConfig(null, NotificationType.FORGOT_PASSWORD);
         verify(amazonSesService, times(1)).sendEmail(
                 eq("usuario@aura.company"),
                 eq("Redefinição de Senha - Gabriel Borges"),
                 eq("<p>Olá Gabriel Borges, redefina em: https://erp.aura.company/redefinir-senha?token=abc-123</p>"),
                 eq("Olá Gabriel Borges, redefina em: https://erp.aura.company/redefinir-senha?token=abc-123")
+        );
+    }
+
+    @Test
+    @DisplayName("Deve usar remetente configurado da empresa quando houver configuração ativa")
+    void shouldUseCompanyEmailConfigWhenPresent() {
+        NotificationRequest request = new NotificationRequest();
+        request.setReceiveEmail("financeiro@cliente.com");
+
+        Company company = new Company();
+        company.setId(10L);
+        company.setName("Aura Sistemas");
+        request.setCompany(company);
+
+        Customer customer = new Customer();
+        customer.setName("Cliente LTDA");
+        request.setCustomer(customer);
+
+        Payload payload = new Payload();
+        payload.setOrderId(456L);
+        payload.setInstallmentNumber(1);
+        payload.setAmount(new BigDecimal("250.75"));
+        payload.setInstallmentDueDate(LocalDate.of(2026, 12, 15));
+        payload.setPaymentMethod("BOLETO");
+        request.setPayload(payload);
+
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+                .subject("Parcela ${installmentNumber}")
+                .html("<p>Parcela ${installmentNumber}</p>")
+                .build();
+
+        CompanyEmailConfigEntity config = CompanyEmailConfigEntity.builder()
+                .id(77L)
+                .companyId(10L)
+                .notificationType("INSTALLMENT_NOTIFY")
+                .fromEmail("cobranca@empresa10.com.br")
+                .fromName("Financeiro Empresa 10")
+                .replyTo("resposta@empresa10.com.br")
+                .status(CompanyEmailConfigStatus.ACTIVE)
+                .build();
+
+        when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
+        when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Parcela ${installmentNumber}");
+        when(attachmentService.downloadAttachments(null)).thenReturn(Collections.emptyList());
+        when(companyEmailService.resolveActiveConfig(10L, NotificationType.INSTALLMENT_NOTIFY)).thenReturn(Optional.of(config));
+        when(amazonSesService.sendEmail(
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyList()
+        )).thenReturn("ses-custom-123");
+
+        emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
+
+        verify(amazonSesService, times(1)).sendEmail(
+                eq("cobranca@empresa10.com.br"),
+                eq("Financeiro Empresa 10"),
+                eq("financeiro@cliente.com"),
+                eq("Parcela 1"),
+                eq("<p>Parcela 1</p>"),
+                eq("Parcela 1"),
+                eq("resposta@empresa10.com.br"),
+                eq(Collections.emptyList())
+        );
+        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Deve usar remetente configurado da empresa com anexos quando houver configuração ativa")
+    void shouldUseCompanyEmailConfigWithAttachmentsWhenPresent() {
+        NotificationRequest request = new NotificationRequest();
+        request.setReceiveEmail("fiscal@cliente.com");
+
+        Company company = new Company();
+        company.setId(22L);
+        company.setName("Aura Sistemas");
+        request.setCompany(company);
+
+        Customer customer = new Customer();
+        customer.setName("Cliente LTDA");
+        request.setCustomer(customer);
+
+        Payload payload = new Payload();
+        payload.setOrderId(100L);
+        payload.setInvoiceNumber("9876");
+        payload.setDocumentType("NFE");
+        payload.setAmount(new BigDecimal("1250.90"));
+        request.setPayload(payload);
+
+        Attachment pdfAtt = Attachment.builder().source(AttachmentSource.BUCKET).url("https://pub-r2.com/nfe.pdf").build();
+        request.setAttachment(List.of(pdfAtt));
+
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+                .subject("NF ${invoiceNumber}")
+                .html("<p>NF ${invoiceNumber}</p>")
+                .build();
+
+        DownloadedAttachment pdfDownloaded = DownloadedAttachment.builder()
+                .fileName("nfe.pdf")
+                .contentType("application/pdf")
+                .data("pdf".getBytes())
+                .build();
+
+        CompanyEmailConfigEntity config = CompanyEmailConfigEntity.builder()
+                .id(88L)
+                .companyId(22L)
+                .notificationType("DEFAULT")
+                .fromEmail("fiscal@empresa22.com.br")
+                .fromName("Fiscal Empresa 22")
+                .replyTo(null)
+                .status(CompanyEmailConfigStatus.ACTIVE)
+                .build();
+
+        when(templateResolverService.getEmailTemplate(NotificationType.INVOICE_LINKED)).thenReturn(emailTemplate);
+        when(templateResolverService.getTextMessage(NotificationType.INVOICE_LINKED)).thenReturn("NF ${invoiceNumber}");
+        when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(List.of(pdfDownloaded));
+        when(companyEmailService.resolveActiveConfig(22L, NotificationType.INVOICE_LINKED)).thenReturn(Optional.of(config));
+        when(amazonSesService.sendEmail(
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), isNull(), anyList()
+        )).thenReturn("ses-custom-att-123");
+
+        emailService.sendNotification(NotificationType.INVOICE_LINKED, request);
+
+        verify(amazonSesService, times(1)).sendEmail(
+                eq("fiscal@empresa22.com.br"),
+                eq("Fiscal Empresa 22"),
+                eq("fiscal@cliente.com"),
+                eq("NF 9876"),
+                eq("<p>NF 9876</p>"),
+                eq("NF 9876"),
+                isNull(),
+                eq(List.of(pdfDownloaded))
         );
     }
 
@@ -201,6 +339,7 @@ class EmailServiceTest {
         when(templateResolverService.getEmailTemplate(NotificationType.INVOICE_LINKED)).thenReturn(emailTemplate);
         when(templateResolverService.getTextMessage(NotificationType.INVOICE_LINKED)).thenReturn(textMessage);
         when(attachmentService.downloadAttachments(request.getAttachment())).thenReturn(List.of(pdfDownloaded, xmlDownloaded));
+        when(companyEmailService.resolveActiveConfig(10L, NotificationType.INVOICE_LINKED)).thenReturn(Optional.empty());
         when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-inv-1");
 
         emailService.sendNotification(NotificationType.INVOICE_LINKED, request);
@@ -352,6 +491,7 @@ class EmailServiceTest {
         assertEquals("Template não encontrado", ex.getMessage());
         verifyNoInteractions(amazonSesService);
         verifyNoInteractions(attachmentService);
+        verifyNoInteractions(companyEmailService);
     }
 
     @Test

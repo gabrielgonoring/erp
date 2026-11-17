@@ -92,6 +92,24 @@ public class AmazonSesService {
     }
 
     /**
+     * Envia um e-mail com remetente e Reply-To customizados para um único destinatário (com suporte opcional a anexos).
+     */
+    public String sendEmail(
+            String fromEmail,
+            String fromName,
+            String to,
+            String subject,
+            String htmlBody,
+            String textBody,
+            String replyTo,
+            List<DownloadedAttachment> downloadedAttachments
+    ) {
+        List<String> recipients = (to != null && !to.isBlank()) ? List.of(to.trim()) : Collections.emptyList();
+        List<String> replyToList = (replyTo != null && !replyTo.isBlank()) ? List.of(replyTo.trim()) : Collections.emptyList();
+        return sendEmail(fromEmail, fromName, recipients, Collections.emptyList(), Collections.emptyList(), subject, htmlBody, textBody, replyToList, downloadedAttachments);
+    }
+
+    /**
      * Envia um e-mail para múltiplos destinatários com corpo HTML.
      *
      * @param to Lista de destinatários (TO)
@@ -161,6 +179,21 @@ public class AmazonSesService {
             List<String> replyTo,
             List<DownloadedAttachment> DownloadedAttachments
     ) {
+        return sendEmail(null, null, to, cc, bcc, subject, htmlBody, textBody, replyTo, DownloadedAttachments);
+    }
+
+    public String sendEmail(
+            String fromEmail,
+            String fromName,
+            List<String> to,
+            List<String> cc,
+            List<String> bcc,
+            String subject,
+            String htmlBody,
+            String textBody,
+            List<String> replyTo,
+            List<DownloadedAttachment> DownloadedAttachments
+    ) {
         log.info("sendEmail() - START - to={}, cc={}, bcc={}, subject={}, DownloadedAttachmentsCount={}",
                 to, cc, bcc, subject, DownloadedAttachments != null ? DownloadedAttachments.size() : 0);
 
@@ -183,7 +216,7 @@ public class AmazonSesService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O corpo do e-mail (HTML ou texto) deve ser fornecido.");
         }
 
-        String fromAddress = properties.getFormattedFrom();
+        String fromAddress = resolveFromAddress(fromEmail, fromName);
         if (fromAddress == null || fromAddress.isBlank()) {
             throw new IllegalStateException("O e-mail do remetente não foi configurado (aws.ses.from-email / AWS_SES_FROM_EMAIL).");
         }
@@ -265,6 +298,16 @@ public class AmazonSesService {
                     sanitizedTo, subject, errorMsg);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao enviar e-mail via Amazon SES: " + errorMsg, e);
         }
+    }
+
+    private String resolveFromAddress(String fromEmail, String fromName) {
+        if (StringUtils.isNotBlank(fromEmail)) {
+            if (StringUtils.isNotBlank(fromName)) {
+                return String.format("%s <%s>", fromName.trim(), fromEmail.trim());
+            }
+            return fromEmail.trim();
+        }
+        return properties.getFormattedFrom();
     }
 
     private String sendRawEmailWithDownloadedAttachments(

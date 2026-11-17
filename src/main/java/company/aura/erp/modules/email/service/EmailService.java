@@ -1,9 +1,11 @@
 package company.aura.erp.modules.email.service;
 
+import company.aura.erp.entity.CompanyEmailConfigEntity;
 import company.aura.erp.modules.email.domain.DownloadedAttachment;
-import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import company.aura.erp.modules.email.domain.template.EmailTemplate;
+import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import company.aura.erp.modules.email.enumerate.NotificationType;
+import company.aura.erp.service.CompanyEmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -21,6 +24,7 @@ public class EmailService {
     private final AmazonSesService amazonSesService;
     private final TemplateResolverService templateResolverService;
     private final AttachmentService attachmentService;
+    private final CompanyEmailService companyEmailService;
 
     public void sendNotification(NotificationType type, NotificationRequest request) {
         String recipientEmail = (request != null) ? request.getReceiveEmail() : null;
@@ -43,13 +47,18 @@ public class EmailService {
 
             List<DownloadedAttachment> downloadedAttachments = attachmentService.downloadAttachments(request.getAttachment());
 
-            log.info("sendNotification() - Sending email - type={}, recipientEmail={}, subject={}, attachmentsCount={}", type, recipientEmail, subject, downloadedAttachments != null ? downloadedAttachments.size() : 0);
+            Long companyId = (request.getCompany() != null) ? request.getCompany().getId() : null;
+            Optional<CompanyEmailConfigEntity> companyEmailConfigOpt = companyEmailService.resolveActiveConfig(companyId, type);
+
+            log.info("sendNotification() - Sending email - type={}, recipientEmail={}, companyId={}, customSender={}, subject={}, attachmentsCount={}", type, recipientEmail, companyId, companyEmailConfigOpt.isPresent(), subject, downloadedAttachments != null ? downloadedAttachments.size() : 0);
 
             String resp;
-            if (downloadedAttachments != null && !downloadedAttachments.isEmpty()) {
-                resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody, downloadedAttachments);
+
+            if (companyEmailConfigOpt.isPresent()) {
+                CompanyEmailConfigEntity emailConfig = companyEmailConfigOpt.get();
+                resp = amazonSesService.sendEmail(emailConfig.getFromEmail(), emailConfig.getFromName(), request.getReceiveEmail(), subject, htmlBody, textBody, emailConfig.getReplyTo(), downloadedAttachments);
             } else {
-                resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody);
+                resp = amazonSesService.sendEmail(request.getReceiveEmail(), subject, htmlBody, textBody, downloadedAttachments);
             }
 
             log.info("sendNotification() - END - type={}, recipientEmail={}, messageId={}", type, recipientEmail, resp);

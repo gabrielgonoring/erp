@@ -22,6 +22,8 @@ import software.amazon.awssdk.services.ses.model.SendRawEmailRequest;
 import software.amazon.awssdk.services.ses.model.SendRawEmailResponse;
 import software.amazon.awssdk.services.ses.model.SesException;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,6 +72,97 @@ class AmazonSesServiceTest {
         assertEquals("Bem-vindo", sentRequest.message().subject().data());
         assertEquals("<h1>Olá</h1>", sentRequest.message().body().html().data());
         assertEquals("Olá", sentRequest.message().body().text().data());
+    }
+
+    @Test
+    @DisplayName("Deve enviar e-mail usando remetente e Reply-To customizados da empresa")
+    void sendEmailWithCustomSenderSuccess() {
+        SendEmailResponse mockResponse = SendEmailResponse.builder()
+                .messageId("msg-custom-123")
+                .build();
+        when(sesClient.sendEmail(any(SendEmailRequest.class))).thenReturn(mockResponse);
+
+        String messageId = sesService.sendEmail(
+                "financeiro@empresa.com.br",
+                "Financeiro Empresa",
+                "cliente@dominio.com",
+                "Cobrança",
+                "<p>Olá</p>",
+                "Olá",
+                "resposta@empresa.com.br",
+                Collections.emptyList()
+        );
+
+        assertEquals("msg-custom-123", messageId);
+
+        ArgumentCaptor<SendEmailRequest> captor = ArgumentCaptor.forClass(SendEmailRequest.class);
+        verify(sesClient, times(1)).sendEmail(captor.capture());
+
+        SendEmailRequest sentRequest = captor.getValue();
+        assertEquals("Financeiro Empresa <financeiro@empresa.com.br>", sentRequest.source());
+        assertEquals(List.of("resposta@empresa.com.br"), sentRequest.replyToAddresses());
+        assertEquals(List.of("cliente@dominio.com"), sentRequest.destination().toAddresses());
+    }
+
+    @Test
+    @DisplayName("Deve usar apenas fromEmail quando fromName for nulo ou em branco")
+    void sendEmailWithCustomSenderWithoutFromName() {
+        SendEmailResponse mockResponse = SendEmailResponse.builder()
+                .messageId("msg-custom-noname")
+                .build();
+        when(sesClient.sendEmail(any(SendEmailRequest.class))).thenReturn(mockResponse);
+
+        String messageId = sesService.sendEmail(
+                "noreply@empresa.com.br",
+                "   ",
+                "cliente@dominio.com",
+                "Aviso",
+                "<p>Olá</p>",
+                "Olá",
+                null,
+                Collections.emptyList()
+        );
+
+        assertEquals("msg-custom-noname", messageId);
+
+        ArgumentCaptor<SendEmailRequest> captor = ArgumentCaptor.forClass(SendEmailRequest.class);
+        verify(sesClient).sendEmail(captor.capture());
+        assertEquals("noreply@empresa.com.br", captor.getValue().source());
+    }
+
+    @Test
+    @DisplayName("Deve enviar e-mail raw com remetente customizado e anexos")
+    void sendEmailWithCustomSenderAndAttachmentsSuccess() {
+        SendRawEmailResponse mockRawResponse = SendRawEmailResponse.builder()
+                .messageId("raw-custom-999")
+                .build();
+        when(sesClient.sendRawEmail(any(SendRawEmailRequest.class))).thenReturn(mockRawResponse);
+
+        DownloadedAttachment attachment = DownloadedAttachment.builder()
+                .fileName("nfe.pdf")
+                .contentType("application/pdf")
+                .data("fake-pdf-content".getBytes())
+                .build();
+
+        String messageId = sesService.sendEmail(
+                "fiscal@empresa.com.br",
+                "Fiscal Empresa",
+                "cliente@dominio.com",
+                "NF-e 123",
+                "<p>Segue NF-e</p>",
+                "Segue NF-e",
+                "fiscal-reply@empresa.com.br",
+                List.of(attachment)
+        );
+
+        assertEquals("raw-custom-999", messageId);
+
+        ArgumentCaptor<SendRawEmailRequest> captor = ArgumentCaptor.forClass(SendRawEmailRequest.class);
+        verify(sesClient, times(1)).sendRawEmail(captor.capture());
+
+        String rawMime = new String(captor.getValue().rawMessage().data().asByteArray(), StandardCharsets.UTF_8);
+        assertTrue(rawMime.contains("From: Fiscal Empresa <fiscal@empresa.com.br>"));
+        assertTrue(rawMime.contains("Reply-To: fiscal-reply@empresa.com.br"));
     }
 
     @Test

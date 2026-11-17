@@ -40,10 +40,10 @@ public class OrderInvoiceNotificationService {
 
     @Async
     public void sendInvoiceToCustomer(Long companyId, Long orderId, Long invoiceId) {
-        log.info("handleInvoiceLinked() - START - companyId={}, orderId={}, invoiceId={}", companyId, orderId, invoiceId);
+        log.info("sendInvoiceToCustomer() - START - companyId={}, orderId={}, invoiceId={}", companyId, orderId, invoiceId);
 
         if (companyId == null || orderId == null || invoiceId == null) {
-            log.warn("handleInvoiceLinked() - WARN - Invalid event cancelling notification");
+            log.warn("sendInvoiceToCustomer() - WARN - Invalid event cancelling notification");
             return;
         }
 
@@ -51,21 +51,21 @@ public class OrderInvoiceNotificationService {
             Optional<OrderEntity> orderOpt = orderRepository.findByIdAndCompanyId(orderId, companyId);
 
             if (orderOpt.isEmpty()) {
-                log.warn("handleInvoiceLinked() - WARN - Order not found - orderId={}, companyId={}", orderId, companyId);
+                log.warn("sendInvoiceToCustomer() - WARN - Order not found - orderId={}, companyId={}", orderId, companyId);
                 return;
             }
 
             OrderEntity order = orderOpt.get();
 
             if (order.getPartnerId() == null) {
-                log.warn("handleInvoiceLinked() - WARN - Order has no customer partnerId - orderId={}, companyId={}", orderId, companyId);
+                log.warn("sendInvoiceToCustomer() - WARN - Order has no customer partnerId - orderId={}, companyId={}", orderId, companyId);
                 return;
             }
 
             Optional<PartnerEntity> partnerOpt = partnerRepository.findByIdAndCompanyId(order.getPartnerId(), companyId);
 
             if (partnerOpt.isEmpty()) {
-                log.warn("handleInvoiceLinked() - WARN - Customer partner not found - partnerId={}, orderId={}, companyId={}", order.getPartnerId(), orderId, companyId);
+                log.warn("sendInvoiceToCustomer() - WARN - Customer partner not found - partnerId={}, orderId={}, companyId={}", order.getPartnerId(), orderId, companyId);
                 return;
             }
 
@@ -74,7 +74,7 @@ public class OrderInvoiceNotificationService {
             Optional<InvoiceEntity> invoiceOpt = invoiceRepository.findByIdAndCompanyId(invoiceId, companyId);
 
             if (invoiceOpt.isEmpty()) {
-                log.warn("handleInvoiceLinked() - WARN - Invoice not found - invoiceId={}, orderId={}, companyId={}", invoiceId, orderId, companyId);
+                log.warn("sendInvoiceToCustomer() - WARN - Invoice not found - invoiceId={}, orderId={}, companyId={}", invoiceId, orderId, companyId);
                 return;
             }
 
@@ -86,10 +86,10 @@ public class OrderInvoiceNotificationService {
 
             emailService.sendNotification(NotificationType.INVOICE_LINKED, request);
 
-            log.info("handleInvoiceLinked() - END - orderId={}, invoiceId={}, recipientEmail={}", orderId, invoiceId, request.getReceiveEmail());
+            log.info("sendInvoiceToCustomer() - END - orderId={}, invoiceId={}, recipientEmail={}", orderId, invoiceId, request.getReceiveEmail());
 
         } catch (Exception ex) {
-            log.error("handleInvoiceLinked() - ERROR - Error when sending invoice linked notification - orderId={}, invoiceId={}, error: {}", orderId, invoiceId, ex.getMessage(), ex);
+            log.error("sendInvoiceToCustomer() - ERROR - Error when sending invoice linked notification - orderId={}, invoiceId={}, error: {}", orderId, invoiceId, ex.getMessage(), ex);
         }
     }
 
