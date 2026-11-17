@@ -566,7 +566,7 @@ class OrderPaymentServiceTest {
     void shouldListInstallmentsSuccessfully() {
         Pageable pageable = PageRequest.of(0, 20);
         OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, LocalDate.of(2026, 12, 1)
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
         );
         Page<OrderInstallmentSummaryResponse> expectedPage = new PageImpl<>(List.of(summary), pageable, 1);
 
@@ -595,7 +595,7 @@ class OrderPaymentServiceTest {
         List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING, InstallmentStatus.PARTIALLY_PAID);
 
         OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, LocalDate.of(2026, 11, 15)
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
         );
         Page<OrderInstallmentSummaryResponse> expectedPage = new PageImpl<>(List.of(summary), pageable, 1);
 

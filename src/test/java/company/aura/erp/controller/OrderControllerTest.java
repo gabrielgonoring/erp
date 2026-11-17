@@ -194,7 +194,7 @@ class OrderControllerTest {
     @Test
     @DisplayName("PATCH /api/orders/{id}/items/{itemId} — Deve atualizar item da comanda e retornar HTTP 200")
     void shouldUpdateItemInOrder() {
-        OrderItemUpdateRequest request = new OrderItemUpdateRequest(
+        OrderItemUpdateRequest request = new OrderItemUpdateRequest(null,
                 BigDecimal.valueOf(3), BigDecimal.valueOf(2.00), null, "Refrigerante com desconto"
         );
         OrderItemResponse itemResponse = new OrderItemResponse(
@@ -479,7 +479,7 @@ class OrderControllerTest {
     void shouldListInstallmentsWithoutFilters() {
         Pageable pageable = PageRequest.of(0, 20);
         OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, LocalDate.of(2026, 12, 1)
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
         );
         Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 
@@ -501,7 +501,7 @@ class OrderControllerTest {
         List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING);
 
         OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, LocalDate.of(2026, 11, 15)
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
         );
         Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 

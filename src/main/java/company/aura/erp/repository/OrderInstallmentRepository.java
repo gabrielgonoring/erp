@@ -77,6 +77,7 @@ public interface OrderInstallmentRepository extends JpaRepository<OrderInstallme
                     oi.amount,
                     oi.pendingAmount,
                     oi.status,
+                    oi.paymentMethod,
                     oi.dueDate
                 )
                 FROM OrderInstallmentEntity oi

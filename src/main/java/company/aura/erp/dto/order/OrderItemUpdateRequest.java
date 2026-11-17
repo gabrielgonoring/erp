@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record OrderItemUpdateRequest(
+        Long catalogItemId,
+
         @DecimalMin(value = "0.0001", message = "A quantidade deve ser maior que zero.")
         BigDecimal quantity,
 

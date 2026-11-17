@@ -262,7 +262,7 @@ class OrderServiceTest {
     void shouldUpdateItemSuccessfully() {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
-        OrderItemUpdateRequest request = new OrderItemUpdateRequest(
+        OrderItemUpdateRequest request = new OrderItemUpdateRequest(null,
                 BigDecimal.valueOf(3), BigDecimal.valueOf(5.00), 8L, "Pomada Modeladora"
         );
 
@@ -1014,7 +1014,7 @@ class OrderServiceTest {
         List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING);
 
         OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, LocalDate.of(2026, 11, 15)
+                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 11, 15)
         );
         Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 

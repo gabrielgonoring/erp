@@ -19,6 +19,8 @@ public interface CatalogItemRepository extends JpaRepository<CatalogItemEntity, 
 
     Optional<CatalogItemEntity> findByIdAndCompanyId(Long id, Long companyId);
 
+    boolean existsByIdAndCompanyId(Long id, Long companyId);
+
     List<CatalogItemEntity> findByCompanyIdAndType(Long companyId, CatalogItemType type);
 
     List<CatalogItemEntity> findByCompanyIdAndDeletedAtIsNull(Long companyId);

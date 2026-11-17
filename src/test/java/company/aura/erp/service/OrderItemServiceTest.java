@@ -125,6 +125,7 @@ class OrderItemServiceTest {
                 .build();
 
         OrderItemUpdateRequest request = new OrderItemUpdateRequest(
+                null,
                 BigDecimal.valueOf(2),
                 BigDecimal.ZERO,
                 20L,

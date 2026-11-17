@@ -82,16 +82,16 @@ public class OrderItemService {
     }
 
     public OrderItemEntity updateOrderItem(OrderEntity order, Long itemId, OrderItemUpdateRequest request) {
-        log.info("updateOrderItem() - START - orderId={}, itemId={}, professionalId={}",
-                order != null ? order.getId() : null, itemId, request != null ? request.professionalId() : null);
+        log.info("updateOrderItem() - START - orderId={}, itemId={}, professionalId={}", order.getId(), itemId, request.professionalId());
 
         OrderItemEntity item = findOrderItem(order.getId(), itemId);
-        CatalogItemEntity catalogItem = findCatalogItem(item.getCatalogItemId(), order.getCompanyId());
+        CatalogItemEntity catalogItem = findCatalogItem(getCatalogItemId(request, item), order.getCompanyId());
 
         if (request.professionalId() != null) {
             validateCollaborator(request.professionalId(), order.getCompanyId());
         }
 
+        item.setCatalogItemId(catalogItem.getId());
         item.setQuantity(request.quantity());
         item.setUnitPrice(catalogItem.getUnitPrice());
         item.setDiscountAmount(request.discountAmount());
@@ -111,6 +111,10 @@ public class OrderItemService {
         log.info("updateOrderItem() - END - itemId={}, orderId={}, professionalId={}",
                 saved.getId(), saved.getOrderId(), saved.getProfessionalId());
         return saved;
+    }
+
+    private Long getCatalogItemId(OrderItemUpdateRequest request, OrderItemEntity item) {
+        return request.catalogItemId() != null ? request.catalogItemId() : item.getCatalogItemId();
     }
 
     public void deleteItem(Long orderId, Long itemId) {
