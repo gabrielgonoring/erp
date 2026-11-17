@@ -24,6 +24,7 @@ public class EmailService {
 
     public void sendNotification(NotificationType type, NotificationRequest request) {
         String recipientEmail = (request != null) ? request.getReceiveEmail() : null;
+
         log.info("sendNotification() - START - type={}, recipientEmail={}", type, recipientEmail);
 
         if (request == null || StringUtils.isBlank(request.getReceiveEmail())) {

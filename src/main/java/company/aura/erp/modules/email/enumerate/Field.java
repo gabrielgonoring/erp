@@ -26,7 +26,6 @@ public enum Field {
     INSTALLMENT_DUE_DATE("installmentDueDate", request -> Field.getDateInPayload(request, Payload::getInstallmentDueDate)),
     PAYMENT_METHOD("paymentMethod", request -> getStringInPayload(request, Payload::getPaymentMethod, "Não informado")),
     RESET_PASSWORD_URL("changePasswordUrl", request -> getStringInPayload(request, Payload::getResetPasswordUrl, "")),
-    INVOICE_ID("invoiceId", request -> Field.getNumberInPayload(request, Payload::getInvoiceId)),
     INVOICE_NUMBER("invoiceNumber", request -> getStringInPayload(request, Payload::getInvoiceNumber, "Não informado")),
     DOCUMENT_TYPE("documentType", request -> getStringInPayload(request, Payload::getDocumentType, "Nota Fiscal"));
 

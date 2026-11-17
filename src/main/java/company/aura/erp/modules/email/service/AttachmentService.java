@@ -34,8 +34,7 @@ public class AttachmentService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        log.info("downloadAttachments() - END - requestedAttachments={}, downloadedAttachments={}",
-                count, downloadedAttachments.size());
+        log.info("downloadAttachments() - END - requestedAttachments={}, downloadedAttachments={}", count, downloadedAttachments.size());
         return downloadedAttachments;
     }
 
@@ -46,8 +45,7 @@ public class AttachmentService {
             case BUCKET -> downloadedAttachmentInBucket(attachment);
         };
 
-        log.info("downloadAttachment() - END - source={}, downloaded={}",
-                attachment.getSource(), downloaded != null);
+        log.info("downloadAttachment() - END - source={}, downloaded={}", attachment.getSource(), downloaded != null);
         return downloaded;
     }
 
@@ -74,15 +72,13 @@ public class AttachmentService {
                 downloadedAttachment.setData(data);
                 downloadedAttachment.setContentType(contentType);
 
-                log.info("downloadedAttachmentInBucket() - END - fileName={}, contentType={}, size={}",
-                        fileName, contentType, data.length);
+                log.info("downloadedAttachmentInBucket() - END - fileName={}, contentType={}, size={}", fileName, contentType, data.length);
                 return downloadedAttachment;
             } else {
                 log.warn("downloadedAttachmentInBucket() - WARN - Downloaded file is empty for url: {}", url);
             }
         } catch (Exception ex) {
-            log.error("downloadedAttachmentInBucket() - ERROR - Could not download attachment from bucket - url: {}, error: {}",
-                    url, ex.getMessage());
+            log.error("downloadedAttachmentInBucket() - ERROR - Could not download attachment from bucket - url: {}, error: {}", url, ex.getMessage());
         }
 
         return null;

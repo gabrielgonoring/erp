@@ -8,13 +8,11 @@ import company.aura.erp.dto.order.OrderInvoiceResponse;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderInvoiceEntity;
 import company.aura.erp.enums.*;
-import company.aura.erp.event.InvoiceLinkedEvent;
 import company.aura.erp.mapper.OrderInvoiceMapper;
 import company.aura.erp.repository.OrderInvoiceRepository;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,7 +29,7 @@ public class OrderInvoiceService {
 
     private final OrderInvoiceRepository orderInvoiceRepository;
     private final InvoiceService invoiceService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OrderInvoiceNotificationService notificationService;
 
     public OrderInvoiceResponse linkInvoice(Long invoiceId, LinkOrderInvoice request, UserPrincipal currentUser, OrderEntity order) {
         log.info("linkInvoice() - START - orderId={}, invoiceId={}, companyId={}", order.getId(), invoiceId, currentUser.getCompanyId());
@@ -50,7 +48,7 @@ public class OrderInvoiceService {
 
         OrderInvoiceEntity saved = orderInvoiceRepository.save(orderInvoice);
 
-        eventPublisher.publishEvent(new InvoiceLinkedEvent(currentUser.getCompanyId(), order.getId(), invoiceId));
+        notificationService.sendInvoiceToCustomer(currentUser.getCompanyId(), order.getId(), invoiceId);
 
         OrderInvoiceResponse response = OrderInvoiceMapper.fromEntity(saved);
         log.info("linkInvoice() - END - orderId={}, invoiceId={}, orderInvoiceId={}", order.getId(), invoiceId, response.getId());
@@ -90,7 +88,7 @@ public class OrderInvoiceService {
                 .build();
         orderInvoiceRepository.save(orderInvoice);
 
-        eventPublisher.publishEvent(new InvoiceLinkedEvent(currentUser.getCompanyId(), order.getId(), invoiceResponse.getId()));
+        notificationService.sendInvoiceToCustomer(currentUser.getCompanyId(), order.getId(), invoiceResponse.getId());
 
         log.info("linkExternalInvoice() - END - orderId={}, invoiceId={}", order.getId(), invoiceResponse.getId());
         return invoiceResponse;
@@ -131,11 +129,6 @@ public class OrderInvoiceService {
         }
 
         orderInvoiceRepository.deleteAll(orderInvoices);
-    }
-
-    @Transactional
-    public void deleteInvoice(Long orderId, Long invoiceId, Long companyId) {
-        unlinkInvoice(orderId, invoiceId, companyId);
     }
 
 }

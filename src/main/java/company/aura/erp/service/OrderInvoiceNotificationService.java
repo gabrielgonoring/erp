@@ -4,7 +4,6 @@ import company.aura.erp.entity.CompanyEntity;
 import company.aura.erp.entity.InvoiceEntity;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.PartnerEntity;
-import company.aura.erp.event.InvoiceLinkedEvent;
 import company.aura.erp.modules.email.domain.template.Attachment;
 import company.aura.erp.modules.email.domain.template.Company;
 import company.aura.erp.modules.email.domain.template.Customer;
@@ -22,8 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -42,117 +39,100 @@ public class OrderInvoiceNotificationService {
     private final EmailService emailService;
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-    public void handleInvoiceLinked(InvoiceLinkedEvent event) {
-        if (event == null || event.companyId() == null || event.orderId() == null || event.invoiceId() == null) {
-            log.warn("handleInvoiceLinked() - WARN - Invalid event cancelling notification - event={}", event);
+    public void sendInvoiceToCustomer(Long companyId, Long orderId, Long invoiceId) {
+        log.info("handleInvoiceLinked() - START - companyId={}, orderId={}, invoiceId={}", companyId, orderId, invoiceId);
+
+        if (companyId == null || orderId == null || invoiceId == null) {
+            log.warn("handleInvoiceLinked() - WARN - Invalid event cancelling notification");
             return;
         }
 
-        log.info("handleInvoiceLinked() - START - companyId={}, orderId={}, invoiceId={}",
-                event.companyId(), event.orderId(), event.invoiceId());
-
         try {
-            Optional<OrderEntity> orderOpt = orderRepository.findByIdAndCompanyId(event.orderId(), event.companyId());
+            Optional<OrderEntity> orderOpt = orderRepository.findByIdAndCompanyId(orderId, companyId);
+
             if (orderOpt.isEmpty()) {
-                log.warn("handleInvoiceLinked() - WARN - Order not found - orderId={}, companyId={}",
-                        event.orderId(), event.companyId());
+                log.warn("handleInvoiceLinked() - WARN - Order not found - orderId={}, companyId={}", orderId, companyId);
                 return;
             }
 
             OrderEntity order = orderOpt.get();
+
             if (order.getPartnerId() == null) {
-                log.warn("handleInvoiceLinked() - WARN - Order has no customer partnerId - orderId={}, companyId={}",
-                        order.getId(), event.companyId());
+                log.warn("handleInvoiceLinked() - WARN - Order has no customer partnerId - orderId={}, companyId={}", orderId, companyId);
                 return;
             }
 
-            Optional<PartnerEntity> partnerOpt = partnerRepository.findByIdAndCompanyId(order.getPartnerId(), event.companyId());
+            Optional<PartnerEntity> partnerOpt = partnerRepository.findByIdAndCompanyId(order.getPartnerId(), companyId);
+
             if (partnerOpt.isEmpty()) {
-                log.warn("handleInvoiceLinked() - WARN - Customer partner not found - partnerId={}, orderId={}, companyId={}",
-                        order.getPartnerId(), order.getId(), event.companyId());
+                log.warn("handleInvoiceLinked() - WARN - Customer partner not found - partnerId={}, orderId={}, companyId={}", order.getPartnerId(), orderId, companyId);
                 return;
             }
 
             PartnerEntity partner = partnerOpt.get();
-            String recipientEmail = StringUtils.defaultIfBlank(partner.getBillingEmail(), partner.getEmail());
-            if (StringUtils.isBlank(recipientEmail)) {
-                log.warn("handleInvoiceLinked() - WARN - Customer has no valid email cancelling notification - partnerId={}, orderId={}",
-                        partner.getId(), order.getId());
-                return;
-            }
 
-            Optional<InvoiceEntity> invoiceOpt = invoiceRepository.findByIdAndCompanyId(event.invoiceId(), event.companyId());
+            Optional<InvoiceEntity> invoiceOpt = invoiceRepository.findByIdAndCompanyId(invoiceId, companyId);
+
             if (invoiceOpt.isEmpty()) {
-                log.warn("handleInvoiceLinked() - WARN - Invoice not found - invoiceId={}, orderId={}, companyId={}",
-                        event.invoiceId(), order.getId(), event.companyId());
+                log.warn("handleInvoiceLinked() - WARN - Invoice not found - invoiceId={}, orderId={}, companyId={}", invoiceId, orderId, companyId);
                 return;
             }
 
             InvoiceEntity invoice = invoiceOpt.get();
-            String companyName = resolveCompanyName(event.companyId());
 
-            NotificationRequest request = buildNotificationRequest(
-                    event.companyId(),
-                    companyName,
-                    recipientEmail.trim(),
-                    partner,
-                    order,
-                    invoice
-            );
+            CompanyEntity company = resolveCompanyName(companyId);
+
+            NotificationRequest request = buildNotificationRequest(company, partner, order, invoice);
 
             emailService.sendNotification(NotificationType.INVOICE_LINKED, request);
 
-            log.info("handleInvoiceLinked() - END - orderId={}, invoiceId={}, recipientEmail={}",
-                    order.getId(), invoice.getId(), request.getReceiveEmail());
+            log.info("handleInvoiceLinked() - END - orderId={}, invoiceId={}, recipientEmail={}", orderId, invoiceId, request.getReceiveEmail());
+
         } catch (Exception ex) {
-            log.error("handleInvoiceLinked() - ERROR - Error when sending invoice linked notification - orderId={}, invoiceId={}, error: {}",
-                    event.orderId(), event.invoiceId(), ex.getMessage(), ex);
+            log.error("handleInvoiceLinked() - ERROR - Error when sending invoice linked notification - orderId={}, invoiceId={}, error: {}", orderId, invoiceId, ex.getMessage(), ex);
         }
     }
 
-    private String resolveCompanyName(Long companyId) {
+    private CompanyEntity resolveCompanyName(Long companyId) {
         return companyRepository.findById(companyId)
-                .map(this::extractCompanyName)
-                .orElse(null);
+                .orElse(CompanyEntity.builder().id(companyId).build());
     }
 
-    private String extractCompanyName(CompanyEntity company) {
-        return StringUtils.defaultIfBlank(company.getTradeName(), company.getCorporateName());
-    }
+    private NotificationRequest buildNotificationRequest(CompanyEntity companyEntity, PartnerEntity partnerEntity, OrderEntity orderEntity, InvoiceEntity invoiceEntity) {
 
-    private NotificationRequest buildNotificationRequest(
-            Long companyId,
-            String companyName,
-            String recipientEmail,
-            PartnerEntity partner,
-            OrderEntity order,
-            InvoiceEntity invoice
-    ) {
-        Company company = new Company();
-        company.setId(companyId);
-        company.setName(companyName);
-
-        Customer customer = new Customer();
-        customer.setName(partner.getName());
-
-        Payload payload = new Payload();
-        payload.setOrderId(order.getId());
-        payload.setInvoiceId(invoice.getId());
-        payload.setInvoiceNumber(resolveInvoiceNumber(invoice));
-        payload.setDocumentType(invoice.getDocumentType() != null ? invoice.getDocumentType().name() : null);
-        BigDecimal totalAmount = invoice.getTotalAmount() != null ? invoice.getTotalAmount() : order.getTotalAmount();
-        payload.setAmount(totalAmount);
-
-        List<Attachment> attachments = buildAttachments(invoice);
+        List<Attachment> attachments = buildAttachments(invoiceEntity);
 
         NotificationRequest request = new NotificationRequest();
-        request.setReceiveEmail(recipientEmail);
-        request.setCompany(company);
-        request.setCustomer(customer);
-        request.setPayload(payload);
+        request.setReceiveEmail(StringUtils.defaultIfBlank(partnerEntity.getBillingEmail(), partnerEntity.getEmail()));
+        request.setCompany(buildCompany(companyEntity, orderEntity));
+        request.setCustomer(buildCustomer(partnerEntity));
+        request.setPayload(buildPayload(orderEntity, invoiceEntity));
         request.setAttachment(attachments);
+
         return request;
+    }
+
+    private Company buildCompany(CompanyEntity companyEntity, OrderEntity orderEntity) {
+        Company company = new Company();
+        company.setId(orderEntity.getCompanyId());
+        company.setName(StringUtils.defaultIfBlank(companyEntity.getTradeName(), company.getName()));
+        return company;
+    }
+
+    private Customer buildCustomer(PartnerEntity partnerEntity) {
+        Customer customer = new Customer();
+        customer.setName(partnerEntity.getName());
+        return customer;
+    }
+
+    private Payload buildPayload(OrderEntity orderEntity, InvoiceEntity invoiceEntity) {
+        Payload payload = new Payload();
+        payload.setOrderId(orderEntity.getId());
+        payload.setInvoiceNumber(resolveInvoiceNumber(invoiceEntity));
+        payload.setDocumentType(invoiceEntity.getDocumentType() != null ? invoiceEntity.getDocumentType().name() : null);
+        BigDecimal totalAmount = invoiceEntity.getTotalAmount() != null ? invoiceEntity.getTotalAmount() : orderEntity.getTotalAmount();
+        payload.setAmount(totalAmount);
+        return payload;
     }
 
     private String resolveInvoiceNumber(InvoiceEntity invoice) {

@@ -2,7 +2,6 @@ package company.aura.erp.modules.email.service;
 
 import company.aura.erp.modules.email.domain.template.EmailTemplate;
 import company.aura.erp.modules.email.enumerate.NotificationType;
-import company.aura.erp.modules.email.exception.NotificationException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,6 @@ public class TemplateResolverService {
             case INSTALLMENT_NOTIFY -> getInstallmentMessage();
             case FORGOT_PASSWORD -> getChangePassWordMessage();
             case INVOICE_LINKED -> getInvoiceLinkedMessage();
-            default -> throw new NotificationException("Invalid notification type");
         };
     }
 
@@ -27,7 +25,6 @@ public class TemplateResolverService {
             case INSTALLMENT_NOTIFY -> getInstallmentEmailTemplate();
             case FORGOT_PASSWORD -> getChangePassEmailTemplate();
             case INVOICE_LINKED -> getInvoiceLinkedEmailTemplate();
-            default -> throw new NotificationException("Invalid notification type");
         };
     }
 
