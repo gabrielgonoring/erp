@@ -115,7 +115,7 @@ public class OrderInvoiceNotificationService {
     private Company buildCompany(CompanyEntity companyEntity, OrderEntity orderEntity) {
         Company company = new Company();
         company.setId(orderEntity.getCompanyId());
-        company.setName(StringUtils.defaultIfBlank(companyEntity.getTradeName(), company.getName()));
+        company.setName(StringUtils.defaultIfBlank(companyEntity.getTradeName(), companyEntity.getCorporateName()));
         return company;
     }
 

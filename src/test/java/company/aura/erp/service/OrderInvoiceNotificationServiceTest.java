@@ -6,7 +6,6 @@ import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.OrderStatus;
-import company.aura.erp.event.InvoiceLinkedEvent;
 import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import company.aura.erp.modules.email.enumerate.AttachmentSource;
 import company.aura.erp.modules.email.enumerate.NotificationType;
@@ -23,8 +22,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -57,17 +54,13 @@ class OrderInvoiceNotificationServiceTest {
     private OrderInvoiceNotificationService notificationService;
 
     @Test
-    @DisplayName("handleInvoiceLinked deve estar anotado com @Async e @TransactionalEventListener(AFTER_COMMIT)")
-    void shouldHaveAsyncAndTransactionalEventListenerAnnotations() throws NoSuchMethodException {
-        Method method = OrderInvoiceNotificationService.class.getMethod("sendInvoiceToCustomer", InvoiceLinkedEvent.class);
+    @DisplayName("sendInvoiceToCustomer deve estar anotado com @Async")
+    void shouldHaveAsyncAnnotation() throws NoSuchMethodException {
+        Method method = OrderInvoiceNotificationService.class.getMethod("sendInvoiceToCustomer", Long.class, Long.class, Long.class);
 
         Async asyncAnnotation = method.getAnnotation(Async.class);
-        TransactionalEventListener txListener = method.getAnnotation(TransactionalEventListener.class);
 
         assertNotNull(asyncAnnotation);
-        assertNotNull(txListener);
-        assertEquals(TransactionPhase.AFTER_COMMIT, txListener.phase());
-        assertTrue(txListener.fallbackExecution());
     }
 
     @Test
@@ -116,7 +109,7 @@ class OrderInvoiceNotificationServiceTest {
         when(invoiceRepository.findByIdAndCompanyId(invoiceId, companyId)).thenReturn(Optional.of(invoice));
         when(companyRepository.findById(companyId)).thenReturn(Optional.of(company));
 
-        notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(companyId, orderId, invoiceId));
+        notificationService.sendInvoiceToCustomer(companyId, orderId, invoiceId);
 
         ArgumentCaptor<NotificationRequest> requestCaptor = ArgumentCaptor.forClass(NotificationRequest.class);
         verify(emailService, times(1)).sendNotification(eq(NotificationType.INVOICE_LINKED), requestCaptor.capture());
@@ -127,7 +120,6 @@ class OrderInvoiceNotificationServiceTest {
         assertEquals(companyId, sent.getCompany().getId());
         assertEquals("Aura Sistemas", sent.getCompany().getName());
         assertEquals(orderId, sent.getPayload().getOrderId());
-        assertEquals(invoiceId, sent.getPayload().getInvoiceId());
         assertEquals("1234", sent.getPayload().getInvoiceNumber());
         assertEquals("NFE", sent.getPayload().getDocumentType());
         assertEquals(new BigDecimal("275.50"), sent.getPayload().getAmount());
@@ -184,7 +176,7 @@ class OrderInvoiceNotificationServiceTest {
         when(invoiceRepository.findByIdAndCompanyId(invoiceId, companyId)).thenReturn(Optional.of(invoice));
         when(companyRepository.findById(companyId)).thenReturn(Optional.of(company));
 
-        notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(companyId, orderId, invoiceId));
+        notificationService.sendInvoiceToCustomer(companyId, orderId, invoiceId);
 
         ArgumentCaptor<NotificationRequest> requestCaptor = ArgumentCaptor.forClass(NotificationRequest.class);
         verify(emailService, times(1)).sendNotification(eq(NotificationType.INVOICE_LINKED), requestCaptor.capture());
@@ -200,8 +192,8 @@ class OrderInvoiceNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("Não deve enviar notificação quando cliente não possuir e-mail")
-    void shouldNotSendNotificationWhenCustomerHasNoEmail() {
+    @DisplayName("Deve delegar ao EmailService mesmo quando cliente não possuir e-mail")
+    void shouldDelegateToEmailServiceWhenCustomerHasNoEmail() {
         Long companyId = 10L;
         Long orderId = 100L;
         Long invoiceId = 555L;
@@ -209,23 +201,29 @@ class OrderInvoiceNotificationServiceTest {
 
         OrderEntity order = OrderEntity.builder().id(orderId).companyId(companyId).partnerId(partnerId).build();
         PartnerEntity partner = PartnerEntity.builder().id(partnerId).companyId(companyId).name("Sem Email").build();
+        InvoiceEntity invoice = InvoiceEntity.builder().id(invoiceId).companyId(companyId).documentType(DocumentType.NFE).build();
 
         when(orderRepository.findByIdAndCompanyId(orderId, companyId)).thenReturn(Optional.of(order));
         when(partnerRepository.findByIdAndCompanyId(partnerId, companyId)).thenReturn(Optional.of(partner));
+        when(invoiceRepository.findByIdAndCompanyId(invoiceId, companyId)).thenReturn(Optional.of(invoice));
+        when(companyRepository.findById(companyId)).thenReturn(Optional.empty());
 
-        notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(companyId, orderId, invoiceId));
+        notificationService.sendInvoiceToCustomer(companyId, orderId, invoiceId);
 
-        verifyNoInteractions(invoiceRepository, companyRepository, emailService);
+        ArgumentCaptor<NotificationRequest> requestCaptor = ArgumentCaptor.forClass(NotificationRequest.class);
+        verify(emailService, times(1)).sendNotification(eq(NotificationType.INVOICE_LINKED), requestCaptor.capture());
+        assertNull(requestCaptor.getValue().getReceiveEmail());
     }
 
     @Test
-    @DisplayName("Não deve enviar notificação quando evento, pedido, parceiro ou nota não forem encontrados")
+    @DisplayName("Não deve enviar notificação quando parâmetros, pedido, parceiro ou nota não forem encontrados")
     void shouldNotSendNotificationWhenDataMissing() {
-        notificationService.sendInvoiceToCustomer(null);
-        notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(null, 1L, 2L));
+        notificationService.sendInvoiceToCustomer(null, 1L, 2L);
+        notificationService.sendInvoiceToCustomer(1L, null, 2L);
+        notificationService.sendInvoiceToCustomer(1L, 2L, null);
 
         when(orderRepository.findByIdAndCompanyId(100L, 10L)).thenReturn(Optional.empty());
-        notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(10L, 100L, 555L));
+        notificationService.sendInvoiceToCustomer(10L, 100L, 555L);
 
         OrderEntity order = OrderEntity.builder().id(100L).companyId(10L).partnerId(50L).build();
         PartnerEntity partner = PartnerEntity.builder().id(50L).companyId(10L).email("c@c.com").build();
@@ -233,7 +231,7 @@ class OrderInvoiceNotificationServiceTest {
         when(partnerRepository.findByIdAndCompanyId(50L, 10L)).thenReturn(Optional.of(partner));
         when(invoiceRepository.findByIdAndCompanyId(555L, 10L)).thenReturn(Optional.empty());
 
-        notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(10L, 100L, 555L));
+        notificationService.sendInvoiceToCustomer(10L, 100L, 555L);
 
         verifyNoInteractions(emailService);
     }
@@ -256,6 +254,6 @@ class OrderInvoiceNotificationServiceTest {
         when(companyRepository.findById(companyId)).thenReturn(Optional.empty());
         doThrow(new RuntimeException("SES failure")).when(emailService).sendNotification(eq(NotificationType.INVOICE_LINKED), any());
 
-        assertDoesNotThrow(() -> notificationService.sendInvoiceToCustomer(new InvoiceLinkedEvent(companyId, orderId, invoiceId)));
+        assertDoesNotThrow(() -> notificationService.sendInvoiceToCustomer(companyId, orderId, invoiceId));
     }
 }

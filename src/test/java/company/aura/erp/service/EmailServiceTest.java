@@ -171,7 +171,6 @@ class EmailServiceTest {
 
         Payload payload = new Payload();
         payload.setOrderId(100L);
-        payload.setInvoiceId(555L);
         payload.setInvoiceNumber("9876");
         payload.setDocumentType("NFE");
         payload.setAmount(new BigDecimal("1250.90"));
@@ -183,10 +182,10 @@ class EmailServiceTest {
 
         EmailTemplate emailTemplate = EmailTemplate.builder()
                 .subject("Nota Fiscal Disponível - Pedido #${orderId}")
-                .html("<p>Olá ${customerName}, ${companyName} vinculou ${documentType} ${invoiceNumber} (#${invoiceId}) de R$ ${amount}</p>")
+                .html("<p>Olá ${customerName}, ${companyName} vinculou ${documentType} ${invoiceNumber} de R$ ${amount}</p>")
                 .build();
 
-        String textMessage = "Olá ${customerName}, ${companyName} vinculou ${documentType} ${invoiceNumber} (#${invoiceId}) de R$ ${amount}";
+        String textMessage = "Olá ${customerName}, ${companyName} vinculou ${documentType} ${invoiceNumber} de R$ ${amount}";
 
         DownloadedAttachment pdfDownloaded = DownloadedAttachment.builder()
                 .fileName("nfe.pdf")
@@ -209,8 +208,8 @@ class EmailServiceTest {
         verify(amazonSesService, times(1)).sendEmail(
                 eq("fiscal@cliente.com"),
                 eq("Nota Fiscal Disponível - Pedido #100"),
-                eq("<p>Olá Cliente LTDA, Aura Sistemas vinculou NFE 9876 (#555) de R$ 1250,90</p>"),
-                eq("Olá Cliente LTDA, Aura Sistemas vinculou NFE 9876 (#555) de R$ 1250,90"),
+                eq("<p>Olá Cliente LTDA, Aura Sistemas vinculou NFE 9876 de R$ 1250,90</p>"),
+                eq("Olá Cliente LTDA, Aura Sistemas vinculou NFE 9876 de R$ 1250,90"),
                 eq(List.of(pdfDownloaded, xmlDownloaded))
         );
     }

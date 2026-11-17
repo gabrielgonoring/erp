@@ -10,7 +10,6 @@ import company.aura.erp.entity.OrderInvoiceEntity;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.InvoicePurpose;
 import company.aura.erp.enums.OrderStatus;
-import company.aura.erp.event.InvoiceLinkedEvent;
 import company.aura.erp.repository.OrderInvoiceRepository;
 import company.aura.erp.security.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +19,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -44,7 +42,7 @@ class OrderInvoiceServiceTest {
     private InvoiceService invoiceService;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private OrderInvoiceNotificationService notificationService;
 
     @InjectMocks
     private OrderInvoiceService orderInvoiceService;
@@ -74,7 +72,7 @@ class OrderInvoiceServiceTest {
     }
 
     @Test
-    @DisplayName("linkInvoice - Deve vincular nota fiscal existente ao pedido com sucesso e publicar evento")
+    @DisplayName("linkInvoice - Deve vincular nota fiscal existente ao pedido com sucesso e enviar notificação")
     void shouldLinkInvoiceSuccess() {
         LinkOrderInvoice request = new LinkOrderInvoice(InvoicePurpose.PRODUCT, "Nota de produtos");
 
@@ -97,7 +95,7 @@ class OrderInvoiceServiceTest {
         assertEquals(InvoicePurpose.PRODUCT, response.getInvoicePurpose());
         assertEquals("Nota de produtos", response.getNotes());
         verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
-        verify(eventPublisher).publishEvent(new InvoiceLinkedEvent(companyId, orderId, 200L));
+        verify(notificationService).sendInvoiceToCustomer(companyId, orderId, 200L);
     }
 
     @Test
@@ -114,11 +112,11 @@ class OrderInvoiceServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         verify(orderInvoiceRepository, never()).save(any());
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(notificationService);
     }
 
     @Test
-    @DisplayName("linkExternalInvoice - Deve vincular nota fiscal externa NFE com sucesso e publicar evento")
+    @DisplayName("linkExternalInvoice - Deve vincular nota fiscal externa NFE com sucesso e enviar notificação")
     void shouldLinkExternalInvoiceNfeSuccess() {
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "danfe.pdf", "application/pdf", "%PDF".getBytes());
@@ -145,7 +143,7 @@ class OrderInvoiceServiceTest {
         assertNotNull(response);
         assertEquals(555L, response.getId());
         verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
-        verify(eventPublisher).publishEvent(new InvoiceLinkedEvent(companyId, orderId, 555L));
+        verify(notificationService).sendInvoiceToCustomer(companyId, orderId, 555L);
     }
 
     @Test
@@ -160,7 +158,7 @@ class OrderInvoiceServiceTest {
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(notificationService);
     }
 
     @Test
