@@ -84,7 +84,7 @@ public class TemplateResolverService {
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
             <p style="font-size: 12px; color: #777;">
               Caso já tenha efetuado o pagamento, por favor desconsidere este e-mail.<br />
-              Esta é uma mensagem automática de cobrança do sistema Aura ERP.
+              Esta é uma mensagem automática de cobrança do sistema Ajeite.
             </p>
           </div>
         </body>
@@ -106,7 +106,7 @@ public class TemplateResolverService {
         return """
         Olá, ${customerName}!
 
-        Recebemos uma solicitação para redefinir a sua senha no Aura ERP.
+        Recebemos uma solicitação para redefinir a sua senha no Ajeite.
         Para redefinir sua senha, acesse o link abaixo:
 
         ${changePasswordUrl}
@@ -134,7 +134,7 @@ public class TemplateResolverService {
           <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
             <h2 style="color: #1a73e8;">Recuperação de Senha</h2>
             <p>Olá, <strong>${customerName}</strong>!</p>
-            <p>Recebemos uma solicitação para redefinir a sua senha no sistema <strong>Aura ERP</strong>.</p>
+            <p>Recebemos uma solicitação para redefinir a sua senha no sistema <strong>Ajeite</strong>.</p>
             <p style="margin: 24px 0;">
               <a href="${changePasswordUrl}" style="background-color: #1a73e8; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
                 Redefinir Minha Senha

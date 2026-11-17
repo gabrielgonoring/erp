@@ -5,7 +5,7 @@ import company.aura.erp.dto.auth.ForgotPasswordRequest;
 import company.aura.erp.dto.auth.LoginRequest;
 import company.aura.erp.dto.auth.LoginResponse;
 import company.aura.erp.dto.auth.ResetPasswordRequest;
-import company.aura.erp.modules.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.service.EmailService;
 import company.aura.erp.entity.UserEntity;

@@ -1,18 +1,27 @@
 package company.aura.erp.modules.email.service;
 
 import company.aura.erp.modules.email.config.AwsSesProperties;
+import company.aura.erp.modules.email.domain.DownloadedAttachment;
+import jakarta.mail.Address;
+import jakarta.mail.Session;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.ses.SesClient;
 import software.amazon.awssdk.services.ses.model.*;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -46,6 +55,24 @@ public class AmazonSesService {
     public String sendEmail(String to, String subject, String htmlBody, String textBody) {
         List<String> recipients = (to != null && !to.isBlank()) ? List.of(to.trim()) : Collections.emptyList();
         return sendEmail(recipients, Collections.emptyList(), Collections.emptyList(), subject, htmlBody, textBody, Collections.emptyList());
+    }
+
+    /**
+     * Envia um e-mail com anexos para um único destinatário.
+     *
+     * @param to Destinatário do e-mail
+     * @param subject Assunto do e-mail
+     * @param htmlBody Conteúdo HTML do e-mail
+     * @param textBody Conteúdo em texto puro (fallback)
+     * @param DownloadedAttachments Lista de anexos do e-mail
+     * @return Message ID retornado pelo SES
+     */
+    public String sendEmail(String to, String subject, String htmlBody, String textBody, List<DownloadedAttachment> DownloadedAttachments) {
+        if (DownloadedAttachments == null || DownloadedAttachments.isEmpty()) {
+            return sendEmail(to, subject, htmlBody, textBody);
+        }
+        List<String> recipients = (to != null && !to.isBlank()) ? List.of(to.trim()) : Collections.emptyList();
+        return sendEmail(recipients, Collections.emptyList(), Collections.emptyList(), subject, htmlBody, textBody, Collections.emptyList(), DownloadedAttachments);
     }
 
     /**
@@ -97,16 +124,7 @@ public class AmazonSesService {
     }
 
     /**
-     * Método principal para envio de e-mails via Amazon SES.
-     *
-     * @param to Lista de destinatários principais
-     * @param cc Lista de destinatários em cópia
-     * @param bcc Lista de destinatários em cópia oculta
-     * @param subject Assunto do e-mail
-     * @param htmlBody Conteúdo HTML
-     * @param textBody Conteúdo texto puro
-     * @param replyTo Lista opcional de endereços para resposta (Reply-To)
-     * @return Message ID retornado pelo SES
+     * Método para envio de e-mails via Amazon SES sem anexos.
      */
     public String sendEmail(
             List<String> to,
@@ -117,7 +135,34 @@ public class AmazonSesService {
             String textBody,
             List<String> replyTo
     ) {
-        log.info("sendEmail() - START - to={}, cc={}, bcc={}, subject={}", to, cc, bcc, subject);
+        return sendEmail(to, cc, bcc, subject, htmlBody, textBody, replyTo, Collections.emptyList());
+    }
+
+    /**
+     * Método principal para envio de e-mails via Amazon SES com suporte a anexos.
+     *
+     * @param to Lista de destinatários principais
+     * @param cc Lista de destinatários em cópia
+     * @param bcc Lista de destinatários em cópia oculta
+     * @param subject Assunto do e-mail
+     * @param htmlBody Conteúdo HTML
+     * @param textBody Conteúdo texto puro
+     * @param replyTo Lista opcional de endereços para resposta (Reply-To)
+     * @param DownloadedAttachments Lista opcional de anexos
+     * @return Message ID retornado pelo SES
+     */
+    public String sendEmail(
+            List<String> to,
+            List<String> cc,
+            List<String> bcc,
+            String subject,
+            String htmlBody,
+            String textBody,
+            List<String> replyTo,
+            List<DownloadedAttachment> DownloadedAttachments
+    ) {
+        log.info("sendEmail() - START - to={}, cc={}, bcc={}, subject={}, DownloadedAttachmentsCount={}",
+                to, cc, bcc, subject, DownloadedAttachments != null ? DownloadedAttachments.size() : 0);
 
         List<String> sanitizedTo = filterValidEmails(to);
         List<String> sanitizedCc = filterValidEmails(cc);
@@ -149,6 +194,14 @@ public class AmazonSesService {
             log.warn("sendEmail() - SES DESABILITADO (aws.ses.enabled=false). Simulação de envio para: {}, subject: {}, mockMessageId={}",
                     sanitizedTo, subject, mockMessageId);
             return mockMessageId;
+        }
+
+        List<DownloadedAttachment> validDownloadedAttachments = (DownloadedAttachments != null) ? DownloadedAttachments.stream()
+                .filter(a -> a != null && a.getData() != null && a.getData().length > 0)
+                .toList() : Collections.emptyList();
+
+        if (!validDownloadedAttachments.isEmpty()) {
+            return sendRawEmailWithDownloadedAttachments(sanitizedTo, sanitizedCc, sanitizedBcc, subject, htmlBody, textBody, replyTo, fromAddress, validDownloadedAttachments);
         }
 
         try {
@@ -211,6 +264,111 @@ public class AmazonSesService {
             log.error("sendEmail() - ERROR - Falha ao enviar e-mail via Amazon SES - to: {}, subject: {}, error: {}",
                     sanitizedTo, subject, errorMsg);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao enviar e-mail via Amazon SES: " + errorMsg, e);
+        }
+    }
+
+    private String sendRawEmailWithDownloadedAttachments(
+            List<String> sanitizedTo,
+            List<String> sanitizedCc,
+            List<String> sanitizedBcc,
+            String subject,
+            String htmlBody,
+            String textBody,
+            List<String> replyTo,
+            String fromAddress,
+            List<DownloadedAttachment> DownloadedAttachments
+    ) {
+        log.info("sendRawEmailWithDownloadedAttachments() - START - to={}, subject={}, DownloadedAttachments={}",
+                sanitizedTo, subject, DownloadedAttachments.size());
+        try {
+            Session session = Session.getInstance(new Properties());
+            MimeMessage mimeMessage = new MimeMessage(session);
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, StandardCharsets.UTF_8.name());
+
+            helper.setFrom(fromAddress);
+            if (!sanitizedTo.isEmpty()) {
+                helper.setTo(sanitizedTo.toArray(new String[0]));
+            }
+            if (!sanitizedCc.isEmpty()) {
+                helper.setCc(sanitizedCc.toArray(new String[0]));
+            }
+            if (!sanitizedBcc.isEmpty()) {
+                helper.setBcc(sanitizedBcc.toArray(new String[0]));
+            }
+
+            helper.setSubject(subject);
+
+            boolean hasHtml = htmlBody != null && !htmlBody.isBlank();
+            boolean hasText = textBody != null && !textBody.isBlank();
+
+            if (hasHtml && hasText) {
+                helper.setText(textBody, htmlBody);
+            } else if (hasHtml) {
+                helper.setText(htmlBody, true);
+            } else {
+                helper.setText(textBody, false);
+            }
+
+            List<String> sanitizedReplyTo = filterValidEmails(replyTo);
+            if (sanitizedReplyTo.isEmpty() && properties.getReplyTo() != null && !properties.getReplyTo().isBlank()) {
+                sanitizedReplyTo = filterValidEmails(List.of(properties.getReplyTo().trim()));
+            }
+
+            if (!sanitizedReplyTo.isEmpty()) {
+                Address[] replyToAddresses = sanitizedReplyTo.stream()
+                        .map(email -> {
+                            try {
+                                return new InternetAddress(email);
+                            } catch (Exception ex) {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .toArray(Address[]::new);
+                if (replyToAddresses.length > 0) {
+                    mimeMessage.setReplyTo(replyToAddresses);
+                }
+            }
+
+            for (DownloadedAttachment DownloadedAttachment : DownloadedAttachments) {
+                String filename = StringUtils.isNotBlank(DownloadedAttachment.getFileName())
+                        ? DownloadedAttachment.getFileName()
+                        : "anexo";
+                String contentType = StringUtils.isNotBlank(DownloadedAttachment.getContentType())
+                        ? DownloadedAttachment.getContentType()
+                        : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+                helper.addAttachment(filename, new ByteArrayResource(DownloadedAttachment.getData()), contentType);
+            }
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            mimeMessage.writeTo(outputStream);
+
+            RawMessage rawMessage = RawMessage.builder()
+                    .data(SdkBytes.fromByteArray(outputStream.toByteArray()))
+                    .build();
+
+            SendRawEmailRequest.Builder rawRequestBuilder = SendRawEmailRequest.builder()
+                    .rawMessage(rawMessage);
+
+            if (properties.getConfigurationSet() != null && !properties.getConfigurationSet().isBlank()) {
+                rawRequestBuilder.configurationSetName(properties.getConfigurationSet().trim());
+            }
+
+            SendRawEmailResponse response = sesClient.sendRawEmail(rawRequestBuilder.build());
+            String messageId = response.messageId();
+
+            log.info("sendRawEmailWithDownloadedAttachments() - END - messageId={}, to={}", messageId, sanitizedTo);
+            return messageId;
+
+        } catch (SesException e) {
+            String errorMsg = e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage();
+            log.error("sendRawEmailWithDownloadedAttachments() - ERROR - Falha ao enviar e-mail raw via Amazon SES - to: {}, subject: {}, error: {}",
+                    sanitizedTo, subject, errorMsg);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao enviar e-mail via Amazon SES: " + errorMsg, e);
+        } catch (Exception e) {
+            log.error("sendRawEmailWithDownloadedAttachments() - ERROR - Falha ao construir mensagem MIME com anexos - to: {}, subject: {}, error: {}",
+                    sanitizedTo, subject, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Erro ao preparar e-mail com anexos: " + e.getMessage(), e);
         }
     }
 

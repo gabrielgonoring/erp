@@ -1,6 +1,6 @@
 package company.aura.erp.modules.email.enumerate;
 
-import company.aura.erp.modules.email.domain.NotificationRequest;
+import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 

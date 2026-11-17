@@ -1,5 +1,6 @@
 package company.aura.erp.service;
 
+import company.aura.erp.modules.email.domain.template.Attachment;
 import company.aura.erp.modules.email.service.AmazonSesService;
 
 import company.aura.erp.modules.email.config.AwsSesProperties;
@@ -17,6 +18,8 @@ import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.services.ses.SesClient;
 import software.amazon.awssdk.services.ses.model.SendEmailRequest;
 import software.amazon.awssdk.services.ses.model.SendEmailResponse;
+import software.amazon.awssdk.services.ses.model.SendRawEmailRequest;
+import software.amazon.awssdk.services.ses.model.SendRawEmailResponse;
 import software.amazon.awssdk.services.ses.model.SesException;
 
 import java.util.List;
@@ -67,6 +70,33 @@ class AmazonSesServiceTest {
         assertEquals("Bem-vindo", sentRequest.message().subject().data());
         assertEquals("<h1>Olá</h1>", sentRequest.message().body().html().data());
         assertEquals("Olá", sentRequest.message().body().text().data());
+    }
+
+    @Test
+    @DisplayName("Deve enviar e-mail com anexos com sucesso via SendRawEmail")
+    void sendEmailWithAttachmentsSuccess() {
+        SendRawEmailResponse mockRawResponse = SendRawEmailResponse.builder()
+                .messageId("raw-ses-999")
+                .build();
+        when(sesClient.sendRawEmail(any(SendRawEmailRequest.class))).thenReturn(mockRawResponse);
+
+        Attachment attachment = Attachment.builder()
+                .fileName("boleto.pdf")
+                .contentType("application/pdf")
+                .data("fake-pdf-content".getBytes())
+                .build();
+
+        String messageId = sesService.sendEmail(
+                "cliente@dominio.com",
+                "Cobrança com Boleto",
+                "<p>Segue boleto em anexo</p>",
+                "Segue boleto em anexo",
+                List.of(attachment)
+        );
+
+        assertEquals("raw-ses-999", messageId);
+        verify(sesClient, times(1)).sendRawEmail(any(SendRawEmailRequest.class));
+        verify(sesClient, never()).sendEmail(any(SendEmailRequest.class));
     }
 
     @Test

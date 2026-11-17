@@ -1,7 +1,7 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.job.OrderInstallmentDueNotice;
-import company.aura.erp.modules.email.domain.*;
+import company.aura.erp.modules.email.domain.template.*;
 import company.aura.erp.modules.email.enumerate.AttachmentSource;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.service.EmailService;
@@ -93,6 +93,7 @@ public class JobService {
                 Attachment attachment = new Attachment();
                 attachment.setSource(AttachmentSource.BUCKET);
                 attachment.setUrl(installment.bankSlipUrl());
+                request.setAttachment(List.of(attachment));
             }
 
             emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);

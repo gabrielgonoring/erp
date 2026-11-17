@@ -1,9 +1,12 @@
 package company.aura.erp.service;
 
-import company.aura.erp.modules.email.domain.Customer;
-import company.aura.erp.modules.email.domain.NotificationRequest;
-import company.aura.erp.modules.email.domain.Payload;
+import company.aura.erp.modules.bucket.service.CloudflareR2Service;
+import company.aura.erp.modules.email.domain.template.Attachment;
+import company.aura.erp.modules.email.domain.template.Customer;
+import company.aura.erp.modules.email.domain.template.NotificationRequest;
+import company.aura.erp.modules.email.domain.template.Payload;
 import company.aura.erp.modules.email.domain.template.EmailTemplate;
+import company.aura.erp.modules.email.enumerate.AttachmentSource;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.exception.NotificationException;
 import company.aura.erp.modules.email.service.AmazonSesService;
@@ -15,15 +18,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -37,6 +42,9 @@ class EmailServiceTest {
     @Mock
     private TemplateResolverService templateResolverService;
 
+    @Mock
+    private CloudflareR2Service cloudflareR2Service;
+
     @InjectMocks
     private EmailService emailService;
 
@@ -47,6 +55,7 @@ class EmailServiceTest {
 
         verifyNoInteractions(templateResolverService);
         verifyNoInteractions(amazonSesService);
+        verifyNoInteractions(cloudflareR2Service);
     }
 
     @ParameterizedTest
@@ -61,6 +70,7 @@ class EmailServiceTest {
 
         verifyNoInteractions(templateResolverService);
         verifyNoInteractions(amazonSesService);
+        verifyNoInteractions(cloudflareR2Service);
     }
 
     @Test
@@ -139,6 +149,121 @@ class EmailServiceTest {
                 eq("<p>Prezado Aura Sistemas, parcela 1 no valor de R$ 250,75 vence em 15/12/2026. Pagamento: BOLETO</p>"),
                 eq("Prezado Aura Sistemas, parcela 1 no valor de R$ 250,75 vence em 15/12/2026. Pagamento: BOLETO")
         );
+    }
+
+    @Test
+    @DisplayName("Deve baixar arquivo do R2 com sucesso e anexar no e-mail enviado")
+    void shouldDownloadAttachmentFromR2AndSendEmailSuccessfully() {
+        NotificationRequest request = new NotificationRequest();
+        request.setReceiveEmail("cliente@dominio.com");
+
+        Attachment attachment = Attachment.builder()
+                .source(AttachmentSource.BUCKET)
+                .url("https://pub-r2.com/orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf")
+                .build();
+        request.setAttachment(List.of(attachment));
+
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+                .subject("Cobrança")
+                .html("<p>Segue seu boleto</p>")
+                .build();
+
+        when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
+        when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
+        when(cloudflareR2Service.extractKeyFromUrl(attachment.getUrl())).thenReturn("orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf");
+
+        byte[] pdfBytes = "PDF content simulated".getBytes();
+        when(cloudflareR2Service.download("orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf")).thenReturn(pdfBytes);
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString(), anyList())).thenReturn("ses-msg-att-123");
+
+        emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
+
+        verify(cloudflareR2Service, times(1)).extractKeyFromUrl(attachment.getUrl());
+        verify(cloudflareR2Service, times(1)).download("orders/d83f4b82-7472-4d2c-8134-2e92cbbd42b1-boleto.pdf");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Attachment>> captor = ArgumentCaptor.forClass(List.class);
+        verify(amazonSesService, times(1)).sendEmail(
+                eq("cliente@dominio.com"),
+                eq("Cobrança"),
+                eq("<p>Segue seu boleto</p>"),
+                eq("Segue seu boleto"),
+                captor.capture()
+        );
+
+        List<Attachment> capturedAttachments = captor.getValue();
+        assertEquals(1, capturedAttachments.size());
+        Attachment captured = capturedAttachments.get(0);
+        assertEquals("boleto.pdf", captured.getFileName());
+        assertEquals("application/pdf", captured.getContentType());
+        assertArrayEquals(pdfBytes, captured.getData());
+    }
+
+    @Test
+    @DisplayName("Deve enviar e-mail sem anexo caso o download no bucket R2 falhe com exceção")
+    void shouldSendEmailWithoutAttachmentWhenDownloadFails() {
+        NotificationRequest request = new NotificationRequest();
+        request.setReceiveEmail("cliente@dominio.com");
+
+        Attachment attachment = Attachment.builder()
+                .source(AttachmentSource.BUCKET)
+                .url("https://pub-r2.com/orders/falha.pdf")
+                .build();
+        request.setAttachment(List.of(attachment));
+
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+                .subject("Cobrança")
+                .html("<p>Segue seu boleto</p>")
+                .build();
+
+        when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
+        when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
+        when(cloudflareR2Service.extractKeyFromUrl(attachment.getUrl())).thenThrow(new RuntimeException("R2 timeout error"));
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-fallback-456");
+
+        assertDoesNotThrow(() -> emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request));
+
+        verify(amazonSesService, times(1)).sendEmail(
+                eq("cliente@dominio.com"),
+                eq("Cobrança"),
+                eq("<p>Segue seu boleto</p>"),
+                eq("Segue seu boleto")
+        );
+        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString(), anyList());
+    }
+
+    @Test
+    @DisplayName("Deve enviar e-mail sem anexo caso o download retorne array de bytes vazio")
+    void shouldSendEmailWithoutAttachmentWhenDownloadReturnsEmptyBytes() {
+        NotificationRequest request = new NotificationRequest();
+        request.setReceiveEmail("cliente@dominio.com");
+
+        Attachment attachment = Attachment.builder()
+                .source(AttachmentSource.BUCKET)
+                .url("https://pub-r2.com/orders/vazio.pdf")
+                .build();
+        request.setAttachment(List.of(attachment));
+
+        EmailTemplate emailTemplate = EmailTemplate.builder()
+                .subject("Cobrança")
+                .html("<p>Segue seu boleto</p>")
+                .build();
+
+        when(templateResolverService.getEmailTemplate(NotificationType.INSTALLMENT_NOTIFY)).thenReturn(emailTemplate);
+        when(templateResolverService.getTextMessage(NotificationType.INSTALLMENT_NOTIFY)).thenReturn("Segue seu boleto");
+        when(cloudflareR2Service.extractKeyFromUrl(attachment.getUrl())).thenReturn("orders/vazio.pdf");
+        when(cloudflareR2Service.download("orders/vazio.pdf")).thenReturn(new byte[0]);
+        when(amazonSesService.sendEmail(anyString(), anyString(), anyString(), anyString())).thenReturn("ses-msg-vazio");
+
+        emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
+
+        verify(amazonSesService, times(1)).sendEmail(
+                eq("cliente@dominio.com"),
+                eq("Cobrança"),
+                eq("<p>Segue seu boleto</p>"),
+                eq("Segue seu boleto")
+        );
+        verify(amazonSesService, never()).sendEmail(anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
