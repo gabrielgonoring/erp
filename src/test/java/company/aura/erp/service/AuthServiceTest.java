@@ -5,6 +5,9 @@ import company.aura.erp.dto.auth.ForgotPasswordRequest;
 import company.aura.erp.dto.auth.LoginRequest;
 import company.aura.erp.dto.auth.LoginResponse;
 import company.aura.erp.dto.auth.ResetPasswordRequest;
+import company.aura.erp.email.domain.NotificationRequest;
+import company.aura.erp.email.enumerate.NotificationType;
+import company.aura.erp.email.service.EmailService;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.repository.UserRepository;
 import company.aura.erp.security.JwtService;
@@ -146,9 +149,12 @@ class AuthServiceTest {
         assertNotNull(savedUser.getResetPasswordExpires());
         assertTrue(savedUser.getResetPasswordExpires().isAfter(LocalDateTime.now()));
 
-        ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailService).sendPasswordResetEmail(eq(user), urlCaptor.capture());
-        String generatedUrl = urlCaptor.getValue();
+        ArgumentCaptor<NotificationRequest> requestCaptor = ArgumentCaptor.forClass(NotificationRequest.class);
+        verify(emailService).sendNotification(eq(NotificationType.FORGOT_PASSWORD), requestCaptor.capture());
+        NotificationRequest notificationRequest = requestCaptor.getValue();
+        assertEquals(user.getEmail(), notificationRequest.getReceiveEmail());
+        assertEquals(user.getName(), notificationRequest.getCustomer().getName());
+        String generatedUrl = notificationRequest.getPayload().getResetPasswordUrl();
 
         assertTrue(generatedUrl.startsWith("http://localhost:5173/redefinir-senha?code="));
         assertEquals("http://localhost:5173/redefinir-senha?code=" + savedUser.getResetPasswordToken(), generatedUrl);
@@ -164,7 +170,7 @@ class AuthServiceTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.requestPasswordReset(request));
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        verify(emailService, never()).sendPasswordResetEmail(any(), anyString());
+        verify(emailService, never()).sendNotification(any(), any());
     }
 
     @Test
@@ -182,7 +188,7 @@ class AuthServiceTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> authService.requestPasswordReset(request));
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        verify(emailService, never()).sendPasswordResetEmail(any(), anyString());
+        verify(emailService, never()).sendNotification(any(), any());
     }
 
     @Test

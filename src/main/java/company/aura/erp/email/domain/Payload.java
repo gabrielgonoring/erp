@@ -1,0 +1,16 @@
+package company.aura.erp.email.domain;
+
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Data
+public class Payload {
+    Long orderId;
+    Integer installmentNumber;
+    BigDecimal amount;
+    LocalDate installmentDueDate;
+    String paymentMethod;
+    String resetPasswordUrl;
+}

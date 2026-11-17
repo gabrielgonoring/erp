@@ -6,6 +6,11 @@ import company.aura.erp.dto.auth.ForgotPasswordRequest;
 import company.aura.erp.dto.auth.LoginRequest;
 import company.aura.erp.dto.auth.LoginResponse;
 import company.aura.erp.dto.auth.ResetPasswordRequest;
+import company.aura.erp.email.domain.Customer;
+import company.aura.erp.email.domain.NotificationRequest;
+import company.aura.erp.email.domain.Payload;
+import company.aura.erp.email.enumerate.NotificationType;
+import company.aura.erp.email.service.EmailService;
 import company.aura.erp.entity.UserEntity;
 import company.aura.erp.enums.UserStatus;
 import company.aura.erp.repository.UserRepository;
@@ -74,8 +79,15 @@ public class AuthService {
         user.setResetPasswordExpires(LocalDateTime.now().plusMinutes(authConstants.getResetPasswordExpirationMinutes()));
         userRepository.save(user);
 
-        String resetUrl = authConstants.getResetPasswordBaseUrl() + "?code=" + code;
-        emailService.sendPasswordResetEmail(user, resetUrl);
+        NotificationRequest notificationRequest = new NotificationRequest();
+
+        notificationRequest.setReceiveEmail(user.getEmail());
+        notificationRequest.setCustomer(new Customer());
+        notificationRequest.getCustomer().setName(user.getName());
+        notificationRequest.setPayload(new Payload());
+        notificationRequest.getPayload().setResetPasswordUrl(authConstants.getResetPasswordBaseUrl() + "?code=" + code);
+
+        emailService.sendNotification(NotificationType.FORGOT_PASSWORD, notificationRequest);
     }
 
     @Transactional

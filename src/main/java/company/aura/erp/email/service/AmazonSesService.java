@@ -1,6 +1,6 @@
-package company.aura.erp.service;
+package company.aura.erp.email.service;
 
-import company.aura.erp.config.AwsSesProperties;
+import company.aura.erp.email.config.AwsSesProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
