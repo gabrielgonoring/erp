@@ -3,6 +3,7 @@ package company.aura.erp.controller;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.enums.ServiceOrderStatus;
 import company.aura.erp.enums.ServiceOrderTermStatus;
+import company.aura.erp.enums.ServiceOrderUpdateEventType;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.ServiceOrderService;
 import jakarta.validation.Valid;
@@ -131,6 +132,53 @@ public class ServiceOrderController {
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
         serviceOrderService.deleteTerm(id, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/updates")
+    public ResponseEntity<Page<ServiceOrderUpdateResponse>> listUpdates(
+            @PathVariable Long id,
+            @RequestParam(required = false) ServiceOrderUpdateEventType eventType,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<ServiceOrderUpdateResponse> page = serviceOrderService.listUpdates(
+                id,
+                eventType,
+                userPrincipal.getCompanyId(),
+                pageable
+        );
+        return ResponseEntity.ok(page);
+    }
+
+    @PostMapping("/{id}/updates")
+    public ResponseEntity<ServiceOrderUpdateResponse> createUpdate(
+            @PathVariable Long id,
+            @RequestBody @Valid ServiceOrderUpdateCreateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ServiceOrderUpdateResponse response = serviceOrderService.createUpdate(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{id}/updates/{updateId}")
+    public ResponseEntity<ServiceOrderUpdateResponse> updateUpdate(
+            @PathVariable Long id,
+            @PathVariable Long updateId,
+            @RequestBody @Valid ServiceOrderUpdateEditRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ServiceOrderUpdateResponse response = serviceOrderService.updateUpdate(id, updateId, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}/updates/{updateId}")
+    public ResponseEntity<Void> deleteUpdate(
+            @PathVariable Long id,
+            @PathVariable Long updateId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        serviceOrderService.deleteUpdate(id, updateId, userPrincipal.getCompanyId());
         return ResponseEntity.noContent().build();
     }
 

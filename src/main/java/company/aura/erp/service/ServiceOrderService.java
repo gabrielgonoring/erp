@@ -39,6 +39,7 @@ public class ServiceOrderService {
     private final CollaboratorRepository collaboratorRepository;
     private final ServiceOrderItemService serviceOrderItemService;
     private final ServiceOrderTermService serviceOrderTermService;
+    private final ServiceOrderUpdateService serviceOrderUpdateService;
     private final OrderService orderService;
 
     @Transactional(readOnly = true)
@@ -211,6 +212,44 @@ public class ServiceOrderService {
     @Transactional
     public void deleteTerm(Long termId, Long companyId) {
         serviceOrderTermService.delete(termId, companyId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ServiceOrderUpdateResponse> listUpdates(
+            Long serviceOrderId,
+            ServiceOrderUpdateEventType eventType,
+            Long companyId,
+            Pageable pageable
+    ) {
+        findServiceOrder(serviceOrderId, companyId);
+        return serviceOrderUpdateService.list(serviceOrderId, eventType, companyId, pageable);
+    }
+
+    @Transactional
+    public ServiceOrderUpdateResponse createUpdate(
+            Long serviceOrderId,
+            ServiceOrderUpdateCreateRequest request,
+            Long companyId
+    ) {
+        findServiceOrder(serviceOrderId, companyId);
+        return serviceOrderUpdateService.create(serviceOrderId, request, companyId);
+    }
+
+    @Transactional
+    public ServiceOrderUpdateResponse updateUpdate(
+            Long serviceOrderId,
+            Long updateId,
+            ServiceOrderUpdateEditRequest request,
+            Long companyId
+    ) {
+        findServiceOrder(serviceOrderId, companyId);
+        return serviceOrderUpdateService.update(serviceOrderId, updateId, request, companyId);
+    }
+
+    @Transactional
+    public void deleteUpdate(Long serviceOrderId, Long updateId, Long companyId) {
+        findServiceOrder(serviceOrderId, companyId);
+        serviceOrderUpdateService.delete(serviceOrderId, updateId, companyId);
     }
 
     @Transactional

@@ -82,3 +82,20 @@ CREATE TABLE `service_order_items` (
     CONSTRAINT `fk_service_order_items_professional` FOREIGN KEY (`professional_id`) REFERENCES `collaborators` (`id`) ON DELETE SET NULL,
     CONSTRAINT `service_order_items_chk_1` CHECK (`item_type` IN ('PHYSICAL', 'SERVICE'))
 );
+
+
+-- defaultdb.service_order_updates definição
+
+CREATE TABLE `service_order_updates` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `company_id` bigint NOT NULL,
+    `service_order_id` bigint NOT NULL,
+    `event_type` varchar(45) NOT NULL,
+    `description` text NOT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_os_updates_os_created` (`service_order_id`, `created_at`),
+    KEY `idx_os_updates_company` (`company_id`),
+    CONSTRAINT `fk_os_updates_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_os_updates_os` FOREIGN KEY (`service_order_id`) REFERENCES `service_orders` (`id`) ON DELETE CASCADE
+);
