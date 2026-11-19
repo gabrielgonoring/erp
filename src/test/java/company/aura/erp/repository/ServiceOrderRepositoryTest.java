@@ -1,14 +1,17 @@
 package company.aura.erp.repository;
 
 import company.aura.erp.dto.serviceorder.ServiceOrderSummaryResponse;
+import company.aura.erp.dto.serviceorder.ServiceOrderTermSummaryResponse;
 import company.aura.erp.entity.CollaboratorEntity;
 import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.entity.ServiceOrderEntity;
 import company.aura.erp.entity.ServiceOrderItemEntity;
+import company.aura.erp.entity.ServiceOrderTermEntity;
 import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.PersonType;
 import company.aura.erp.enums.ServiceOrderItemStatus;
 import company.aura.erp.enums.ServiceOrderStatus;
+import company.aura.erp.enums.ServiceOrderTermStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +42,9 @@ class ServiceOrderRepositoryTest {
     private ServiceOrderItemRepository serviceOrderItemRepository;
 
     @Autowired
+    private ServiceOrderTermRepository serviceOrderTermRepository;
+
+    @Autowired
     private PartnerRepository partnerRepository;
 
     @Autowired
@@ -61,10 +67,19 @@ class ServiceOrderRepositoryTest {
                 .status("ACTIVE")
                 .build());
 
+        ServiceOrderTermEntity term = serviceOrderTermRepository.save(ServiceOrderTermEntity.builder()
+                .companyId(1L)
+                .title("Termo Padrão")
+                .content("Garantia de 90 dias")
+                .isDefault(true)
+                .status(ServiceOrderTermStatus.ACTIVE)
+                .build());
+
         ServiceOrderEntity osWithTech = serviceOrderRepository.save(ServiceOrderEntity.builder()
                 .companyId(1L)
                 .partnerId(partner.getId())
                 .technicianId(technician.getId())
+                .termId(term.getId())
                 .status(ServiceOrderStatus.TRIAGE)
                 .objectTitle("MacBook Pro 14")
                 .objectIdentifier("C02XYZ")
@@ -99,6 +114,7 @@ class ServiceOrderRepositoryTest {
                 .stockReserved(false)
                 .build());
 
+        assertEquals(term.getId(), osWithTech.getTermId());
         assertEquals(ServiceOrderItemStatus.PENDING, savedItem.getStatus());
         assertEquals(1, serviceOrderItemRepository.findByServiceOrderIdAndStatusNotIn(
                 osWithTech.getId(), List.of(ServiceOrderItemStatus.CANCELED)).size());
@@ -127,5 +143,35 @@ class ServiceOrderRepositoryTest {
         assertEquals("C02XYZ", summary.getObjectIdentifier());
 
         assertNotNull(osWithoutTech.getId());
+    }
+
+    @Test
+    @DisplayName("Deve persistir termos e listar paginado ignorando termos DELETED")
+    void shouldPersistAndSearchTermsExcludingDeleted() {
+        serviceOrderTermRepository.save(ServiceOrderTermEntity.builder()
+                .companyId(1L)
+                .title("Termo Ativo")
+                .content("Conteúdo ativo")
+                .isDefault(true)
+                .status(ServiceOrderTermStatus.ACTIVE)
+                .build());
+
+        serviceOrderTermRepository.save(ServiceOrderTermEntity.builder()
+                .companyId(1L)
+                .title("Termo Excluído")
+                .content("Conteúdo excluído")
+                .isDefault(false)
+                .status(ServiceOrderTermStatus.DELETED)
+                .build());
+
+        PageRequest pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<ServiceOrderTermSummaryResponse> page = serviceOrderTermRepository.searchSummarized(
+                1L, ServiceOrderTermStatus.DELETED, null, null, pageable
+        );
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals("Termo Ativo", page.getContent().get(0).getTitle());
+        assertEquals(ServiceOrderTermStatus.ACTIVE, page.getContent().get(0).getStatus());
     }
 }

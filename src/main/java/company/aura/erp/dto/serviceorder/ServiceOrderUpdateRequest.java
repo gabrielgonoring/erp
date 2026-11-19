@@ -2,7 +2,6 @@ package company.aura.erp.dto.serviceorder;
 
 import company.aura.erp.enums.ServiceOrderStatus;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -22,6 +21,8 @@ public class ServiceOrderUpdateRequest {
     private Long partnerId;
 
     private Long technicianId;
+
+    private Long termId;
 
     private ServiceOrderStatus status;
 

@@ -1,13 +1,11 @@
 package company.aura.erp.mapper;
 
-import company.aura.erp.dto.order.OrderResponse;
 import company.aura.erp.dto.serviceorder.ServiceOrderCreateRequest;
 import company.aura.erp.dto.serviceorder.ServiceOrderItemResponse;
 import company.aura.erp.dto.serviceorder.ServiceOrderResponse;
 import company.aura.erp.entity.ServiceOrderEntity;
 import company.aura.erp.entity.ServiceOrderItemEntity;
 import company.aura.erp.enums.ServiceOrderStatus;
-import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,6 +22,7 @@ public class ServiceOrderMapper {
                 .companyId(companyId)
                 .partnerId(request.getPartnerId())
                 .technicianId(request.getTechnicianId())
+                .termId(request.getTermId())
                 .status(resolveInitialStatus(request))
                 .objectTitle(request.getObjectTitle().trim())
                 .objectIdentifier(normalizeOptionalText(request.getObjectIdentifier()))
@@ -74,6 +73,7 @@ public class ServiceOrderMapper {
                 .technicianId(serviceOrder.getTechnicianId())
                 .technicianName(technicianName)
                 .orderId(serviceOrder.getOrderId())
+                .termId(serviceOrder.getTermId())
                 .status(serviceOrder.getStatus())
                 .objectTitle(serviceOrder.getObjectTitle())
                 .objectIdentifier(serviceOrder.getObjectIdentifier())

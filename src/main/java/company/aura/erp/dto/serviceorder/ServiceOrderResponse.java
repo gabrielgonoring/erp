@@ -1,6 +1,5 @@
 package company.aura.erp.dto.serviceorder;
 
-import company.aura.erp.dto.order.OrderResponse;
 import company.aura.erp.enums.ServiceOrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,6 +23,7 @@ public class ServiceOrderResponse {
     private Long technicianId;
     private String technicianName;
     private Long orderId;
+    private Long termId;
     private ServiceOrderStatus status;
     private String objectTitle;
     private String objectIdentifier;

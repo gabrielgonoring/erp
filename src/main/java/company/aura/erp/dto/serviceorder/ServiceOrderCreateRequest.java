@@ -25,6 +25,8 @@ public class ServiceOrderCreateRequest {
 
     private Long technicianId;
 
+    private Long termId;
+
     private ServiceOrderStatus status;
 
     @NotBlank(message = "O título do objeto é obrigatório.")

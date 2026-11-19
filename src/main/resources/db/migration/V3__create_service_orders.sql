@@ -1,3 +1,20 @@
+-- defaultdb.service_order_terms definição
+
+CREATE TABLE `service_order_terms` (
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `company_id` bigint NOT NULL,
+    `title` varchar(100) NOT NULL,
+    `content` text NOT NULL,
+    `is_default` tinyint(1) NOT NULL DEFAULT '0',
+    `status` varchar(100) NOT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_os_terms_company` (`company_id`),
+    CONSTRAINT `fk_os_terms_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+);
+
+
 -- defaultdb.service_orders definição
 
 CREATE TABLE `service_orders` (
@@ -6,6 +23,7 @@ CREATE TABLE `service_orders` (
     `partner_id` bigint NOT NULL,
     `technician_id` bigint unsigned DEFAULT NULL,
     `order_id` bigint DEFAULT NULL,
+    `term_id` bigint DEFAULT NULL,
     `status` varchar(30) NOT NULL,
     `object_title` varchar(150) NOT NULL,
     `object_identifier` varchar(100) DEFAULT NULL,
@@ -27,11 +45,13 @@ CREATE TABLE `service_orders` (
     KEY `idx_service_orders_company_status` (`company_id`, `status`),
     KEY `idx_service_orders_partner` (`partner_id`),
     KEY `idx_service_orders_technician` (`technician_id`),
+    KEY `idx_service_orders_term` (`term_id`),
     KEY `idx_service_orders_identifier` (`company_id`, `object_identifier`),
     CONSTRAINT `fk_service_orders_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_service_orders_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE RESTRICT,
     CONSTRAINT `fk_service_orders_technician` FOREIGN KEY (`technician_id`) REFERENCES `collaborators` (`id`) ON DELETE SET NULL,
-    CONSTRAINT `fk_service_orders_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_service_orders_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_service_orders_term` FOREIGN KEY (`term_id`) REFERENCES `service_order_terms` (`id`) ON DELETE SET NULL
 );
 
 

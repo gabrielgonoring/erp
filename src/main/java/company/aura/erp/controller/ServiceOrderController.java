@@ -2,6 +2,7 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.enums.ServiceOrderStatus;
+import company.aura.erp.enums.ServiceOrderTermStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.ServiceOrderService;
 import jakarta.validation.Valid;
@@ -78,6 +79,59 @@ public class ServiceOrderController {
     ) {
         ServiceOrderResponse response = serviceOrderService.update(id, request, userPrincipal.getCompanyId());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/terms")
+    public ResponseEntity<Page<ServiceOrderTermSummaryResponse>> listTerms(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) ServiceOrderTermStatus status,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<ServiceOrderTermSummaryResponse> page = serviceOrderService.listTerms(
+                search,
+                status,
+                userPrincipal.getCompanyId(),
+                pageable
+        );
+        return ResponseEntity.ok(page);
+    }
+
+    @GetMapping("/terms/{id}")
+    public ResponseEntity<ServiceOrderTermResponse> findTermById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ServiceOrderTermResponse response = serviceOrderService.findTermById(id, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/terms")
+    public ResponseEntity<ServiceOrderTermResponse> createTerm(
+            @RequestBody @Valid ServiceOrderTermCreateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ServiceOrderTermResponse response = serviceOrderService.createTerm(request, userPrincipal.getCompanyId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/terms/{id}")
+    public ResponseEntity<ServiceOrderTermResponse> updateTerm(
+            @PathVariable Long id,
+            @RequestBody @Valid ServiceOrderTermUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ServiceOrderTermResponse response = serviceOrderService.updateTerm(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/terms/{id}")
+    public ResponseEntity<Void> deleteTerm(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        serviceOrderService.deleteTerm(id, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/items")

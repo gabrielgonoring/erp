@@ -53,6 +53,9 @@ class ServiceOrderServiceTest {
     private ServiceOrderItemService serviceOrderItemService;
 
     @Mock
+    private ServiceOrderTermService serviceOrderTermService;
+
+    @Mock
     private OrderService orderService;
 
     @InjectMocks
@@ -61,6 +64,7 @@ class ServiceOrderServiceTest {
     private final Long companyId = 1L;
     private final Long partnerId = 10L;
     private final Long technicianId = 20L;
+    private final Long termId = 30L;
     private ServiceOrderEntity sampleServiceOrder;
 
     @BeforeEach
@@ -70,6 +74,7 @@ class ServiceOrderServiceTest {
                 .companyId(companyId)
                 .partnerId(partnerId)
                 .technicianId(technicianId)
+                .termId(termId)
                 .status(ServiceOrderStatus.TRIAGE)
                 .objectTitle("Notebook Dell Inspiron")
                 .objectIdentifier("SN-DELL-01")
@@ -83,11 +88,12 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar ordem de serviço com itens calculados")
+    @DisplayName("Deve criar ordem de serviço com itens calculados e termo de condição")
     void shouldCreateServiceOrderWithItemsSuccessfully() {
         ServiceOrderCreateRequest request = ServiceOrderCreateRequest.builder()
                 .partnerId(partnerId)
                 .technicianId(technicianId)
+                .termId(termId)
                 .objectTitle("Notebook Dell Inspiron")
                 .objectIdentifier("SN-DELL-01")
                 .reportedIssue("Não carrega a bateria")
@@ -132,12 +138,14 @@ class ServiceOrderServiceTest {
 
         assertNotNull(response);
         assertEquals(ServiceOrderStatus.TRIAGE, response.getStatus());
+        assertEquals(termId, response.getTermId());
         assertEquals("Cliente Teste", response.getCustomerName());
         assertEquals("Técnico João", response.getTechnicianName());
         assertEquals(BigDecimal.valueOf(80.00), response.getServicesAmount());
         assertEquals(BigDecimal.valueOf(80.00), response.getTotalAmount());
         assertEquals(1, response.getItems().size());
         assertEquals(ServiceOrderItemStatus.PENDING, response.getItems().get(0).getStatus());
+        verify(serviceOrderTermService).validateTermExists(termId, companyId);
     }
 
     @Test
@@ -154,16 +162,19 @@ class ServiceOrderServiceTest {
 
         assertNotNull(response);
         assertEquals(100L, response.getId());
+        assertEquals(termId, response.getTermId());
         assertEquals("Cliente Teste", response.getCustomerName());
         assertEquals("Técnico João", response.getTechnicianName());
     }
 
     @Test
-    @DisplayName("Deve atualizar OS e impedir alteração direta para COMPLETED/CANCELED")
+    @DisplayName("Deve atualizar OS com termId e impedir alteração direta para COMPLETED/CANCELED")
     void shouldUpdateServiceOrderAndBlockTerminalStatusChange() {
+        Long newTermId = 31L;
         ServiceOrderUpdateRequest validRequest = ServiceOrderUpdateRequest.builder()
                 .partnerId(partnerId)
                 .technicianId(technicianId)
+                .termId(newTermId)
                 .status(ServiceOrderStatus.IN_PROGRESS)
                 .objectTitle("Notebook Dell Inspiron")
                 .reportedIssue("Não carrega a bateria")
@@ -181,6 +192,8 @@ class ServiceOrderServiceTest {
         ServiceOrderResponse updated = serviceOrderService.update(100L, validRequest, companyId);
         assertEquals(ServiceOrderStatus.IN_PROGRESS, updated.getStatus());
         assertEquals("Conector DC danificado", updated.getTechnicalReport());
+        assertEquals(newTermId, updated.getTermId());
+        verify(serviceOrderTermService).validateTermExists(newTermId, companyId);
 
         ServiceOrderUpdateRequest invalidRequest = ServiceOrderUpdateRequest.builder()
                 .status(ServiceOrderStatus.COMPLETED)

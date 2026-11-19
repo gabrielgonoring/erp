@@ -35,6 +35,9 @@ public class ServiceOrderEntity {
     @Column(name = "order_id", unique = true)
     private Long orderId;
 
+    @Column(name = "term_id")
+    private Long termId;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)

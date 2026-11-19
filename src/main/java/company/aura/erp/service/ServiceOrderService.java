@@ -3,7 +3,6 @@ package company.aura.erp.service;
 import company.aura.erp.dto.order.OrderCreateRequest;
 import company.aura.erp.dto.order.OrderItemCreateRequest;
 import company.aura.erp.dto.order.OrderResponse;
-import company.aura.erp.dto.order.OrderShippingRequest;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.entity.CollaboratorEntity;
 import company.aura.erp.entity.PartnerEntity;
@@ -17,7 +16,6 @@ import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.repository.ServiceOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -40,6 +38,7 @@ public class ServiceOrderService {
     private final PartnerRepository partnerRepository;
     private final CollaboratorRepository collaboratorRepository;
     private final ServiceOrderItemService serviceOrderItemService;
+    private final ServiceOrderTermService serviceOrderTermService;
     private final OrderService orderService;
 
     @Transactional(readOnly = true)
@@ -125,6 +124,10 @@ public class ServiceOrderService {
 
         String technicianName = validateAndResolveTechnicianName(request.getTechnicianId(), companyId);
 
+        if (request.getTermId() != null) {
+            serviceOrderTermService.validateTermExists(request.getTermId(), companyId);
+        }
+
         ServiceOrderEntity serviceOrder = ServiceOrderMapper.toEntity(request, companyId);
 
         ServiceOrderEntity savedServiceOrder = serviceOrderRepository.save(serviceOrder);
@@ -154,9 +157,13 @@ public class ServiceOrderService {
 
         PartnerEntity partnerEntity = findPartner(request.getPartnerId(), companyId);
         String technicianName = validateAndResolveTechnicianName(request.getTechnicianId(), companyId);
+        if (request.getTermId() != null) {
+            serviceOrderTermService.validateTermExists(request.getTermId(), companyId);
+        }
 
         serviceOrder.setPartnerId(request.getPartnerId());
         serviceOrder.setTechnicianId(request.getTechnicianId());
+        serviceOrder.setTermId(request.getTermId());
         serviceOrder.setStatus(request.getStatus());
         serviceOrder.setObjectTitle(request.getObjectTitle().trim());
         serviceOrder.setObjectIdentifier(normalizeOptionalText(request.getObjectIdentifier()));
@@ -174,6 +181,36 @@ public class ServiceOrderService {
         ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, partnerEntity.getName(), technicianName, items);
         log.info("update() - END - serviceOrderId={}, companyId={}", response.getId(), companyId);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ServiceOrderTermSummaryResponse> listTerms(
+            String search,
+            ServiceOrderTermStatus status,
+            Long companyId,
+            Pageable pageable
+    ) {
+        return serviceOrderTermService.listSummarized(search, status, companyId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public ServiceOrderTermResponse findTermById(Long termId, Long companyId) {
+        return serviceOrderTermService.findById(termId, companyId);
+    }
+
+    @Transactional
+    public ServiceOrderTermResponse createTerm(ServiceOrderTermCreateRequest request, Long companyId) {
+        return serviceOrderTermService.create(request, companyId);
+    }
+
+    @Transactional
+    public ServiceOrderTermResponse updateTerm(Long termId, ServiceOrderTermUpdateRequest request, Long companyId) {
+        return serviceOrderTermService.update(termId, request, companyId);
+    }
+
+    @Transactional
+    public void deleteTerm(Long termId, Long companyId) {
+        serviceOrderTermService.delete(termId, companyId);
     }
 
     @Transactional
