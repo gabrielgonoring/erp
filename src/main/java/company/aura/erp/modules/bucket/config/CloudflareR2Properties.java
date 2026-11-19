@@ -1,4 +1,4 @@
-package company.aura.erp.config;
+package company.aura.erp.modules.bucket.config;
 
 import lombok.Getter;
 import lombok.Setter;

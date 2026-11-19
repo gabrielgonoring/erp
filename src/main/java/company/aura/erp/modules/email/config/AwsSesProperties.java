@@ -1,4 +1,4 @@
-package company.aura.erp.config;
+package company.aura.erp.modules.email.config;
 
 import lombok.Getter;
 import lombok.Setter;

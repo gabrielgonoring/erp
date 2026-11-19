@@ -2,6 +2,7 @@ package company.aura.erp.repository;
 
 import company.aura.erp.dto.dashboard.InstallmentPaymentSummary;
 import company.aura.erp.dto.dashboard.PendingInstallmentSummary;
+import company.aura.erp.dto.job.OrderInstallmentDueNotice;
 import company.aura.erp.dto.order.OrderInstallmentSummaryResponse;
 import company.aura.erp.entity.OrderInstallmentEntity;
 import company.aura.erp.enums.InstallmentStatus;
@@ -115,6 +116,46 @@ public interface OrderInstallmentRepository extends JpaRepository<OrderInstallme
             @Param("endDate") LocalDate endDate,
             @Param("hasStatuses") boolean hasStatuses,
             @Param("statuses") List<InstallmentStatus> statuses,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+                SELECT new company.aura.erp.dto.job.OrderInstallmentDueNotice(
+                    oi.id,
+                    o.id,
+                    oi.installmentNumber,
+                    oi.amount,
+                    oi.pendingAmount,
+                    oi.dueDate,
+                    oi.paymentMethod,
+                    oi.bankSlipUrl,
+                    oi.bankSlipCode,
+                    oi.companyId,
+                    p.name,
+                    p.email,
+                    p.billingEmail
+                )
+                FROM OrderInstallmentEntity oi
+                JOIN OrderEntity o ON oi.orderId = o.id
+                LEFT JOIN PartnerEntity p ON oi.partnerId = p.id
+                WHERE oi.dueDate = :dueDate
+                  AND oi.status NOT IN (:excludedStatuses)
+                  AND oi.pendingAmount > 0
+            """,
+            countQuery = """
+                SELECT count(oi)
+                FROM OrderInstallmentEntity oi
+                JOIN OrderEntity o ON oi.orderId = o.id
+                LEFT JOIN PartnerEntity p ON oi.partnerId = p.id
+                WHERE oi.dueDate = :dueDate
+                  AND oi.status NOT IN (:excludedStatuses)
+                  AND oi.pendingAmount > 0
+            """
+    )
+    Page<OrderInstallmentDueNotice> findInstallmentsDueNotice(
+            @Param("dueDate") LocalDate dueDate,
+            @Param("excludedStatuses") List<InstallmentStatus> excludedStatuses,
             Pageable pageable
     );
 }

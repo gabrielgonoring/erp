@@ -41,6 +41,9 @@ class OrderInvoiceServiceTest {
     @Mock
     private InvoiceService invoiceService;
 
+    @Mock
+    private OrderInvoiceNotificationService notificationService;
+
     @InjectMocks
     private OrderInvoiceService orderInvoiceService;
 
@@ -69,7 +72,7 @@ class OrderInvoiceServiceTest {
     }
 
     @Test
-    @DisplayName("linkInvoice - Deve vincular nota fiscal existente ao pedido com sucesso")
+    @DisplayName("linkInvoice - Deve vincular nota fiscal existente ao pedido com sucesso e enviar notificação")
     void shouldLinkInvoiceSuccess() {
         LinkOrderInvoice request = new LinkOrderInvoice(InvoicePurpose.PRODUCT, "Nota de produtos");
 
@@ -92,6 +95,7 @@ class OrderInvoiceServiceTest {
         assertEquals(InvoicePurpose.PRODUCT, response.getInvoicePurpose());
         assertEquals("Nota de produtos", response.getNotes());
         verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
+        verify(notificationService).sendInvoiceToCustomer(companyId, orderId, 200L);
     }
 
     @Test
@@ -108,10 +112,11 @@ class OrderInvoiceServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         verify(orderInvoiceRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
     }
 
     @Test
-    @DisplayName("linkExternalInvoice - Deve vincular nota fiscal externa NFE com sucesso")
+    @DisplayName("linkExternalInvoice - Deve vincular nota fiscal externa NFE com sucesso e enviar notificação")
     void shouldLinkExternalInvoiceNfeSuccess() {
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile pdfFile = new MockMultipartFile("pdfFile", "danfe.pdf", "application/pdf", "%PDF".getBytes());
@@ -138,6 +143,7 @@ class OrderInvoiceServiceTest {
         assertNotNull(response);
         assertEquals(555L, response.getId());
         verify(orderInvoiceRepository).save(any(OrderInvoiceEntity.class));
+        verify(notificationService).sendInvoiceToCustomer(companyId, orderId, 555L);
     }
 
     @Test
@@ -152,6 +158,7 @@ class OrderInvoiceServiceTest {
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verifyNoInteractions(notificationService);
     }
 
     @Test

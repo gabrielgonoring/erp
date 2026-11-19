@@ -12,6 +12,7 @@ import company.aura.erp.mapper.OrderInvoiceMapper;
 import company.aura.erp.repository.OrderInvoiceRepository;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,14 +22,17 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderInvoiceService {
 
     private final OrderInvoiceRepository orderInvoiceRepository;
     private final InvoiceService invoiceService;
+    private final OrderInvoiceNotificationService notificationService;
 
     public OrderInvoiceResponse linkInvoice(Long invoiceId, LinkOrderInvoice request, UserPrincipal currentUser, OrderEntity order) {
+        log.info("linkInvoice() - START - orderId={}, invoiceId={}, companyId={}", order.getId(), invoiceId, currentUser.getCompanyId());
 
         if (orderInvoiceRepository.existsByOrderIdAndInvoiceIdAndInvoicePurpose(order.getId(), invoiceId, request.getPurpose())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Esta nota fiscal já está vinculada a este pedido com a mesma finalidade.");
@@ -42,11 +46,19 @@ public class OrderInvoiceService {
                 .notes(request.getNotes())
                 .build();
 
-        return OrderInvoiceMapper.fromEntity(orderInvoiceRepository.save(orderInvoice));
+        OrderInvoiceEntity saved = orderInvoiceRepository.save(orderInvoice);
+
+        notificationService.sendInvoiceToCustomer(currentUser.getCompanyId(), order.getId(), invoiceId);
+
+        OrderInvoiceResponse response = OrderInvoiceMapper.fromEntity(saved);
+        log.info("linkInvoice() - END - orderId={}, invoiceId={}, orderInvoiceId={}", order.getId(), invoiceId, response.getId());
+        return response;
     }
 
     @Transactional
     public InvoiceResponse linkExternalInvoice(OrderEntity order, OrderExternalInvoiceRequest request, MultipartFile xmlFile, MultipartFile pdfFile, UserPrincipal currentUser) {
+        log.info("linkExternalInvoice() - START - orderId={}, companyId={}, documentType={}",
+                order.getId(), currentUser.getCompanyId(), request != null ? request.getDocumentType() : null);
 
         validateExternalInvoiceRequest(request);
 
@@ -76,6 +88,9 @@ public class OrderInvoiceService {
                 .build();
         orderInvoiceRepository.save(orderInvoice);
 
+        notificationService.sendInvoiceToCustomer(currentUser.getCompanyId(), order.getId(), invoiceResponse.getId());
+
+        log.info("linkExternalInvoice() - END - orderId={}, invoiceId={}", order.getId(), invoiceResponse.getId());
         return invoiceResponse;
     }
 
@@ -114,11 +129,6 @@ public class OrderInvoiceService {
         }
 
         orderInvoiceRepository.deleteAll(orderInvoices);
-    }
-
-    @Transactional
-    public void deleteInvoice(Long orderId, Long invoiceId, Long companyId) {
-        unlinkInvoice(orderId, invoiceId, companyId);
     }
 
 }

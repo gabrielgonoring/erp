@@ -1,9 +1,9 @@
 package company.aura.erp.service;
 
+import company.aura.erp.modules.bucket.service.CloudflareR2Service;
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.entity.InvoiceEntity;
-import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
 import company.aura.erp.repository.InvoiceRepository;
