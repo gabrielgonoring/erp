@@ -174,7 +174,7 @@ class OrderControllerTest {
     @DisplayName("POST /api/orders/{id}/items — Deve adicionar item à comanda e retornar HTTP 201")
     void shouldAddItemToOrder() {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                2L, "Refrigerante Cola", BigDecimal.valueOf(2), BigDecimal.ZERO, null
+                2L, "Refrigerante Cola", null, BigDecimal.valueOf(2), BigDecimal.ZERO, null
         );
         OrderItemResponse itemResponse = new OrderItemResponse(
                 100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante Cola",

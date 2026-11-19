@@ -99,10 +99,17 @@ class ServiceOrderItemServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar item avulso sem catalogItemId com status customizado quando informado")
-    void shouldCreateAdhocItemWithoutCatalogItemId() {
+    @DisplayName("Deve criar item físico com preço unitário customizado, status APPROVED e estoque reservado")
+    void shouldCreateItemWithCustomPriceStatusAndReservedStock() {
+        CatalogItemEntity physicalCatalogItem = CatalogItemEntity.builder()
+                .id(101L)
+                .companyId(10L)
+                .type(CatalogItemType.PHYSICAL)
+                .unitPrice(BigDecimal.valueOf(10.00))
+                .build();
+
         ServiceOrderItemCreateRequest request = ServiceOrderItemCreateRequest.builder()
-                .itemType(CatalogItemType.PHYSICAL)
+                .catalogItemId(101L)
                 .status(ServiceOrderItemStatus.APPROVED)
                 .description("Parafuso especial")
                 .quantity(BigDecimal.valueOf(2))
@@ -111,13 +118,14 @@ class ServiceOrderItemServiceTest {
                 .stockReserved(true)
                 .build();
 
+        when(catalogItemRepository.findByIdAndCompanyId(101L, 10L)).thenReturn(Optional.of(physicalCatalogItem));
         when(serviceOrderItemRepository.save(any(ServiceOrderItemEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         ServiceOrderItemEntity item = serviceOrderItemService.createItem(request, serviceOrder);
 
         assertNotNull(item);
-        assertNull(item.getCatalogItemId());
+        assertEquals(101L, item.getCatalogItemId());
         assertEquals(CatalogItemType.PHYSICAL, item.getItemType());
         assertEquals(ServiceOrderItemStatus.APPROVED, item.getStatus());
         assertEquals(BigDecimal.valueOf(30.00), item.getTotalPrice());
@@ -128,24 +136,29 @@ class ServiceOrderItemServiceTest {
     @DisplayName("Deve falhar ao criar item diretamente com status CANCELED")
     void shouldFailWhenCreatingItemWithCanceledStatus() {
         ServiceOrderItemCreateRequest request = ServiceOrderItemCreateRequest.builder()
-                .itemType(CatalogItemType.SERVICE)
+                .catalogItemId(100L)
                 .status(ServiceOrderItemStatus.CANCELED)
                 .description("Serviço inválido")
                 .quantity(BigDecimal.ONE)
                 .unitPrice(BigDecimal.TEN)
                 .build();
 
+        when(catalogItemRepository.findByIdAndCompanyId(100L, 10L)).thenReturn(Optional.of(catalogItem));
+
         assertThrows(ResponseStatusException.class, () -> serviceOrderItemService.createItem(request, serviceOrder));
         verify(serviceOrderItemRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Deve falhar ao criar item sem catalogItemId e sem itemType ou unitPrice")
-    void shouldFailWhenAdhocItemMissingTypeOrPrice() {
+    @DisplayName("Deve falhar ao criar item quando item de catálogo não for encontrado")
+    void shouldFailWhenCatalogItemNotFound() {
         ServiceOrderItemCreateRequest request = ServiceOrderItemCreateRequest.builder()
-                .description("Item sem tipo")
+                .catalogItemId(999L)
+                .description("Item inexistente")
                 .quantity(BigDecimal.ONE)
                 .build();
+
+        when(catalogItemRepository.findByIdAndCompanyId(999L, 10L)).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class, () -> serviceOrderItemService.createItem(request, serviceOrder));
         verify(serviceOrderItemRepository, never()).save(any());
@@ -169,6 +182,7 @@ class ServiceOrderItemServiceTest {
                 .build();
 
         ServiceOrderItemUpdateRequest request = ServiceOrderItemUpdateRequest.builder()
+                .catalogItemId(100L)
                 .status(ServiceOrderItemStatus.IN_PROGRESS)
                 .quantity(BigDecimal.valueOf(2))
                 .discountAmount(BigDecimal.valueOf(40.00))
@@ -177,6 +191,7 @@ class ServiceOrderItemServiceTest {
                 .build();
 
         when(serviceOrderItemRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(catalogItemRepository.findByIdAndCompanyId(100L, 10L)).thenReturn(Optional.of(catalogItem));
         when(collaboratorRepository.findByIdAndCompanyIdAndStatusNot(20L, 10L, CollaboratorStatus.DELETED.name()))
                 .thenReturn(Optional.of(collaborator));
         when(serviceOrderItemRepository.save(any(ServiceOrderItemEntity.class)))
@@ -200,7 +215,8 @@ class ServiceOrderItemServiceTest {
                 .stockReserved(true)
                 .build();
 
-        when(serviceOrderItemRepository.findByServiceOrderIdAndStatusNotIn(1L)).thenReturn(List.of(reservedItem));
+        when(serviceOrderItemRepository.findByServiceOrderIdAndStatusNotIn(1L, List.of(ServiceOrderItemStatus.CANCELED)))
+                .thenReturn(List.of(reservedItem));
 
         serviceOrderItemService.cancelItems(1L);
 

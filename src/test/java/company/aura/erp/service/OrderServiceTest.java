@@ -95,7 +95,7 @@ class OrderServiceTest {
                 "Comanda balcão",
                 List.of(
                         new OrderItemCreateRequest(
-                                1L, "Corte de Cabelo", BigDecimal.valueOf(1), BigDecimal.ZERO, 5L
+                                1L, "Corte de Cabelo", null, BigDecimal.valueOf(1), BigDecimal.ZERO, 5L
                         )
                 ),
                 null
@@ -150,7 +150,7 @@ class OrderServiceTest {
                 "Pedido B2B com frete",
                 List.of(
                         new OrderItemCreateRequest(
-                                2L, "Shampoo", BigDecimal.valueOf(2), BigDecimal.ZERO, null
+                                2L, "Shampoo", null, BigDecimal.valueOf(2), BigDecimal.ZERO, null
                         )
                 ),
                 shippingReq
@@ -209,7 +209,7 @@ class OrderServiceTest {
     @DisplayName("Deve adicionar item à comanda aberta e recalcular totais")
     void shouldAddItemSuccessfully() {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                1L, "Shampoo Especial", BigDecimal.valueOf(2), BigDecimal.valueOf(5.00), null
+                1L, "Shampoo Especial", null, BigDecimal.valueOf(2), BigDecimal.valueOf(5.00), null
         );
 
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
@@ -246,7 +246,7 @@ class OrderServiceTest {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                1L, "Escova", BigDecimal.ONE, BigDecimal.ZERO, null
+                1L, "Escova", null, BigDecimal.ONE, BigDecimal.ZERO, null
         );
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
@@ -1029,64 +1029,5 @@ class OrderServiceTest {
         assertEquals(1, result.getTotalElements());
         assertEquals(summary, result.getContent().get(0));
         verify(orderPaymentService).listInstallments("Cliente", startDate, endDate, statuses, companyId, pageable);
-    }
-
-    @Test
-    @DisplayName("openOrderFromServiceOrder - Deve abrir pedido usando dados e itens da OS")
-    void shouldOpenOrderFromServiceOrder() {
-        ServiceOrderEntity serviceOrder = ServiceOrderEntity.builder()
-                .id(77L)
-                .companyId(companyId)
-                .orderNumber(12)
-                .partnerId(partnerId)
-                .objectTitle("Notebook Dell")
-                .objectIdentifier("SN123")
-                .technicalReport("Troca de SSD")
-                .build();
-
-        ServiceOrderItemEntity soItem = ServiceOrderItemEntity.builder()
-                .id(1L)
-                .serviceOrderId(77L)
-                .itemType(CatalogItemType.SERVICE)
-                .description("Instalação de SSD")
-                .quantity(BigDecimal.ONE)
-                .unitPrice(BigDecimal.valueOf(120.00))
-                .discountAmount(BigDecimal.valueOf(20.00))
-                .totalPrice(BigDecimal.valueOf(100.00))
-                .build();
-
-        OrderItemEntity orderItem = OrderItemEntity.builder()
-                .id(10L)
-                .orderId(100L)
-                .itemType(CatalogItemType.SERVICE)
-                .description("Instalação de SSD")
-                .quantity(BigDecimal.ONE)
-                .unitPrice(BigDecimal.valueOf(120.00))
-                .discountAmount(BigDecimal.valueOf(20.00))
-                .totalPrice(BigDecimal.valueOf(100.00))
-                .build();
-
-        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente OS").build()));
-        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> {
-            OrderEntity order = inv.getArgument(0);
-            if (order.getId() == null) {
-                order.setId(100L);
-            }
-            return order;
-        });
-        when(orderItemService.saveItemsFromServiceOrder(eq(List.of(soItem)), any(OrderEntity.class)))
-                .thenReturn(List.of(orderItem));
-
-        OrderResponse response = orderService.openOrderFromServiceOrder(serviceOrder, List.of(soItem), null, null);
-
-        assertNotNull(response);
-        assertEquals(100L, response.getId());
-        assertEquals(OrderStatus.OPEN, response.getStatus());
-        assertEquals("Cliente OS", response.getCustomerName());
-        assertEquals(BigDecimal.valueOf(100.00), response.getServicesAmount());
-        assertEquals(BigDecimal.valueOf(20.00), response.getDiscountAmount());
-        assertEquals(BigDecimal.valueOf(100.00), response.getTotalAmount());
-        assertTrue(response.getNotes().contains("Ordem de Serviço #12"));
     }
 }

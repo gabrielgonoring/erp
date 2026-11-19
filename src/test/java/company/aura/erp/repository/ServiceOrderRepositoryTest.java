@@ -63,7 +63,6 @@ class ServiceOrderRepositoryTest {
 
         ServiceOrderEntity osWithTech = serviceOrderRepository.save(ServiceOrderEntity.builder()
                 .companyId(1L)
-                .orderNumber(1)
                 .partnerId(partner.getId())
                 .technicianId(technician.getId())
                 .status(ServiceOrderStatus.TRIAGE)
@@ -79,7 +78,6 @@ class ServiceOrderRepositoryTest {
 
         ServiceOrderEntity osWithoutTech = serviceOrderRepository.save(ServiceOrderEntity.builder()
                 .companyId(1L)
-                .orderNumber(2)
                 .partnerId(partner.getId())
                 .status(ServiceOrderStatus.IN_PROGRESS)
                 .objectTitle("iPhone 15")
@@ -102,8 +100,8 @@ class ServiceOrderRepositoryTest {
                 .build());
 
         assertEquals(ServiceOrderItemStatus.PENDING, savedItem.getStatus());
-        assertEquals(2, serviceOrderRepository.findMaxOrderNumberByCompanyId(1L));
-        assertEquals(1, serviceOrderItemRepository.findByServiceOrderIdAndStatusNotIn(osWithTech.getId()).size());
+        assertEquals(1, serviceOrderItemRepository.findByServiceOrderIdAndStatusNotIn(
+                osWithTech.getId(), List.of(ServiceOrderItemStatus.CANCELED)).size());
 
         PageRequest defaultSortPageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
 

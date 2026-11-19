@@ -1,5 +1,6 @@
 package company.aura.erp.service;
 
+import company.aura.erp.dto.order.OrderCreateRequest;
 import company.aura.erp.dto.order.OrderResponse;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.entity.CollaboratorEntity;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -66,7 +68,6 @@ class ServiceOrderServiceTest {
         sampleServiceOrder = ServiceOrderEntity.builder()
                 .id(100L)
                 .companyId(companyId)
-                .orderNumber(1)
                 .partnerId(partnerId)
                 .technicianId(technicianId)
                 .status(ServiceOrderStatus.TRIAGE)
@@ -82,7 +83,7 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar ordem de serviço com numeração sequencial e itens calculados")
+    @DisplayName("Deve criar ordem de serviço com itens calculados")
     void shouldCreateServiceOrderWithItemsSuccessfully() {
         ServiceOrderCreateRequest request = ServiceOrderCreateRequest.builder()
                 .partnerId(partnerId)
@@ -104,7 +105,6 @@ class ServiceOrderServiceTest {
                 .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente Teste").build()));
         when(collaboratorRepository.findByIdAndCompanyIdAndStatusNot(technicianId, companyId, CollaboratorStatus.DELETED.name()))
                 .thenReturn(Optional.of(CollaboratorEntity.builder().id(technicianId).companyId(companyId).name("Técnico João").build()));
-        when(serviceOrderRepository.findMaxOrderNumberByCompanyId(companyId)).thenReturn(5);
         when(serviceOrderRepository.save(any(ServiceOrderEntity.class))).thenAnswer(inv -> {
             ServiceOrderEntity entity = inv.getArgument(0);
             if (entity.getId() == null) {
@@ -131,7 +131,6 @@ class ServiceOrderServiceTest {
         ServiceOrderResponse response = serviceOrderService.create(request, companyId);
 
         assertNotNull(response);
-        assertEquals(6, response.getOrderNumber());
         assertEquals(ServiceOrderStatus.TRIAGE, response.getStatus());
         assertEquals("Cliente Teste", response.getCustomerName());
         assertEquals("Técnico João", response.getTechnicianName());
@@ -145,10 +144,10 @@ class ServiceOrderServiceTest {
     @DisplayName("Deve buscar OS por ID retornando cliente, técnico e itens")
     void shouldFindServiceOrderById() {
         when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
-        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).name("Cliente Teste").build()));
-        when(collaboratorRepository.findByIdAndCompanyId(technicianId, companyId))
-                .thenReturn(Optional.of(CollaboratorEntity.builder().id(technicianId).name("Técnico João").build()));
+        when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId))
+                .thenReturn(Optional.of("Cliente Teste"));
+        when(collaboratorRepository.findNameByIdAndCompanyId(technicianId, companyId))
+                .thenReturn(Optional.of("Técnico João"));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(Collections.emptyList());
 
         ServiceOrderResponse response = serviceOrderService.findById(100L, companyId);
@@ -163,7 +162,11 @@ class ServiceOrderServiceTest {
     @DisplayName("Deve atualizar OS e impedir alteração direta para COMPLETED/CANCELED")
     void shouldUpdateServiceOrderAndBlockTerminalStatusChange() {
         ServiceOrderUpdateRequest validRequest = ServiceOrderUpdateRequest.builder()
+                .partnerId(partnerId)
+                .technicianId(technicianId)
                 .status(ServiceOrderStatus.IN_PROGRESS)
+                .objectTitle("Notebook Dell Inspiron")
+                .reportedIssue("Não carrega a bateria")
                 .technicalReport("Conector DC danificado")
                 .build();
 
@@ -171,7 +174,7 @@ class ServiceOrderServiceTest {
         when(serviceOrderRepository.save(any(ServiceOrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
                 .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).name("Cliente Teste").build()));
-        when(collaboratorRepository.findByIdAndCompanyId(technicianId, companyId))
+        when(collaboratorRepository.findByIdAndCompanyIdAndStatusNot(technicianId, companyId, CollaboratorStatus.DELETED.name()))
                 .thenReturn(Optional.of(CollaboratorEntity.builder().id(technicianId).name("Técnico João").build()));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(Collections.emptyList());
 
@@ -243,10 +246,10 @@ class ServiceOrderServiceTest {
     void shouldCancelServiceOrder() {
         when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
         when(serviceOrderRepository.save(any(ServiceOrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).name("Cliente Teste").build()));
-        when(collaboratorRepository.findByIdAndCompanyId(technicianId, companyId))
-                .thenReturn(Optional.of(CollaboratorEntity.builder().id(technicianId).name("Técnico João").build()));
+        when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId))
+                .thenReturn(Optional.of("Cliente Teste"));
+        when(collaboratorRepository.findNameByIdAndCompanyId(technicianId, companyId))
+                .thenReturn(Optional.of("Técnico João"));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(Collections.emptyList());
 
         ServiceOrderResponse response = serviceOrderService.cancel(100L, companyId);
@@ -256,7 +259,7 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve finalizar OS mudando status para COMPLETED e abrindo pedido apenas com itens não cancelados")
+    @DisplayName("Deve finalizar OS mudando status para COMPLETED e abrindo pedido com os itens ativos")
     void shouldCompleteServiceOrderAndOpenOrder() {
         ServiceOrderItemEntity serviceItem = ServiceOrderItemEntity.builder()
                 .id(201L)
@@ -284,24 +287,11 @@ class ServiceOrderServiceTest {
                 .totalPrice(BigDecimal.valueOf(230.00))
                 .build();
 
-        ServiceOrderItemEntity canceledItem = ServiceOrderItemEntity.builder()
-                .id(203L)
-                .serviceOrderId(100L)
-                .catalogItemId(12L)
-                .itemType(CatalogItemType.PHYSICAL)
-                .status(ServiceOrderItemStatus.CANCELED)
-                .description("Película descartada")
-                .quantity(BigDecimal.ONE)
-                .unitPrice(BigDecimal.valueOf(50.00))
-                .discountAmount(BigDecimal.ZERO)
-                .totalPrice(BigDecimal.valueOf(50.00))
-                .build();
-
-        List<ServiceOrderItemEntity> allItems = List.of(serviceItem, physicalItem, canceledItem);
         List<ServiceOrderItemEntity> activeItems = List.of(serviceItem, physicalItem);
 
+        sampleServiceOrder.setTechnicalReport("Bateria substituída e testada");
+
         ServiceOrderCompleteRequest completeRequest = ServiceOrderCompleteRequest.builder()
-                .technicalReport("Bateria substituída e testada")
                 .orderNotes("Pedido referente à OS #1")
                 .build();
 
@@ -317,14 +307,14 @@ class ServiceOrderServiceTest {
                 .build();
 
         when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
-        when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(allItems);
-        when(orderService.openOrderFromServiceOrder(sampleServiceOrder, activeItems, "Pedido referente à OS #1", null))
+        when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(activeItems);
+        when(orderService.openOrder(any(OrderCreateRequest.class), eq(companyId)))
                 .thenReturn(openedOrder);
         when(serviceOrderRepository.save(any(ServiceOrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
-                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).name("Cliente Teste").build()));
-        when(collaboratorRepository.findByIdAndCompanyId(technicianId, companyId))
-                .thenReturn(Optional.of(CollaboratorEntity.builder().id(technicianId).name("Técnico João").build()));
+        when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId))
+                .thenReturn(Optional.of("Cliente Teste"));
+        when(collaboratorRepository.findNameByIdAndCompanyId(technicianId, companyId))
+                .thenReturn(Optional.of("Técnico João"));
 
         ServiceOrderResponse response = serviceOrderService.complete(100L, completeRequest, companyId);
 
@@ -332,12 +322,15 @@ class ServiceOrderServiceTest {
         assertEquals(ServiceOrderStatus.COMPLETED, response.getStatus());
         assertNotNull(response.getCompletedAt());
         assertEquals(500L, response.getOrderId());
-        assertNotNull(response.getOrder());
-        assertEquals(500L, response.getOrder().getId());
         assertEquals(BigDecimal.valueOf(380.00), response.getTotalAmount());
         assertEquals("Bateria substituída e testada", response.getTechnicalReport());
         verify(serviceOrderItemService).completeItems(activeItems);
-        verify(orderService).openOrderFromServiceOrder(sampleServiceOrder, activeItems, "Pedido referente à OS #1", null);
+
+        ArgumentCaptor<OrderCreateRequest> orderRequestCaptor = ArgumentCaptor.forClass(OrderCreateRequest.class);
+        verify(orderService).openOrder(orderRequestCaptor.capture(), eq(companyId));
+        assertEquals(partnerId, orderRequestCaptor.getValue().partnerId());
+        assertEquals("Pedido referente à OS #1", orderRequestCaptor.getValue().notes());
+        assertEquals(2, orderRequestCaptor.getValue().items().size());
     }
 
     @Test
@@ -362,7 +355,6 @@ class ServiceOrderServiceTest {
 
         ServiceOrderSummaryResponse summary = ServiceOrderSummaryResponse.builder()
                 .id(100L)
-                .orderNumber(1)
                 .objectTitle("Notebook Dell Inspiron")
                 .status(ServiceOrderStatus.TRIAGE)
                 .build();

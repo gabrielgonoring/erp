@@ -1,9 +1,7 @@
 package company.aura.erp.controller;
 
-import company.aura.erp.dto.order.OrderResponse;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.enums.CatalogItemType;
-import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.ServiceOrderItemStatus;
 import company.aura.erp.enums.ServiceOrderStatus;
 import company.aura.erp.security.UserPrincipal;
@@ -64,7 +62,6 @@ class ServiceOrderControllerTest {
 
         ServiceOrderSummaryResponse summary = ServiceOrderSummaryResponse.builder()
                 .id(1L)
-                .orderNumber(101)
                 .partnerId(5L)
                 .customerDocument("12345678901")
                 .customerName("Cliente Teste")
@@ -152,6 +149,9 @@ class ServiceOrderControllerTest {
     @DisplayName("PUT /api/service-orders/{id} — Deve atualizar OS e retornar HTTP 200")
     void shouldUpdateServiceOrder() {
         ServiceOrderUpdateRequest request = ServiceOrderUpdateRequest.builder()
+                .partnerId(5L)
+                .objectTitle("Notebook Dell")
+                .reportedIssue("Não liga")
                 .status(ServiceOrderStatus.IN_PROGRESS)
                 .technicalReport("Placa mãe com defeito")
                 .build();
@@ -210,6 +210,7 @@ class ServiceOrderControllerTest {
     @DisplayName("PUT /api/service-orders/{id}/items/{itemId} — Deve atualizar item da OS e retornar HTTP 200")
     void shouldUpdateItemInServiceOrder() {
         ServiceOrderItemUpdateRequest request = ServiceOrderItemUpdateRequest.builder()
+                .catalogItemId(2L)
                 .status(ServiceOrderItemStatus.IN_PROGRESS)
                 .quantity(BigDecimal.valueOf(2))
                 .discountAmount(BigDecimal.TEN)
@@ -265,15 +266,7 @@ class ServiceOrderControllerTest {
     @DisplayName("POST /api/service-orders/{id}/complete — Deve finalizar OS e abrir pedido")
     void shouldCompleteServiceOrder() {
         ServiceOrderCompleteRequest request = ServiceOrderCompleteRequest.builder()
-                .technicalReport("Serviço concluído")
-                .build();
-
-        OrderResponse openedOrder = OrderResponse.builder()
-                .id(55L)
-                .companyId(10L)
-                .partnerId(5L)
-                .status(OrderStatus.OPEN)
-                .totalAmount(BigDecimal.valueOf(300.00))
+                .orderNotes("Pedido referente à OS #1")
                 .build();
 
         ServiceOrderResponse responseDto = ServiceOrderResponse.builder()
@@ -282,7 +275,6 @@ class ServiceOrderControllerTest {
                 .orderId(55L)
                 .status(ServiceOrderStatus.COMPLETED)
                 .technicalReport("Serviço concluído")
-                .order(openedOrder)
                 .build();
 
         when(serviceOrderService.complete(1L, request, 10L)).thenReturn(responseDto);
