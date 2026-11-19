@@ -1030,4 +1030,63 @@ class OrderServiceTest {
         assertEquals(summary, result.getContent().get(0));
         verify(orderPaymentService).listInstallments("Cliente", startDate, endDate, statuses, companyId, pageable);
     }
+
+    @Test
+    @DisplayName("openOrderFromServiceOrder - Deve abrir pedido usando dados e itens da OS")
+    void shouldOpenOrderFromServiceOrder() {
+        ServiceOrderEntity serviceOrder = ServiceOrderEntity.builder()
+                .id(77L)
+                .companyId(companyId)
+                .orderNumber(12)
+                .partnerId(partnerId)
+                .objectTitle("Notebook Dell")
+                .objectIdentifier("SN123")
+                .technicalReport("Troca de SSD")
+                .build();
+
+        ServiceOrderItemEntity soItem = ServiceOrderItemEntity.builder()
+                .id(1L)
+                .serviceOrderId(77L)
+                .itemType(CatalogItemType.SERVICE)
+                .description("Instalação de SSD")
+                .quantity(BigDecimal.ONE)
+                .unitPrice(BigDecimal.valueOf(120.00))
+                .discountAmount(BigDecimal.valueOf(20.00))
+                .totalPrice(BigDecimal.valueOf(100.00))
+                .build();
+
+        OrderItemEntity orderItem = OrderItemEntity.builder()
+                .id(10L)
+                .orderId(100L)
+                .itemType(CatalogItemType.SERVICE)
+                .description("Instalação de SSD")
+                .quantity(BigDecimal.ONE)
+                .unitPrice(BigDecimal.valueOf(120.00))
+                .discountAmount(BigDecimal.valueOf(20.00))
+                .totalPrice(BigDecimal.valueOf(100.00))
+                .build();
+
+        when(partnerRepository.findByIdAndCompanyId(partnerId, companyId))
+                .thenReturn(Optional.of(PartnerEntity.builder().id(partnerId).companyId(companyId).name("Cliente OS").build()));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> {
+            OrderEntity order = inv.getArgument(0);
+            if (order.getId() == null) {
+                order.setId(100L);
+            }
+            return order;
+        });
+        when(orderItemService.saveItemsFromServiceOrder(eq(List.of(soItem)), any(OrderEntity.class)))
+                .thenReturn(List.of(orderItem));
+
+        OrderResponse response = orderService.openOrderFromServiceOrder(serviceOrder, List.of(soItem), null, null);
+
+        assertNotNull(response);
+        assertEquals(100L, response.getId());
+        assertEquals(OrderStatus.OPEN, response.getStatus());
+        assertEquals("Cliente OS", response.getCustomerName());
+        assertEquals(BigDecimal.valueOf(100.00), response.getServicesAmount());
+        assertEquals(BigDecimal.valueOf(20.00), response.getDiscountAmount());
+        assertEquals(BigDecimal.valueOf(100.00), response.getTotalAmount());
+        assertTrue(response.getNotes().contains("Ordem de Serviço #12"));
+    }
 }

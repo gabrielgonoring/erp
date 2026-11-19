@@ -14,21 +14,14 @@ import java.util.Optional;
 @Repository
 public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
 
-    List<PartnerEntity> findByCompanyId(Long companyId);
-
     Optional<PartnerEntity> findByIdAndCompanyId(Long id, Long companyId);
+
+    @Query("SELECT p.name FROM PartnerEntity p WHERE p.id = :id AND p.companyId = :companyId")
+    Optional<String> findNameByIdAndCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
 
     boolean existsByIdAndCompanyId(Long id, Long companyId);
 
-    Optional<PartnerEntity> findByIdAndCompanyIdAndDeletedAtIsNull(Long id, Long companyId);
-
     Optional<PartnerEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, String status);
-
-    List<PartnerEntity> findByCompanyIdAndIsCustomerTrue(Long companyId);
-
-    List<PartnerEntity> findByCompanyIdAndIsSupplierTrue(Long companyId);
-
-    List<PartnerEntity> findByCompanyIdAndIsCarrierTrue(Long companyId);
 
     @Query("SELECT p FROM PartnerEntity p WHERE p.companyId = :companyId AND (p.status IS NULL OR p.status <> 'DELETED') AND p.deletedAt IS NULL AND " +
            "(:isCustomer IS NULL OR COALESCE(p.isCustomer, false) = :isCustomer) AND " +
@@ -47,12 +40,4 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
             @Param("isCarrier") Boolean isCarrier,
             Pageable pageable
     );
-
-    default Page<PartnerEntity> searchByCompanyIdAndTerm(
-            Long companyId,
-            String search,
-            Pageable pageable
-    ) {
-        return searchByCompanyIdAndTerm(companyId, search, null, null, null, pageable);
-    }
 }

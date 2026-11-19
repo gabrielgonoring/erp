@@ -16,6 +16,9 @@ public interface CollaboratorRepository extends JpaRepository<CollaboratorEntity
 
     Optional<CollaboratorEntity> findByIdAndCompanyId(Long id, Long companyId);
 
+    @Query("SELECT c.name FROM CollaboratorEntity c WHERE c.id = :id AND c.companyId = :companyId")
+    Optional<String> findNameByIdAndCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
+
     Optional<CollaboratorEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, String status);
 
     @Query("SELECT c FROM CollaboratorEntity c WHERE c.companyId = :companyId " +

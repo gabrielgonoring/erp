@@ -87,25 +87,35 @@ public class OrderShippingService {
             return null;
         }
 
-        OrderShippingRequest shippingReq = request.shipping();
+        return saveInitialShipping(request.shipping(), savedOrder);
+    }
 
-        int freightMode = (shippingReq != null && shippingReq.freightMode() != null) ? shippingReq.freightMode() : 9;
+    public OrderShippingEntity saveInitialShipping(OrderShippingRequest shippingReq, OrderEntity savedOrder) {
+        Long orderId = savedOrder != null ? savedOrder.getId() : null;
+        log.info("saveInitialShipping() - START - orderId={}", orderId);
+
+        if (shippingReq == null) {
+            log.info("saveInitialShipping() - END - orderId={}, shippingProvided=false", orderId);
+            return null;
+        }
+
+        int freightMode = shippingReq.freightMode() != null ? shippingReq.freightMode() : 9;
 
         OrderShippingEntity shippingEntity = OrderShippingEntity.builder()
                 .orderId(savedOrder.getId())
-                .carrierId(shippingReq != null ? shippingReq.carrierId() : null)
+                .carrierId(shippingReq.carrierId())
                 .freightMode(freightMode)
-                .vehiclePlate(shippingReq != null ? shippingReq.vehiclePlate() : null)
-                .vehicleState(shippingReq != null ? shippingReq.vehicleState() : null)
-                .rntrcCode(shippingReq != null ? shippingReq.rntrcCode() : null)
-                .packageQuantity(shippingReq != null && shippingReq.packageQuantity() != null ? shippingReq.packageQuantity() : 1)
-                .packageSpecies(shippingReq != null && shippingReq.packageSpecies() != null ? shippingReq.packageSpecies() : "CAIXA")
-                .packageBrand(shippingReq != null ? shippingReq.packageBrand() : null)
-                .packageNumbering(shippingReq != null ? shippingReq.packageNumbering() : null)
-                .grossWeightKg(shippingReq != null && shippingReq.grossWeightKg() != null ? shippingReq.grossWeightKg() : BigDecimal.ZERO)
-                .netWeightKg(shippingReq != null && shippingReq.netWeightKg() != null ? shippingReq.netWeightKg() : BigDecimal.ZERO)
-                .trackingCode(shippingReq != null ? shippingReq.trackingCode() : null)
-                .shippingNotes(shippingReq != null ? shippingReq.shippingNotes() : null)
+                .vehiclePlate(shippingReq.vehiclePlate())
+                .vehicleState(shippingReq.vehicleState())
+                .rntrcCode(shippingReq.rntrcCode())
+                .packageQuantity(shippingReq.packageQuantity() != null ? shippingReq.packageQuantity() : 1)
+                .packageSpecies(shippingReq.packageSpecies() != null ? shippingReq.packageSpecies() : "CAIXA")
+                .packageBrand(shippingReq.packageBrand())
+                .packageNumbering(shippingReq.packageNumbering())
+                .grossWeightKg(shippingReq.grossWeightKg() != null ? shippingReq.grossWeightKg() : BigDecimal.ZERO)
+                .netWeightKg(shippingReq.netWeightKg() != null ? shippingReq.netWeightKg() : BigDecimal.ZERO)
+                .trackingCode(shippingReq.trackingCode())
+                .shippingNotes(shippingReq.shippingNotes())
                 .build();
 
         OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);

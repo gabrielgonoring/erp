@@ -12,6 +12,8 @@ public record OrderItemCreateRequest(
         @Size(max = 255, message = "A descrição deve ter no máximo 255 caracteres.")
         String description,
 
+        BigDecimal unitPrice,
+
         @NotNull(message = "A quantidade é obrigatória.")
         @DecimalMin(value = "0.0001", message = "A quantidade deve ser maior que zero.")
         BigDecimal quantity,

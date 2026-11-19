@@ -6,6 +6,7 @@ import company.aura.erp.dto.order.OrderItemUpdateRequest;
 import company.aura.erp.entity.CatalogItemEntity;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderItemEntity;
+import company.aura.erp.entity.ServiceOrderItemEntity;
 import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.CollaboratorStatus;
 import company.aura.erp.repository.CatalogItemRepository;
@@ -39,6 +40,47 @@ public class OrderItemService {
                 .toList();
 
         log.info("saveInitialItems() - END - orderId={}, savedCount={}",
+                savedOrder != null ? savedOrder.getId() : null, items.size());
+        return items;
+    }
+
+    public List<OrderItemEntity> saveItemsFromServiceOrder(List<ServiceOrderItemEntity> serviceOrderItems, OrderEntity savedOrder) {
+        log.info("saveItemsFromServiceOrder() - START - orderId={}, totalItems={}",
+                savedOrder != null ? savedOrder.getId() : null,
+                serviceOrderItems != null ? serviceOrderItems.size() : 0);
+
+        if (serviceOrderItems == null || serviceOrderItems.isEmpty()) {
+            return List.of();
+        }
+
+        List<OrderItemEntity> items = serviceOrderItems.stream()
+                .map(soItem -> {
+                    BigDecimal discount = soItem.getDiscountAmount() != null ? soItem.getDiscountAmount() : BigDecimal.ZERO;
+                    BigDecimal totalPrice = soItem.getTotalPrice();
+                    if (totalPrice == null) {
+                        totalPrice = soItem.getQuantity().multiply(soItem.getUnitPrice()).subtract(discount);
+                        if (totalPrice.compareTo(BigDecimal.ZERO) < 0) {
+                            totalPrice = BigDecimal.ZERO;
+                        }
+                    }
+
+                    OrderItemEntity item = OrderItemEntity.builder()
+                            .orderId(savedOrder.getId())
+                            .catalogItemId(soItem.getCatalogItemId())
+                            .itemType(soItem.getItemType())
+                            .description(soItem.getDescription())
+                            .quantity(soItem.getQuantity())
+                            .unitPrice(soItem.getUnitPrice())
+                            .discountAmount(discount)
+                            .totalPrice(totalPrice)
+                            .professionalId(soItem.getProfessionalId())
+                            .stockDeducted(false)
+                            .build();
+                    return orderItemRepository.save(item);
+                })
+                .toList();
+
+        log.info("saveItemsFromServiceOrder() - END - orderId={}, savedCount={}",
                 savedOrder != null ? savedOrder.getId() : null, items.size());
         return items;
     }
