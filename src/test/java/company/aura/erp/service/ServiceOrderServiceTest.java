@@ -53,7 +53,7 @@ class ServiceOrderServiceTest {
     private ServiceOrderItemService serviceOrderItemService;
 
     @Mock
-    private ServiceOrderTermService serviceOrderTermService;
+    private CompanyTermService companyTermService;
 
     @Mock
     private OrderService orderService;
@@ -145,7 +145,7 @@ class ServiceOrderServiceTest {
         assertEquals(BigDecimal.valueOf(80.00), response.getTotalAmount());
         assertEquals(1, response.getItems().size());
         assertEquals(ServiceOrderItemStatus.PENDING, response.getItems().get(0).getStatus());
-        verify(serviceOrderTermService).validateTermExists(termId, companyId);
+        verify(companyTermService).validateTermExists(termId, companyId);
     }
 
     @Test
@@ -193,7 +193,7 @@ class ServiceOrderServiceTest {
         assertEquals(ServiceOrderStatus.IN_PROGRESS, updated.getStatus());
         assertEquals("Conector DC danificado", updated.getTechnicalReport());
         assertEquals(newTermId, updated.getTermId());
-        verify(serviceOrderTermService).validateTermExists(newTermId, companyId);
+        verify(companyTermService).validateTermExists(newTermId, companyId);
 
         ServiceOrderUpdateRequest invalidRequest = ServiceOrderUpdateRequest.builder()
                 .status(ServiceOrderStatus.COMPLETED)

@@ -1,6 +1,6 @@
 package company.aura.erp.entity;
 
-import company.aura.erp.enums.ServiceOrderTermStatus;
+import company.aura.erp.enums.CompanyTermStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -9,14 +9,14 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "service_order_terms")
+@Table(name = "company_terms")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(of = "id")
-public class ServiceOrderTermEntity {
+public class CompanyTermEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,7 +38,7 @@ public class ServiceOrderTermEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 100)
-    private ServiceOrderTermStatus status = ServiceOrderTermStatus.ACTIVE;
+    private CompanyTermStatus status = CompanyTermStatus.ACTIVE;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -54,7 +54,7 @@ public class ServiceOrderTermEntity {
             this.isDefault = false;
         }
         if (this.status == null) {
-            this.status = ServiceOrderTermStatus.ACTIVE;
+            this.status = CompanyTermStatus.ACTIVE;
         }
     }
 }

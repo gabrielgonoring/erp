@@ -4,7 +4,6 @@ import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.enums.ServiceOrderItemStatus;
 import company.aura.erp.enums.ServiceOrderStatus;
-import company.aura.erp.enums.ServiceOrderTermStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.ServiceOrderService;
 import org.junit.jupiter.api.BeforeEach;
@@ -178,114 +177,6 @@ class ServiceOrderControllerTest {
         assertEquals(responseDto, response.getBody());
         assertEquals(8L, response.getBody().getTermId());
         verify(serviceOrderService).update(1L, request, 10L);
-    }
-
-    @Test
-    @DisplayName("GET /api/service-orders/terms — Deve listar termos paginados")
-    void shouldListServiceOrderTerms() {
-        Pageable pageable = PageRequest.of(0, 20);
-        ServiceOrderTermSummaryResponse summary = ServiceOrderTermSummaryResponse.builder()
-                .id(1L)
-                .title("Termo de Garantia")
-                .status(ServiceOrderTermStatus.ACTIVE)
-                .build();
-        Page<ServiceOrderTermSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
-
-        when(serviceOrderService.listTerms("Garantia", ServiceOrderTermStatus.ACTIVE, 10L, pageable))
-                .thenReturn(page);
-
-        ResponseEntity<Page<ServiceOrderTermSummaryResponse>> response = serviceOrderController.listTerms(
-                "Garantia", ServiceOrderTermStatus.ACTIVE, pageable, userPrincipal
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(page, response.getBody());
-        verify(serviceOrderService).listTerms("Garantia", ServiceOrderTermStatus.ACTIVE, 10L, pageable);
-    }
-
-    @Test
-    @DisplayName("GET /api/service-orders/terms/{id} — Deve retornar termo por ID")
-    void shouldFindServiceOrderTermById() {
-        ServiceOrderTermResponse termResponse = ServiceOrderTermResponse.builder()
-                .id(1L)
-                .companyId(10L)
-                .title("Termo de Garantia")
-                .content("Garantia de 90 dias.")
-                .isDefault(true)
-                .status(ServiceOrderTermStatus.ACTIVE)
-                .build();
-
-        when(serviceOrderService.findTermById(1L, 10L)).thenReturn(termResponse);
-
-        ResponseEntity<ServiceOrderTermResponse> response = serviceOrderController.findTermById(1L, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(termResponse, response.getBody());
-        verify(serviceOrderService).findTermById(1L, 10L);
-    }
-
-    @Test
-    @DisplayName("POST /api/service-orders/terms — Deve criar termo e retornar HTTP 201")
-    void shouldCreateServiceOrderTerm() {
-        ServiceOrderTermCreateRequest request = ServiceOrderTermCreateRequest.builder()
-                .title("Termo de Garantia")
-                .content("Garantia de 90 dias.")
-                .isDefault(true)
-                .build();
-
-        ServiceOrderTermResponse termResponse = ServiceOrderTermResponse.builder()
-                .id(1L)
-                .companyId(10L)
-                .title("Termo de Garantia")
-                .content("Garantia de 90 dias.")
-                .isDefault(true)
-                .status(ServiceOrderTermStatus.ACTIVE)
-                .build();
-
-        when(serviceOrderService.createTerm(request, 10L)).thenReturn(termResponse);
-
-        ResponseEntity<ServiceOrderTermResponse> response = serviceOrderController.createTerm(request, userPrincipal);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(termResponse, response.getBody());
-        verify(serviceOrderService).createTerm(request, 10L);
-    }
-
-    @Test
-    @DisplayName("PUT /api/service-orders/terms/{id} — Deve atualizar termo e retornar HTTP 200")
-    void shouldUpdateServiceOrderTerm() {
-        ServiceOrderTermUpdateRequest request = ServiceOrderTermUpdateRequest.builder()
-                .title("Termo Atualizado")
-                .content("Conteúdo atualizado.")
-                .isDefault(false)
-                .status(ServiceOrderTermStatus.INACTIVE)
-                .build();
-
-        ServiceOrderTermResponse termResponse = ServiceOrderTermResponse.builder()
-                .id(1L)
-                .companyId(10L)
-                .title("Termo Atualizado")
-                .content("Conteúdo atualizado.")
-                .isDefault(false)
-                .status(ServiceOrderTermStatus.INACTIVE)
-                .build();
-
-        when(serviceOrderService.updateTerm(1L, request, 10L)).thenReturn(termResponse);
-
-        ResponseEntity<ServiceOrderTermResponse> response = serviceOrderController.updateTerm(1L, request, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(termResponse, response.getBody());
-        verify(serviceOrderService).updateTerm(1L, request, 10L);
-    }
-
-    @Test
-    @DisplayName("DELETE /api/service-orders/terms/{id} — Deve apagar termo e retornar HTTP 204")
-    void shouldDeleteServiceOrderTerm() {
-        ResponseEntity<Void> response = serviceOrderController.deleteTerm(1L, userPrincipal);
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(serviceOrderService).deleteTerm(1L, 10L);
     }
 
     @Test

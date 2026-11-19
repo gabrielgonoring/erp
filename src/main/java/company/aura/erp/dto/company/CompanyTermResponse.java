@@ -1,6 +1,6 @@
-package company.aura.erp.dto.serviceorder;
+package company.aura.erp.dto.company;
 
-import company.aura.erp.enums.ServiceOrderTermStatus;
+import company.aura.erp.enums.CompanyTermStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,13 +12,13 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ServiceOrderTermResponse {
+public class CompanyTermResponse {
     private Long id;
     private Long companyId;
     private String title;
     private String content;
     private Boolean isDefault;
-    private ServiceOrderTermStatus status;
+    private CompanyTermStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

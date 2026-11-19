@@ -38,7 +38,7 @@ public class ServiceOrderService {
     private final PartnerRepository partnerRepository;
     private final CollaboratorRepository collaboratorRepository;
     private final ServiceOrderItemService serviceOrderItemService;
-    private final ServiceOrderTermService serviceOrderTermService;
+    private final CompanyTermService companyTermService;
     private final ServiceOrderUpdateService serviceOrderUpdateService;
     private final OrderService orderService;
 
@@ -126,7 +126,7 @@ public class ServiceOrderService {
         String technicianName = validateAndResolveTechnicianName(request.getTechnicianId(), companyId);
 
         if (request.getTermId() != null) {
-            serviceOrderTermService.validateTermExists(request.getTermId(), companyId);
+            companyTermService.validateTermExists(request.getTermId(), companyId);
         }
 
         ServiceOrderEntity serviceOrder = ServiceOrderMapper.toEntity(request, companyId);
@@ -159,7 +159,7 @@ public class ServiceOrderService {
         PartnerEntity partnerEntity = findPartner(request.getPartnerId(), companyId);
         String technicianName = validateAndResolveTechnicianName(request.getTechnicianId(), companyId);
         if (request.getTermId() != null) {
-            serviceOrderTermService.validateTermExists(request.getTermId(), companyId);
+            companyTermService.validateTermExists(request.getTermId(), companyId);
         }
 
         serviceOrder.setPartnerId(request.getPartnerId());
@@ -182,36 +182,6 @@ public class ServiceOrderService {
         ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, partnerEntity.getName(), technicianName, items);
         log.info("update() - END - serviceOrderId={}, companyId={}", response.getId(), companyId);
         return response;
-    }
-
-    @Transactional(readOnly = true)
-    public Page<ServiceOrderTermSummaryResponse> listTerms(
-            String search,
-            ServiceOrderTermStatus status,
-            Long companyId,
-            Pageable pageable
-    ) {
-        return serviceOrderTermService.listSummarized(search, status, companyId, pageable);
-    }
-
-    @Transactional(readOnly = true)
-    public ServiceOrderTermResponse findTermById(Long termId, Long companyId) {
-        return serviceOrderTermService.findById(termId, companyId);
-    }
-
-    @Transactional
-    public ServiceOrderTermResponse createTerm(ServiceOrderTermCreateRequest request, Long companyId) {
-        return serviceOrderTermService.create(request, companyId);
-    }
-
-    @Transactional
-    public ServiceOrderTermResponse updateTerm(Long termId, ServiceOrderTermUpdateRequest request, Long companyId) {
-        return serviceOrderTermService.update(termId, request, companyId);
-    }
-
-    @Transactional
-    public void deleteTerm(Long termId, Long companyId) {
-        serviceOrderTermService.delete(termId, companyId);
     }
 
     @Transactional(readOnly = true)

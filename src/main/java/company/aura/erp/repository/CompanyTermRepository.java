@@ -1,8 +1,8 @@
 package company.aura.erp.repository;
 
-import company.aura.erp.dto.serviceorder.ServiceOrderTermSummaryResponse;
-import company.aura.erp.entity.ServiceOrderTermEntity;
-import company.aura.erp.enums.ServiceOrderTermStatus;
+import company.aura.erp.dto.company.CompanyTermSummaryResponse;
+import company.aura.erp.entity.CompanyTermEntity;
+import company.aura.erp.enums.CompanyTermStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,31 +14,31 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ServiceOrderTermRepository extends JpaRepository<ServiceOrderTermEntity, Long> {
+public interface CompanyTermRepository extends JpaRepository<CompanyTermEntity, Long> {
 
-    Optional<ServiceOrderTermEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, ServiceOrderTermStatus status);
+    Optional<CompanyTermEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, CompanyTermStatus status);
 
-    List<ServiceOrderTermEntity> findByCompanyIdAndIsDefaultTrue(Long companyId);
+    List<CompanyTermEntity> findByCompanyIdAndIsDefaultTrue(Long companyId);
 
     @Query(
-            value = "SELECT new company.aura.erp.dto.serviceorder.ServiceOrderTermSummaryResponse(t.id, t.title, t.status, t.isDefault) " +
-                    "FROM ServiceOrderTermEntity t " +
+            value = "SELECT new company.aura.erp.dto.company.CompanyTermSummaryResponse(t.id, t.title, t.status, t.isDefault) " +
+                    "FROM CompanyTermEntity t " +
                     "WHERE t.companyId = :companyId " +
                     "AND t.status <> :deletedStatus " +
                     "AND (:search IS NULL OR :search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%'))) " +
                     "AND (:status IS NULL OR t.status = :status)",
             countQuery = "SELECT count(t) " +
-                    "FROM ServiceOrderTermEntity t " +
+                    "FROM CompanyTermEntity t " +
                     "WHERE t.companyId = :companyId " +
                     "AND t.status <> :deletedStatus " +
                     "AND (:search IS NULL OR :search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', :search, '%'))) " +
                     "AND (:status IS NULL OR t.status = :status)"
     )
-    Page<ServiceOrderTermSummaryResponse> searchSummarized(
+    Page<CompanyTermSummaryResponse> searchSummarized(
             @Param("companyId") Long companyId,
-            @Param("deletedStatus") ServiceOrderTermStatus deletedStatus,
+            @Param("deletedStatus") CompanyTermStatus deletedStatus,
             @Param("search") String search,
-            @Param("status") ServiceOrderTermStatus status,
+            @Param("status") CompanyTermStatus status,
             Pageable pageable
     );
 }

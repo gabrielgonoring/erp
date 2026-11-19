@@ -1,6 +1,5 @@
-package company.aura.erp.dto.serviceorder;
+package company.aura.erp.dto.company;
 
-import company.aura.erp.enums.ServiceOrderTermStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -12,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ServiceOrderTermCreateRequest {
+public class CompanyTermCreateRequest {
 
     @NotBlank(message = "O título do termo é obrigatório.")
     @Size(max = 100, message = "O título do termo deve ter no máximo 100 caracteres.")

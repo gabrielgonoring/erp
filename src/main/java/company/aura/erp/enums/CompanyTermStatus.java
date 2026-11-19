@@ -1,6 +1,6 @@
 package company.aura.erp.enums;
 
-public enum ServiceOrderTermStatus {
+public enum CompanyTermStatus {
     ACTIVE,
     INACTIVE,
     DELETED

@@ -1,17 +1,17 @@
 package company.aura.erp.repository;
 
+import company.aura.erp.dto.company.CompanyTermSummaryResponse;
 import company.aura.erp.dto.serviceorder.ServiceOrderSummaryResponse;
-import company.aura.erp.dto.serviceorder.ServiceOrderTermSummaryResponse;
 import company.aura.erp.entity.CollaboratorEntity;
+import company.aura.erp.entity.CompanyTermEntity;
 import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.entity.ServiceOrderEntity;
 import company.aura.erp.entity.ServiceOrderItemEntity;
-import company.aura.erp.entity.ServiceOrderTermEntity;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.enums.CompanyTermStatus;
 import company.aura.erp.enums.PersonType;
 import company.aura.erp.enums.ServiceOrderItemStatus;
 import company.aura.erp.enums.ServiceOrderStatus;
-import company.aura.erp.enums.ServiceOrderTermStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +42,7 @@ class ServiceOrderRepositoryTest {
     private ServiceOrderItemRepository serviceOrderItemRepository;
 
     @Autowired
-    private ServiceOrderTermRepository serviceOrderTermRepository;
+    private CompanyTermRepository companyTermRepository;
 
     @Autowired
     private PartnerRepository partnerRepository;
@@ -67,12 +67,12 @@ class ServiceOrderRepositoryTest {
                 .status("ACTIVE")
                 .build());
 
-        ServiceOrderTermEntity term = serviceOrderTermRepository.save(ServiceOrderTermEntity.builder()
+        CompanyTermEntity term = companyTermRepository.save(CompanyTermEntity.builder()
                 .companyId(1L)
                 .title("Termo Padrão")
                 .content("Garantia de 90 dias")
                 .isDefault(true)
-                .status(ServiceOrderTermStatus.ACTIVE)
+                .status(CompanyTermStatus.ACTIVE)
                 .build());
 
         ServiceOrderEntity osWithTech = serviceOrderRepository.save(ServiceOrderEntity.builder()
@@ -148,30 +148,30 @@ class ServiceOrderRepositoryTest {
     @Test
     @DisplayName("Deve persistir termos e listar paginado ignorando termos DELETED")
     void shouldPersistAndSearchTermsExcludingDeleted() {
-        serviceOrderTermRepository.save(ServiceOrderTermEntity.builder()
+        companyTermRepository.save(CompanyTermEntity.builder()
                 .companyId(1L)
                 .title("Termo Ativo")
                 .content("Conteúdo ativo")
                 .isDefault(true)
-                .status(ServiceOrderTermStatus.ACTIVE)
+                .status(CompanyTermStatus.ACTIVE)
                 .build());
 
-        serviceOrderTermRepository.save(ServiceOrderTermEntity.builder()
+        companyTermRepository.save(CompanyTermEntity.builder()
                 .companyId(1L)
                 .title("Termo Excluído")
                 .content("Conteúdo excluído")
                 .isDefault(false)
-                .status(ServiceOrderTermStatus.DELETED)
+                .status(CompanyTermStatus.DELETED)
                 .build());
 
         PageRequest pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        Page<ServiceOrderTermSummaryResponse> page = serviceOrderTermRepository.searchSummarized(
-                1L, ServiceOrderTermStatus.DELETED, null, null, pageable
+        Page<CompanyTermSummaryResponse> page = companyTermRepository.searchSummarized(
+                1L, CompanyTermStatus.DELETED, null, null, pageable
         );
 
         assertEquals(1, page.getTotalElements());
         assertEquals("Termo Ativo", page.getContent().get(0).getTitle());
-        assertEquals(ServiceOrderTermStatus.ACTIVE, page.getContent().get(0).getStatus());
+        assertEquals(CompanyTermStatus.ACTIVE, page.getContent().get(0).getStatus());
     }
 }
