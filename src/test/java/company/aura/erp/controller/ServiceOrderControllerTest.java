@@ -1,7 +1,10 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.enums.ReceivableOriginType;
+import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.enums.ServiceOrderItemStatus;
 import company.aura.erp.enums.ServiceOrderStatus;
 import company.aura.erp.security.UserPrincipal;
@@ -92,6 +95,12 @@ class ServiceOrderControllerTest {
     @Test
     @DisplayName("GET /api/service-orders/{id} — Deve retornar OS por ID")
     void shouldFindServiceOrderById() {
+        ReceivableResponse receivable = ReceivableResponse.builder()
+                .id(1L)
+                .serviceOrderId(1L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PENDING)
+                .build();
         ServiceOrderResponse responseDto = ServiceOrderResponse.builder()
                 .id(1L)
                 .companyId(10L)
@@ -103,6 +112,7 @@ class ServiceOrderControllerTest {
                 .objectTitle("Notebook Dell")
                 .reportedIssue("Não liga")
                 .items(Collections.emptyList())
+                .receivables(List.of(receivable))
                 .build();
 
         when(serviceOrderService.findById(1L, 10L)).thenReturn(responseDto);
@@ -111,6 +121,7 @@ class ServiceOrderControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
+        assertEquals(1, response.getBody().getReceivables().size());
         verify(serviceOrderService).findById(1L, 10L);
     }
 
@@ -161,12 +172,19 @@ class ServiceOrderControllerTest {
                 .technicalReport("Placa mãe com defeito")
                 .build();
 
+        ReceivableResponse receivable = ReceivableResponse.builder()
+                .id(2L)
+                .serviceOrderId(1L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PAID)
+                .build();
         ServiceOrderResponse responseDto = ServiceOrderResponse.builder()
                 .id(1L)
                 .companyId(10L)
                 .termId(8L)
                 .status(ServiceOrderStatus.IN_PROGRESS)
                 .technicalReport("Placa mãe com defeito")
+                .receivables(List.of(receivable))
                 .build();
 
         when(serviceOrderService.update(1L, request, 10L)).thenReturn(responseDto);
@@ -176,6 +194,7 @@ class ServiceOrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         assertEquals(8L, response.getBody().getTermId());
+        assertEquals(1, response.getBody().getReceivables().size());
         verify(serviceOrderService).update(1L, request, 10L);
     }
 

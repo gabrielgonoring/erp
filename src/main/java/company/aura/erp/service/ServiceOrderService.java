@@ -3,6 +3,7 @@ package company.aura.erp.service;
 import company.aura.erp.dto.order.OrderCreateRequest;
 import company.aura.erp.dto.order.OrderItemCreateRequest;
 import company.aura.erp.dto.order.OrderResponse;
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.entity.CollaboratorEntity;
 import company.aura.erp.entity.PartnerEntity;
@@ -41,6 +42,7 @@ public class ServiceOrderService {
     private final CompanyTermService companyTermService;
     private final ServiceOrderUpdateService serviceOrderUpdateService;
     private final OrderService orderService;
+    private final ReceivedService receivedService;
 
     @Transactional(readOnly = true)
     public Page<ServiceOrderSummaryResponse> listSummarized(
@@ -111,8 +113,9 @@ public class ServiceOrderService {
         String customerName = resolvePartnerName(serviceOrder.getPartnerId(), companyId);
         String technicianName = resolveTechnicianName(serviceOrder.getTechnicianId(), companyId);
         List<ServiceOrderItemEntity> items = serviceOrderItemService.findServiceOrderItems(serviceOrder.getId());
+        List<ReceivableResponse> receivables = receivedService.findReceivableResponsesByServiceOrderId(serviceOrder.getId());
 
-        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(serviceOrder, customerName, technicianName, items);
+        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(serviceOrder, customerName, technicianName, items, receivables);
         log.info("findById() - END - serviceOrderId={}, companyId={}", response.getId(), companyId);
         return response;
     }
@@ -178,8 +181,9 @@ public class ServiceOrderService {
         ServiceOrderEntity saved = serviceOrderRepository.save(serviceOrder);
 
         List<ServiceOrderItemEntity> items = serviceOrderItemService.findServiceOrderItems(saved.getId());
+        List<ReceivableResponse> receivables = receivedService.findReceivableResponsesByServiceOrderId(saved.getId());
 
-        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, partnerEntity.getName(), technicianName, items);
+        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, partnerEntity.getName(), technicianName, items, receivables);
         log.info("update() - END - serviceOrderId={}, companyId={}", response.getId(), companyId);
         return response;
     }

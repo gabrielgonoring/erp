@@ -2,6 +2,7 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.order.OrderCreateRequest;
 import company.aura.erp.dto.order.OrderResponse;
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.dto.serviceorder.*;
 import company.aura.erp.entity.CollaboratorEntity;
 import company.aura.erp.entity.PartnerEntity;
@@ -57,6 +58,9 @@ class ServiceOrderServiceTest {
 
     @Mock
     private OrderService orderService;
+
+    @Mock
+    private ReceivedService receivedService;
 
     @InjectMocks
     private ServiceOrderService serviceOrderService;
@@ -151,12 +155,20 @@ class ServiceOrderServiceTest {
     @Test
     @DisplayName("Deve buscar OS por ID retornando cliente, técnico e itens")
     void shouldFindServiceOrderById() {
+        ReceivableResponse receivable = ReceivableResponse.builder()
+                .id(1L)
+                .serviceOrderId(100L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PENDING)
+                .build();
+
         when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
         when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId))
                 .thenReturn(Optional.of("Cliente Teste"));
         when(collaboratorRepository.findNameByIdAndCompanyId(technicianId, companyId))
                 .thenReturn(Optional.of("Técnico João"));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(Collections.emptyList());
+        when(receivedService.findReceivableResponsesByServiceOrderId(100L)).thenReturn(List.of(receivable));
 
         ServiceOrderResponse response = serviceOrderService.findById(100L, companyId);
 
@@ -165,6 +177,7 @@ class ServiceOrderServiceTest {
         assertEquals(termId, response.getTermId());
         assertEquals("Cliente Teste", response.getCustomerName());
         assertEquals("Técnico João", response.getTechnicianName());
+        assertEquals(List.of(receivable), response.getReceivables());
     }
 
     @Test
@@ -188,11 +201,19 @@ class ServiceOrderServiceTest {
         when(collaboratorRepository.findByIdAndCompanyIdAndStatusNot(technicianId, companyId, CollaboratorStatus.DELETED.name()))
                 .thenReturn(Optional.of(CollaboratorEntity.builder().id(technicianId).name("Técnico João").build()));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(Collections.emptyList());
+        ReceivableResponse receivable = ReceivableResponse.builder()
+                .id(2L)
+                .serviceOrderId(100L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PAID)
+                .build();
+        when(receivedService.findReceivableResponsesByServiceOrderId(100L)).thenReturn(List.of(receivable));
 
         ServiceOrderResponse updated = serviceOrderService.update(100L, validRequest, companyId);
         assertEquals(ServiceOrderStatus.IN_PROGRESS, updated.getStatus());
         assertEquals("Conector DC danificado", updated.getTechnicalReport());
         assertEquals(newTermId, updated.getTermId());
+        assertEquals(List.of(receivable), updated.getReceivables());
         verify(companyTermService).validateTermExists(newTermId, companyId);
 
         ServiceOrderUpdateRequest invalidRequest = ServiceOrderUpdateRequest.builder()

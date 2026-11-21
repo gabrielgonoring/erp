@@ -1,5 +1,6 @@
 package company.aura.erp.dto.serviceorder;
 
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.enums.ServiceOrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,4 +42,5 @@ public class ServiceOrderResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<ServiceOrderItemResponse> items;
+    private List<ReceivableResponse> receivables;
 }

@@ -123,7 +123,7 @@ class ReceivableControllerTest {
         ResponseEntity<Void> response = receivableController.cancelReceivable(1L, userPrincipal);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(receivedService).cancelReceivable(1L, 10L);
+        verify(receivedService).cancelReceivable(10L, 1L);
     }
 
     @Test
@@ -169,17 +169,17 @@ class ReceivableControllerTest {
     void shouldListReceivablesWithoutFilters() {
         Pageable pageable = PageRequest.of(0, 20);
         ReceivableSummaryResponse summary = new ReceivableSummaryResponse(
-                1L, 100L, null, ReceivableOriginType.ORDER, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), ReceivableStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
+                1L, 100L, null, ReceivableOriginType.ORDER, 5L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), ReceivableStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
         );
         Page<ReceivableSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 
-        when(receivedService.listReceivables(null, null, null, null, 10L, pageable)).thenReturn(page);
+        when(receivedService.listReceivables(null, null, null, null, null, 10L, pageable)).thenReturn(page);
 
-        ResponseEntity<Page<ReceivableSummaryResponse>> response = receivableController.listReceivables(null, null, null, null, pageable, userPrincipal);
+        ResponseEntity<Page<ReceivableSummaryResponse>> response = receivableController.listReceivables(null, null, null, null, null, pageable, userPrincipal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(page, response.getBody());
-        verify(receivedService).listReceivables(null, null, null, null, 10L, pageable);
+        verify(receivedService).listReceivables(null, null, null, null, null, 10L, pageable);
     }
 
     @Test
@@ -189,19 +189,20 @@ class ReceivableControllerTest {
         LocalDate startDate = LocalDate.of(2026, 11, 1);
         LocalDate endDate = LocalDate.of(2026, 11, 30);
         List<ReceivableStatus> statuses = List.of(ReceivableStatus.PENDING);
+        List<PaymentMethod> paymentMethods = List.of(PaymentMethod.PIX);
 
         ReceivableSummaryResponse summary = new ReceivableSummaryResponse(
-                1L, 100L, null, ReceivableOriginType.ORDER, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), ReceivableStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
+                1L, 100L, null, ReceivableOriginType.ORDER, 5L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), ReceivableStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
         );
         Page<ReceivableSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
 
-        when(receivedService.listReceivables("Cliente", startDate, endDate, statuses, 10L, pageable)).thenReturn(page);
+        when(receivedService.listReceivables("Cliente", startDate, endDate, statuses, paymentMethods, 10L, pageable)).thenReturn(page);
 
-        ResponseEntity<Page<ReceivableSummaryResponse>> response = receivableController.listReceivables("Cliente", startDate, endDate, statuses, pageable, userPrincipal);
+        ResponseEntity<Page<ReceivableSummaryResponse>> response = receivableController.listReceivables("Cliente", startDate, endDate, statuses, paymentMethods, pageable, userPrincipal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(page, response.getBody());
-        verify(receivedService).listReceivables("Cliente", startDate, endDate, statuses, 10L, pageable);
+        verify(receivedService).listReceivables("Cliente", startDate, endDate, statuses, paymentMethods, 10L, pageable);
     }
 
     @Test

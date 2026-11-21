@@ -47,12 +47,19 @@ public class ReceivedService {
         log.info("findReceivableResponses() - START - orderId={}", orderId);
         List<ReceivableEntity> receivables = receivableRepository.findByOrderId(orderId);
         List<ReceivableResponse> responses = receivables.stream()
-                .map(receivable -> {
-                    List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByReceivableId(receivable.getId());
-                    return ReceivableMapper.fromEntity(receivable, transactions);
-                })
+                .map(receivable -> ReceivableMapper.fromEntity(receivable, null))
                 .toList();
         log.info("findReceivableResponses() - END - orderId={}, totalResponses={}", orderId, responses.size());
+        return responses;
+    }
+
+    public List<ReceivableResponse> findReceivableResponsesByServiceOrderId(Long serviceOrderId) {
+        log.info("findReceivableResponsesByServiceOrderId() - START - serviceOrderId={}", serviceOrderId);
+        List<ReceivableEntity> receivables = receivableRepository.findByServiceOrderId(serviceOrderId);
+        List<ReceivableResponse> responses = receivables.stream()
+                .map(receivable -> ReceivableMapper.fromEntity(receivable, null))
+                .toList();
+        log.info("findReceivableResponsesByServiceOrderId() - END - serviceOrderId={}, totalResponses={}", serviceOrderId, responses.size());
         return responses;
     }
 

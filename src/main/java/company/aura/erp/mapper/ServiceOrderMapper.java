@@ -1,5 +1,6 @@
 package company.aura.erp.mapper;
 
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.dto.serviceorder.ServiceOrderCreateRequest;
 import company.aura.erp.dto.serviceorder.ServiceOrderItemResponse;
 import company.aura.erp.dto.serviceorder.ServiceOrderResponse;
@@ -57,6 +58,16 @@ public class ServiceOrderMapper {
             String technicianName,
             List<ServiceOrderItemEntity> items
     ) {
+        return fromEntity(serviceOrder, customerName, technicianName, items, Collections.emptyList());
+    }
+
+    public static ServiceOrderResponse fromEntity(
+            ServiceOrderEntity serviceOrder,
+            String customerName,
+            String technicianName,
+            List<ServiceOrderItemEntity> items,
+            List<ReceivableResponse> receivables
+    ) {
         if (serviceOrder == null) {
             return null;
         }
@@ -91,6 +102,7 @@ public class ServiceOrderMapper {
                 .createdAt(serviceOrder.getCreatedAt())
                 .updatedAt(serviceOrder.getUpdatedAt())
                 .items(itemResponses)
+                .receivables(receivables != null ? receivables : Collections.emptyList())
                 .build();
     }
 

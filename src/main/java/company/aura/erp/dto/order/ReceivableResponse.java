@@ -39,49 +39,4 @@ public class ReceivableResponse {
     private BigDecimal remainingAmount;
     private BigDecimal pendingAmount;
     private List<PaymentTransactionResponse> transactions;
-
-    public ReceivableResponse(
-            Long id,
-            Long orderId,
-            Long companyId,
-            Long partnerId,
-            Integer installmentNumber,
-            LocalDate dueDate,
-            BigDecimal amount,
-            PaymentMethod paymentMethod,
-            ReceivableStatus status,
-            String bankSlipCode,
-            String paymentFileUrl,
-            String paymentUrl,
-            String notes,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt,
-            BigDecimal paidAmount,
-            BigDecimal remainingAmount,
-            List<PaymentTransactionResponse> transactions
-    ) {
-        this(
-                id,
-                orderId,
-                null,
-                null,
-                companyId,
-                partnerId,
-                installmentNumber,
-                dueDate,
-                amount,
-                paymentMethod,
-                status,
-                bankSlipCode,
-                paymentFileUrl,
-                paymentUrl,
-                notes,
-                createdAt,
-                updatedAt,
-                paidAmount,
-                remainingAmount,
-                remainingAmount,
-                transactions
-        );
-    }
 }

@@ -150,6 +150,48 @@ class ReceivedServiceTest {
     }
 
     @Test
+    @DisplayName("findReceivableResponsesByServiceOrderId — Deve retornar recebíveis da ordem de serviço com suas transações")
+    void shouldFindReceivableResponsesByServiceOrderIdWithTransactions() {
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(2L)
+                .serviceOrderId(200L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .companyId(COMPANY_ID)
+                .partnerId(5L)
+                .installmentNumber(1)
+                .dueDate(LocalDate.now())
+                .amount(BigDecimal.valueOf(120.00))
+                .pendingAmount(BigDecimal.valueOf(20.00))
+                .paymentMethod(PaymentMethod.PIX)
+                .status(ReceivableStatus.PARTIALLY_PAID)
+                .build();
+
+        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
+                .id(11L)
+                .receivableId(2L)
+                .companyId(COMPANY_ID)
+                .transactionType(PaymentTransactionType.PAYMENT)
+                .amountPaid(BigDecimal.valueOf(100.00))
+                .paymentMethod(PaymentMethod.PIX)
+                .paidAt(LocalDateTime.now())
+                .build();
+
+        when(receivableRepository.findByServiceOrderId(200L)).thenReturn(List.of(receivable));
+        when(paymentTransactionRepository.findByReceivableId(2L)).thenReturn(List.of(tx));
+
+        List<ReceivableResponse> responses = receivedService.findReceivableResponsesByServiceOrderId(200L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        ReceivableResponse resp = responses.get(0);
+        assertEquals(200L, resp.getServiceOrderId());
+        assertEquals(ReceivableOriginType.SERVICE_ORDER, resp.getOriginType());
+        assertEquals(BigDecimal.valueOf(100.00), resp.getPaidAmount());
+        assertEquals(BigDecimal.valueOf(20.00), resp.getRemainingAmount());
+        assertEquals(1, resp.getTransactions().size());
+    }
+
+    @Test
     @DisplayName("payReceivable — Deve registrar pagamento parcial e marcar status PARTIALLY_PAID")
     void shouldPayReceivablePartially() {
         ReceivableEntity receivable = ReceivableEntity.builder()
@@ -590,23 +632,23 @@ class ReceivedServiceTest {
     void shouldListReceivablesSuccessfully() {
         Pageable pageable = PageRequest.of(0, 20);
         ReceivableSummaryResponse summary = new ReceivableSummaryResponse(
-                1L, 100L, null, ReceivableOriginType.ORDER, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), ReceivableStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
+                1L, 100L, null, ReceivableOriginType.ORDER, 5L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), ReceivableStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
         );
         Page<ReceivableSummaryResponse> expectedPage = new PageImpl<>(List.of(summary), pageable, 1);
 
         when(receivableRepository.searchSummarized(
-                eq(COMPANY_ID), isNull(), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), eq(pageable)
+                eq(COMPANY_ID), isNull(), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), eq(false), isNull(), eq(pageable)
         )).thenReturn(expectedPage);
 
         Page<ReceivableSummaryResponse> result = receivedService.listReceivables(
-                null, null, null, null, COMPANY_ID, pageable
+                null, null, null, null, null, COMPANY_ID, pageable
         );
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
         assertEquals(summary, result.getContent().get(0));
         verify(receivableRepository).searchSummarized(
-                eq(COMPANY_ID), isNull(), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), eq(pageable)
+                eq(COMPANY_ID), isNull(), eq(false), eq(false), eq(false), isNull(), isNull(), eq(false), anyList(), eq(false), isNull(), eq(pageable)
         );
     }
 
@@ -617,25 +659,26 @@ class ReceivedServiceTest {
         LocalDate startDate = LocalDate.of(2026, 11, 1);
         LocalDate endDate = LocalDate.of(2026, 11, 30);
         List<ReceivableStatus> statuses = List.of(ReceivableStatus.PENDING, ReceivableStatus.PARTIALLY_PAID);
+        List<PaymentMethod> paymentMethods = List.of(PaymentMethod.PIX);
 
         ReceivableSummaryResponse summary = new ReceivableSummaryResponse(
-                1L, 100L, null, ReceivableOriginType.ORDER, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), ReceivableStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
+                1L, 100L, null, ReceivableOriginType.ORDER, 5L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), ReceivableStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
         );
         Page<ReceivableSummaryResponse> expectedPage = new PageImpl<>(List.of(summary), pageable, 1);
 
         when(receivableRepository.searchSummarized(
-                eq(COMPANY_ID), eq("Cliente"), eq(true), eq(false), eq(false), eq(startDate), eq(endDate), eq(true), eq(statuses), eq(pageable)
+                eq(COMPANY_ID), eq("Cliente"), eq(true), eq(false), eq(false), eq(startDate), eq(endDate), eq(true), eq(statuses), eq(true), eq(paymentMethods), eq(pageable)
         )).thenReturn(expectedPage);
 
         Page<ReceivableSummaryResponse> result = receivedService.listReceivables(
-                "  Cliente  ", startDate, endDate, statuses, COMPANY_ID, pageable
+                "  Cliente  ", startDate, endDate, statuses, paymentMethods, COMPANY_ID, pageable
         );
 
         assertNotNull(result);
         assertEquals(1, result.getTotalElements());
         assertEquals(summary, result.getContent().get(0));
         verify(receivableRepository).searchSummarized(
-                eq(COMPANY_ID), eq("Cliente"), eq(true), eq(false), eq(false), eq(startDate), eq(endDate), eq(true), eq(statuses), eq(pageable)
+                eq(COMPANY_ID), eq("Cliente"), eq(true), eq(false), eq(false), eq(startDate), eq(endDate), eq(true), eq(statuses), eq(true), eq(paymentMethods), eq(pageable)
         );
     }
 
@@ -647,11 +690,11 @@ class ReceivedServiceTest {
         LocalDate endDate = LocalDate.of(2026, 11, 1);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                receivedService.listReceivables(null, startDate, endDate, null, COMPANY_ID, pageable)
+                receivedService.listReceivables(null, startDate, endDate, null, null, COMPANY_ID, pageable)
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        verify(receivableRepository, never()).searchSummarized(any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), anyBoolean(), any(), any());
+        verify(receivableRepository, never()).searchSummarized(any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), any());
     }
 
     @Test
