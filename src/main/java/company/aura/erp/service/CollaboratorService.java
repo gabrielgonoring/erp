@@ -150,7 +150,7 @@ public class CollaboratorService {
         CollaboratorEntity collaborator = collaboratorRepository.findByIdAndCompanyId(collaboratorId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Colaborador não encontrado com ID: " + collaboratorId));
 
-        List<OrderStatus> allowedOrderStatuses = List.of(OrderStatus.COMPLETED, OrderStatus.PENDING_PAYMENT);
+        List<OrderStatus> allowedOrderStatuses = List.of(OrderStatus.COMPLETED);
 
         List<OrderItemEntity> items = orderItemRepository.findByCollaboratorAndCompanyAndCreatedAtBetween(
                 collaboratorId, companyId, allowedOrderStatuses, startDate.atStartOfDay(), endDate.atTime(LocalTime.MAX));

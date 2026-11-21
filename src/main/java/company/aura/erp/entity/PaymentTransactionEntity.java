@@ -1,6 +1,7 @@
 package company.aura.erp.entity;
 
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.PaymentTransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -22,11 +23,18 @@ public class PaymentTransactionEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "installment_id", nullable = false)
-    private Long installmentId;
+    @Column(name = "receivable_id", nullable = false)
+    private Long receivableId;
+
+    @Column(name = "refunded_transaction_id")
+    private Long refundedTransactionId;
 
     @Column(name = "company_id", nullable = false)
     private Long companyId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transaction_type", nullable = false, length = 15)
+    private PaymentTransactionType transactionType;
 
     @CreationTimestamp
     @Column(name = "paid_at", nullable = false)

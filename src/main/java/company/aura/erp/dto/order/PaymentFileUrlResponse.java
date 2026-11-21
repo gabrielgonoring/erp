@@ -1,5 +1,5 @@
 package company.aura.erp.dto.order;
 
-public record BankSlipUrlResponse(
+public record PaymentFileUrlResponse(
         String url
 ) {}

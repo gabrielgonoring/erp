@@ -8,7 +8,13 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record OrderInstallmentRequest(
+public record ReceivableRequest(
+
+        Long orderId,
+
+        Long serviceOrderId,
+
+        Long partnerId,
 
         @NotNull(message = "O número da parcela precisa ser informada")
         Integer installmentNumber,
@@ -35,7 +41,9 @@ public record OrderInstallmentRequest(
         @Size(max = 100, message = "O código do boleto deve ter no máximo 100 caracteres.")
         String bankSlipCode,
 
-        String bankSlipUrl,
+        String paymentFileUrl,
+
+        String paymentUrl,
 
         @Size(max = 255, message = "As observações devem ter no máximo 255 caracteres.")
         String notes

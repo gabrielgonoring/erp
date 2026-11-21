@@ -2,6 +2,7 @@ package company.aura.erp.dto.order;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.PaymentTransactionType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -27,5 +28,20 @@ public record PaymentTransactionRequest(
         String nsuAuthorization,
 
         @Size(max = 255, message = "As observações devem ter no máximo 255 caracteres.")
-        String notes
-) {}
+        String notes,
+
+        PaymentTransactionType transactionType,
+
+        Long refundedTransactionId
+) {
+    public PaymentTransactionRequest(
+            BigDecimal amountPaid,
+            PaymentMethod paymentMethod,
+            LocalDateTime paidAt,
+            String cardBrand,
+            String nsuAuthorization,
+            String notes
+    ) {
+        this(amountPaid, paymentMethod, paidAt, cardBrand, nsuAuthorization, notes, PaymentTransactionType.PAYMENT, null);
+    }
+}

@@ -7,7 +7,8 @@ import company.aura.erp.enums.*;
 import company.aura.erp.mapper.OrderItemMapper;
 import company.aura.erp.mapper.OrderMapper;
 import company.aura.erp.mapper.OrderShippingMapper;
-import company.aura.erp.repository.*;
+import company.aura.erp.repository.OrderRepository;
+import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,12 +21,12 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 @Slf4j
 @Service
@@ -34,18 +35,16 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final PartnerRepository partnerRepository;
-    private final OrderPaymentService orderPaymentService;
+    private final ReceivedService receivedService;
     private final OrderItemService orderItemService;
     private final OrderShippingService orderShippingService;
-
-
     private final OrderInvoiceService orderInvoiceService;
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
-        log.info("openOrder() - START - companyId={}, partnerId={}", companyId, request != null ? request.partnerId() : null);
+        log.info("openOrder() - START - companyId={}, partnerId={}", companyId, request.partnerId());
 
-        PartnerEntity partner = validateInitialOrder(request, companyId);
+        PartnerEntity partner = findPartner(request.partnerId(), companyId);
 
         OrderEntity order = buildInitialOrder(request, companyId);
 
@@ -53,7 +52,7 @@ public class OrderService {
 
         OrderShippingEntity savedShipping = orderShippingService.saveInitialShipping(request, savedOrder);
 
-        String customerName = partner != null ? partner.getName() : null;
+        String customerName = partner.getName();
 
         if (request.items() == null || request.items().isEmpty()) {
             OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
@@ -72,8 +71,8 @@ public class OrderService {
         return response;
     }
 
-    private PartnerEntity validateInitialOrder(OrderCreateRequest request, Long companyId) {
-        return partnerRepository.findByIdAndCompanyId(request.partnerId(), companyId)
+    private PartnerEntity findPartner(Long partnerId, Long companyId) {
+        return partnerRepository.findByIdAndCompanyId(partnerId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado"));
     }
 
@@ -82,7 +81,6 @@ public class OrderService {
     }
 
     private BigDecimal resolveFreightAmount(OrderShippingRequest shipping) {
-
         if (shipping != null && shipping.freightAmount() != null) {
             return shipping.freightAmount();
         }
@@ -108,7 +106,6 @@ public class OrderService {
                 .totalAmount(freightAmount)
                 .build();
     }
-
 
     @Transactional
     public OrderItemResponse addItem(Long orderId, OrderItemCreateRequest request, Long companyId) {
@@ -167,29 +164,17 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
-        if (request.partnerId() != null) {
-            partnerRepository.findByIdAndCompanyId(request.partnerId(), companyId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente não encontrado"));
-            order.setPartnerId(request.partnerId());
-        }
+        PartnerEntity partner =  findPartner(request.partnerId(), companyId);
 
-        if (request.notes() != null) {
-            order.setNotes(request.notes());
-        }
+        order.setPartnerId(request.partnerId());
+        order.setNotes(request.notes());
 
         OrderEntity savedOrder = orderRepository.save(order);
 
-        String customerName = savedOrder.getPartnerId() != null
-                ? partnerRepository.findByIdAndCompanyId(savedOrder.getPartnerId(), companyId)
-                        .map(PartnerEntity::getName)
-                        .orElse(null)
-                : null;
-
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
-        List<OrderInstallmentEntity> installments = orderPaymentService.findInstallments(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
 
-        OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, items, installments, shipping, null);
+        OrderResponse response = OrderMapper.fromEntity(savedOrder, partner.getName(), items, null, shipping, null);
         log.info("updateOrder() - END - orderId={}, companyId={}", response.getId(), companyId);
         return response;
     }
@@ -232,105 +217,27 @@ public class OrderService {
         return response;
     }
 
-
     public OrderResponse findById(Long orderId, Long companyId) {
         log.info("findById() - START - orderId={}, companyId={}", orderId, companyId);
 
         OrderEntity order = findOrder(orderId, companyId);
 
         String customerName = order.getPartnerId() != null
-                ? partnerRepository.findByIdAndCompanyId(order.getPartnerId(), companyId)
-                        .map(PartnerEntity::getName)
+                ? partnerRepository.findNameByIdAndCompanyId(order.getPartnerId(), companyId)
                         .orElse(null)
                 : null;
 
         List<OrderItemEntity> items = orderItemService.findOrderItems(order.getId());
-        List<OrderInstallmentResponse> installments = orderPaymentService.findInstallmentResponses(order.getId());
+        List<ReceivableResponse> receivables = receivedService.findReceivableResponses(order.getId());
         OrderShippingEntity shipping = orderShippingService.findByOrderId(order.getId()).orElse(null);
         List<OrderInvoiceResponse> invoices = orderInvoiceService.findInvoicesByOrderId(order.getId(), companyId);
 
-        OrderResponse response = OrderMapper.fromEntityWithResponses(order, customerName, items, installments, shipping, invoices);
+        OrderResponse response = OrderMapper.fromEntityWithResponses(order, customerName, items, receivables, shipping, invoices);
         log.info("findById() - END - orderId={}, companyId={}", response.getId(), companyId);
         return response;
     }
 
-    @Transactional
-    public OrderInstallmentResponse payInstallment(Long orderId, Long installmentId, PaymentTransactionRequest request, Long companyId) {
-        log.info("payInstallment() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        OrderEntity order = findOrder(orderId, companyId);
-        OrderInstallmentResponse response = orderPaymentService.payInstallment(order, installmentId, request);
-        syncOrderStatusAfterInstallmentChange(order);
-        log.info("payInstallment() - END - orderId={}, installmentId={}, companyId={}, status={}", orderId, installmentId, companyId, response != null ? response.getStatus() : null);
-        return response;
-    }
 
-    @Transactional
-    public OrderInstallmentResponse addInstallment(Long orderId, OrderInstallmentCreateRequest request, Long companyId) {
-        log.info("addInstallment() - START - orderId={}, companyId={}", orderId, companyId);
-        OrderEntity order = findOrder(orderId, companyId);
-        OrderInstallmentResponse response = orderPaymentService.addInstallment(order, request);
-        syncOrderStatusAfterInstallmentChange(order);
-        log.info("addInstallment() - END - orderId={}, installmentId={}, companyId={}", orderId, response != null ? response.getId() : null, companyId);
-        return response;
-    }
-
-    @Transactional
-    public OrderInstallmentResponse cancelInstallment(Long orderId, Long installmentId, Long companyId) {
-        log.info("cancelInstallment() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        OrderEntity order = findOrder(orderId, companyId);
-        OrderInstallmentResponse response = orderPaymentService.cancelInstallment(order, installmentId);
-        syncOrderStatusAfterInstallmentChange(order);
-        log.info("cancelInstallment() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        return response;
-    }
-
-    @Transactional
-    public OrderInstallmentResponse uploadBankSlip(Long orderId, Long installmentId, MultipartFile file, String bankSlipCode, Long companyId) {
-        log.info("uploadBankSlip() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        OrderEntity order = findOrder(orderId, companyId);
-        OrderInstallmentResponse response = orderPaymentService.uploadBankSlip(order, installmentId, file, bankSlipCode);
-        log.info("uploadBankSlip() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        return response;
-    }
-
-    @Transactional(readOnly = true)
-    public String getBankSlipUrl(Long orderId, Long installmentId, Long companyId) {
-        log.info("getBankSlipUrl() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        OrderEntity order = findOrder(orderId, companyId);
-        String temporaryUrl = orderPaymentService.getBankSlipUrl(order, installmentId);
-        log.info("getBankSlipUrl() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        return temporaryUrl;
-    }
-
-    @Transactional
-    public void deleteBankSlip(Long orderId, Long installmentId, Long companyId) {
-        log.info("deleteBankSlip() - START - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-        OrderEntity order = findOrder(orderId, companyId);
-        orderPaymentService.deleteBankSlip(order, installmentId);
-        log.info("deleteBankSlip() - END - orderId={}, installmentId={}, companyId={}", orderId, installmentId, companyId);
-    }
-
-    private void syncOrderStatusAfterInstallmentChange(OrderEntity order) {
-        if (order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.CANCELED) {
-            return;
-        }
-
-        List<OrderInstallmentEntity> activeInstallments = orderPaymentService.findInstallments(order.getId())
-                .stream()
-                .filter(i -> i.getStatus() != InstallmentStatus.CANCELED)
-                .toList();
-
-        if (!activeInstallments.isEmpty() && activeInstallments.stream().allMatch(i -> i.getStatus() == InstallmentStatus.PAID)) {
-            order.setStatus(OrderStatus.COMPLETED);
-            if (order.getCompletedAt() == null) {
-                order.setCompletedAt(LocalDateTime.now());
-            }
-        } else {
-            order.setStatus(OrderStatus.PENDING_PAYMENT);
-            order.setCompletedAt(null);
-        }
-        orderRepository.save(order);
-    }
 
     @Transactional
     public OrderResponse closeOrder(Long orderId, OrderCloseRequest request, Long companyId) {
@@ -338,6 +245,8 @@ public class OrderService {
         OrderEntity order = findOrder(orderId, companyId);
 
         validateIfOrderIsEditable(order);
+
+        validateOrderPayment(request, order);
 
         if (isShippingProvided(request)) {
             BigDecimal updatedFreight = resolveFreightAmount(request.shipping());
@@ -350,20 +259,41 @@ public class OrderService {
 
         recalculateOrderTotals(order, items);
 
-        var savedInstallments = orderPaymentService.processInstallments(request, order);
+        receivedService.processReceivables(request.receivables(), companyId);
 
-        order.setStatus(getOrderFinalStatus(savedInstallments));
+        order.setStatus(OrderStatus.COMPLETED);
         OrderEntity savedOrder = orderRepository.save(order);
 
         String customerName = savedOrder.getPartnerId() != null
-                ? partnerRepository.findByIdAndCompanyId(savedOrder.getPartnerId(), companyId)
-                        .map(PartnerEntity::getName)
+                ? partnerRepository.findNameByIdAndCompanyId(savedOrder.getPartnerId(), companyId)
                         .orElse(null)
                 : null;
 
-        OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, items, savedInstallments, savedShipping, null);
+        var savedReceivables = receivedService.findReceivableResponses(orderId);
+
+        OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, items, savedReceivables, savedShipping, null);
         log.info("closeOrder() - END - orderId={}, companyId={}, status={}", response.getId(), companyId, savedOrder.getStatus());
         return response;
+    }
+
+    private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {
+
+        BigDecimal totalReceivables = request.receivables().stream()
+                .map(ReceivableRequest::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (totalReceivables.compareTo(order.getTotalAmount()) != 0) {
+            BigDecimal receivablesFormatted = totalReceivables.setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalOrderFormatted = order.getTotalAmount() != null
+                    ? order.getTotalAmount().setScale(2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    String.format("A soma das parcelas (R$ %s) não confere com o valor total do pedido (R$ %s).",
+                            receivablesFormatted, totalOrderFormatted)
+            );
+        }
     }
 
     @Transactional
@@ -419,18 +349,6 @@ public class OrderService {
     }
 
 
-
-    private static OrderStatus getOrderFinalStatus(List<OrderInstallmentEntity> savedInstallments) {
-
-        boolean paymentCompleted = savedInstallments.stream().map(OrderInstallmentEntity::getStatus).allMatch(InstallmentStatus.PAID::equals);
-
-        if(paymentCompleted) {
-            return OrderStatus.COMPLETED;
-        }
-
-        return OrderStatus.PENDING_PAYMENT;
-    }
-
     private boolean isShippingProvided(OrderCloseRequest request) {
         return request.shipping() != null && request.shipping().freightAmount() != null;
     }
@@ -471,7 +389,7 @@ public class OrderService {
     }
 
     private void validIfIsCompanyOrder(Long orderId, Long companyId) {
-        if (!orderRepository.existsByIdAndCompanyId(orderId, companyId)){
+        if (!orderRepository.existsByIdAndCompanyId(orderId, companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com ID: " + orderId);
         }
     }
@@ -549,18 +467,18 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public Page<OrderInstallmentSummaryResponse> listInstallments(
+    public Page<ReceivableSummaryResponse> listReceivables(
             String search,
             LocalDate startDate,
             LocalDate endDate,
-            List<InstallmentStatus> statuses,
+            List<ReceivableStatus> statuses,
             Long companyId,
             Pageable pageable
     ) {
-        log.info("listInstallments() - START - companyId={}, search={}, startDate={}, endDate={}, statuses={}",
+        log.info("listReceivables() - START - companyId={}, search={}, startDate={}, endDate={}, statuses={}",
                 companyId, search, startDate, endDate, statuses);
-        Page<OrderInstallmentSummaryResponse> page = orderPaymentService.listInstallments(search, startDate, endDate, statuses, companyId, pageable);
-        log.info("listInstallments() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        Page<ReceivableSummaryResponse> page = receivedService.listReceivables(search, startDate, endDate, statuses, companyId, pageable);
+        log.info("listReceivables() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
         return page;
     }
 }

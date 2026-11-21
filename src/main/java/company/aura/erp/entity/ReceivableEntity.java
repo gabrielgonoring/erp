@@ -1,7 +1,7 @@
 package company.aura.erp.entity;
 
-import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.ReceivableStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -13,21 +13,24 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "order_installments")
+@Table(name = "receivables")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @EqualsAndHashCode(of = "id")
-public class OrderInstallmentEntity {
+public class ReceivableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "order_id", nullable = false)
+    @Column(name = "order_id")
     private Long orderId;
+
+    @Column(name = "service_order_id")
+    private Long serviceOrderId;
 
     @Column(name = "company_id", nullable = false)
     private Long companyId;
@@ -56,13 +59,16 @@ public class OrderInstallmentEntity {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private InstallmentStatus status = InstallmentStatus.PENDING;
+    private ReceivableStatus status = ReceivableStatus.PENDING;
 
     @Column(name = "bank_slip_code", length = 100)
     private String bankSlipCode;
 
-    @Column(name = "bank_slip_url", columnDefinition = "TEXT")
-    private String bankSlipUrl;
+    @Column(name = "payment_file_url", columnDefinition = "TEXT")
+    private String paymentFileUrl;
+
+    @Column(name = "payment_url", columnDefinition = "TEXT")
+    private String paymentUrl;
 
     @Column(name = "notes", length = 255)
     private String notes;
@@ -78,7 +84,7 @@ public class OrderInstallmentEntity {
     @PrePersist
     public void prePersist() {
         if (this.pendingAmount == null) {
-            if (this.status == InstallmentStatus.PAID || this.status == InstallmentStatus.CANCELED) {
+            if (this.status == ReceivableStatus.PAID || this.status == ReceivableStatus.CANCELED) {
                 this.pendingAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             } else if (this.amount != null) {
                 this.pendingAmount = this.amount.setScale(2, RoundingMode.HALF_UP);

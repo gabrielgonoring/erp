@@ -16,9 +16,9 @@ public class JobController {
 
     private final JobService jobService;
 
-    @PostMapping("/orders/installment/notify")
-    public ResponseEntity<Void> notifyInstallments() {
-        jobService.notifyUpcomingInstallments();
+    @PostMapping("/orders/receivable/notify")
+    public ResponseEntity<Void> notifyReceivables() {
+        jobService.notifyUpcomingReceivables();
         return ResponseEntity.accepted().build();
     }
 }

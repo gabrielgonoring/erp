@@ -11,7 +11,7 @@ public record DashboardSummaryResponse(
         BigDecimal paidAmount,
         BigDecimal pendingAmount,
         BigDecimal totalAmount,
-        PendingInstallmentSummary pendingInstallments,
+        PendingReceivableSummary pendingReceivables,
         PaymentTransactionSummary revenue
 ) {
 }

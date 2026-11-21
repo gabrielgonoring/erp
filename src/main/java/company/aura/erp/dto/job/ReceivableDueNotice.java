@@ -5,15 +5,17 @@ import company.aura.erp.enums.PaymentMethod;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record OrderInstallmentDueNotice(
-        Long installmentId,
+public record ReceivableDueNotice(
+        Long receivableId,
         Long orderId,
+        Long serviceOrderId,
         Integer installmentNumber,
         BigDecimal amount,
         BigDecimal pendingAmount,
         LocalDate dueDate,
         PaymentMethod paymentMethod,
-        String bankSlipUrl,
+        String paymentFileUrl,
+        String paymentUrl,
         String bankSlipCode,
         Long companyId,
         String customerName,

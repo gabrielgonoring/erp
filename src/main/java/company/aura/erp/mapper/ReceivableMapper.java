@@ -1,26 +1,26 @@
 package company.aura.erp.mapper;
 
-import company.aura.erp.dto.order.OrderInstallmentResponse;
 import company.aura.erp.dto.order.PaymentTransactionResponse;
-import company.aura.erp.entity.OrderInstallmentEntity;
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.entity.PaymentTransactionEntity;
-import company.aura.erp.enums.InstallmentStatus;
+import company.aura.erp.entity.ReceivableEntity;
+import company.aura.erp.enums.ReceivableStatus;
 
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 
-public class OrderInstallmentMapper {
+public class ReceivableMapper {
 
-    public static OrderInstallmentResponse fromEntity(OrderInstallmentEntity entity) {
+    public static ReceivableResponse fromEntity(ReceivableEntity entity) {
         if (entity == null) {
             return null;
         }
         return fromEntity(entity, Collections.emptyList());
     }
 
-    public static OrderInstallmentResponse fromEntity(
-            OrderInstallmentEntity entity,
+    public static ReceivableResponse fromEntity(
+            ReceivableEntity entity,
             List<PaymentTransactionEntity> transactions
     ) {
         if (entity == null) {
@@ -35,7 +35,7 @@ public class OrderInstallmentMapper {
 
         BigDecimal paid;
 
-        if(entity.getStatus() == InstallmentStatus.PAID) {
+        if (entity.getStatus() == ReceivableStatus.PAID) {
             paid = totalAmount;
         } else if (entity.getPendingAmount() != null) {
             paid = totalAmount.subtract(entity.getPendingAmount());
@@ -56,9 +56,10 @@ public class OrderInstallmentMapper {
             }
         }
 
-        return OrderInstallmentResponse.builder()
+        return ReceivableResponse.builder()
                 .id(entity.getId())
                 .orderId(entity.getOrderId())
+                .serviceOrderId(entity.getServiceOrderId())
                 .companyId(entity.getCompanyId())
                 .partnerId(entity.getPartnerId())
                 .installmentNumber(entity.getInstallmentNumber())
@@ -67,7 +68,8 @@ public class OrderInstallmentMapper {
                 .paymentMethod(entity.getPaymentMethod())
                 .status(entity.getStatus())
                 .bankSlipCode(entity.getBankSlipCode())
-                .bankSlipUrl(entity.getBankSlipUrl())
+                .paymentFileUrl(entity.getPaymentFileUrl())
+                .paymentUrl(entity.getPaymentUrl())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())

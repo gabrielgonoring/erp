@@ -1,15 +1,15 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.InstallmentPaymentSummary;
-import company.aura.erp.dto.dashboard.PendingInstallmentSummary;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.PendingReceivableSummary;
+import company.aura.erp.dto.dashboard.ReceivablePaymentSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
-import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
-import company.aura.erp.repository.OrderInstallmentRepository;
+import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.repository.PaymentTransactionRepository;
+import company.aura.erp.repository.ReceivableRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +42,7 @@ class DashboardServiceTest {
     private OrderRepository orderRepository;
 
     @Mock
-    private OrderInstallmentRepository orderInstallmentRepository;
+    private ReceivableRepository receivableRepository;
 
     @Mock
     private PaymentTransactionRepository paymentTransactionRepository;
@@ -67,11 +67,11 @@ class DashboardServiceTest {
                 new OrderStatusSummary(OrderStatus.COMPLETED, 4L),
                 new OrderStatusSummary(OrderStatus.PENDING_PAYMENT, 2L)
         );
-        InstallmentPaymentSummary paymentSummary = new InstallmentPaymentSummary(
+        ReceivablePaymentSummary paymentSummary = new ReceivablePaymentSummary(
                 new BigDecimal("10000.00"),
                 new BigDecimal("3500.00")
         );
-        PendingInstallmentSummary pendingInstallments = new PendingInstallmentSummary(3L, new BigDecimal("1500.00"));
+        PendingReceivableSummary pendingReceivables = new PendingReceivableSummary(3L, new BigDecimal("1500.00"));
 
         when(orderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
@@ -79,19 +79,19 @@ class DashboardServiceTest {
                 any(LocalDateTime.class)
         )).thenReturn(salesPerStatus);
 
-        when(orderInstallmentRepository.getPaymentsSummaryByOrderDate(
+        when(receivableRepository.getPaymentsSummaryByOrderDate(
                 eq(companyId),
                 eq(List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED)),
-                eq(List.of(InstallmentStatus.CANCELED)),
+                eq(List.of(ReceivableStatus.CANCELED)),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
         )).thenReturn(paymentSummary);
 
-        when(orderInstallmentRepository.getPendingInstallmentsSummaryByDueDate(
+        when(receivableRepository.getPendingReceivablesSummaryByDueDate(
                 eq(companyId),
                 eq(startDate),
                 eq(endDate)
-        )).thenReturn(pendingInstallments);
+        )).thenReturn(pendingReceivables);
 
         DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, companyId);
 
@@ -102,7 +102,7 @@ class DashboardServiceTest {
         assertEquals(new BigDecimal("10000.00"), response.paidAmount());
         assertEquals(new BigDecimal("3500.00"), response.pendingAmount());
         assertEquals(new BigDecimal("13500.00"), response.totalAmount());
-        assertEquals(pendingInstallments, response.pendingInstallments());
+        assertEquals(pendingReceivables, response.pendingReceivables());
     }
 
     @Test
@@ -116,19 +116,19 @@ class DashboardServiceTest {
                 any(LocalDateTime.class)
         )).thenReturn(Collections.emptyList());
 
-        when(orderInstallmentRepository.getPaymentsSummaryByOrderDate(
+        when(receivableRepository.getPaymentsSummaryByOrderDate(
                 eq(companyId),
                 eq(List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED)),
-                eq(List.of(InstallmentStatus.CANCELED)),
+                eq(List.of(ReceivableStatus.CANCELED)),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
-        )).thenReturn(new InstallmentPaymentSummary(BigDecimal.ZERO, BigDecimal.ZERO));
+        )).thenReturn(new ReceivablePaymentSummary(BigDecimal.ZERO, BigDecimal.ZERO));
 
-        when(orderInstallmentRepository.getPendingInstallmentsSummaryByDueDate(
+        when(receivableRepository.getPendingReceivablesSummaryByDueDate(
                 eq(companyId),
                 eq(LocalDate.now().withDayOfMonth(1)),
                 eq(LocalDate.now())
-        )).thenReturn(new PendingInstallmentSummary(0L, BigDecimal.ZERO));
+        )).thenReturn(new PendingReceivableSummary(0L, BigDecimal.ZERO));
 
         DashboardSummaryResponse response = dashboardService.getSummary(null, null, companyId);
 
@@ -139,7 +139,7 @@ class DashboardServiceTest {
         assertEquals(BigDecimal.ZERO, response.paidAmount());
         assertEquals(BigDecimal.ZERO, response.pendingAmount());
         assertEquals(BigDecimal.ZERO, response.totalAmount());
-        assertEquals(new PendingInstallmentSummary(0L, BigDecimal.ZERO), response.pendingInstallments());
+        assertEquals(new PendingReceivableSummary(0L, BigDecimal.ZERO), response.pendingReceivables());
     }
 
     @Test
@@ -182,7 +182,7 @@ class DashboardServiceTest {
 
         DashboardService service = new DashboardService(
                 orderRepository,
-                orderInstallmentRepository,
+                receivableRepository,
                 paymentTransactionRepository,
                 List.of(alertService1, alertService2),
                 executorService

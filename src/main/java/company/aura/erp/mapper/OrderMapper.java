@@ -1,17 +1,17 @@
 package company.aura.erp.mapper;
 
-import company.aura.erp.dto.order.OrderInstallmentResponse;
 import company.aura.erp.dto.order.OrderInvoiceResponse;
 import company.aura.erp.dto.order.OrderItemResponse;
 import company.aura.erp.dto.order.OrderResponse;
 import company.aura.erp.dto.order.OrderShippingResponse;
 import company.aura.erp.dto.order.PaymentTransactionResponse;
+import company.aura.erp.dto.order.ReceivableResponse;
 import company.aura.erp.entity.OrderEntity;
-import company.aura.erp.entity.OrderInstallmentEntity;
 import company.aura.erp.entity.OrderInvoiceEntity;
 import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.entity.OrderShippingEntity;
 import company.aura.erp.entity.PaymentTransactionEntity;
+import company.aura.erp.entity.ReceivableEntity;
 
 import java.util.Collections;
 import java.util.List;
@@ -21,35 +21,35 @@ public class OrderMapper {
     public static OrderResponse fromEntity(
             OrderEntity order,
             List<OrderItemEntity> items,
-            List<OrderInstallmentEntity> installments
+            List<ReceivableResponse> receivables
     ) {
-        return fromEntity(order, null, items, installments, null, Collections.emptyList());
+        return fromEntity(order, null, items, receivables, null, Collections.emptyList());
     }
 
     public static OrderResponse fromEntity(
             OrderEntity order,
             List<OrderItemEntity> items,
-            List<OrderInstallmentEntity> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingEntity shipping
     ) {
-        return fromEntity(order, null, items, installments, shipping, Collections.emptyList());
+        return fromEntity(order, null, items, receivables, shipping, Collections.emptyList());
     }
 
     public static OrderResponse fromEntity(
             OrderEntity order,
             String customerName,
             List<OrderItemEntity> items,
-            List<OrderInstallmentEntity> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingEntity shipping
     ) {
-        return fromEntity(order, customerName, items, installments, shipping, Collections.emptyList());
+        return fromEntity(order, customerName, items, receivables, shipping, Collections.emptyList());
     }
 
     public static OrderResponse fromEntity(
             OrderEntity order,
             String customerName,
             List<OrderItemEntity> items,
-            List<OrderInstallmentEntity> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingEntity shipping,
             List<OrderInvoiceEntity> invoices
     ) {
@@ -59,10 +59,6 @@ public class OrderMapper {
 
         List<OrderItemResponse> itemResponses = items != null
                 ? items.stream().map(OrderItemMapper::fromEntity).toList()
-                : Collections.emptyList();
-
-        List<OrderInstallmentResponse> installmentResponses = installments != null
-                ? installments.stream().map(OrderInstallmentMapper::fromEntity).toList()
                 : Collections.emptyList();
 
         OrderShippingResponse shippingResponse = OrderShippingMapper.fromEntity(shipping);
@@ -87,7 +83,7 @@ public class OrderMapper {
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .items(itemResponses)
-                .installments(installmentResponses)
+                .receivables(receivables)
                 .shipping(shippingResponse)
                 .invoices(invoiceResponses)
                 .build();
@@ -96,27 +92,27 @@ public class OrderMapper {
     public static OrderResponse fromEntityWithResponses(
             OrderEntity order,
             List<OrderItemEntity> items,
-            List<OrderInstallmentResponse> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingEntity shipping
     ) {
-        return fromEntityWithResponses(order, null, items, installments, shipping, Collections.emptyList());
+        return fromEntityWithResponses(order, null, items, receivables, shipping, Collections.emptyList());
     }
 
     public static OrderResponse fromEntityWithResponses(
             OrderEntity order,
             String customerName,
             List<OrderItemEntity> items,
-            List<OrderInstallmentResponse> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingEntity shipping
     ) {
-        return fromEntityWithResponses(order, customerName, items, installments, shipping, Collections.emptyList());
+        return fromEntityWithResponses(order, customerName, items, receivables, shipping, Collections.emptyList());
     }
 
     public static OrderResponse fromEntityWithResponses(
             OrderEntity order,
             String customerName,
             List<OrderItemEntity> items,
-            List<OrderInstallmentResponse> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingEntity shipping,
             List<OrderInvoiceResponse> invoices
     ) {
@@ -146,7 +142,7 @@ public class OrderMapper {
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .items(itemResponses)
-                .installments(installments != null ? installments : Collections.emptyList())
+                .receivables(receivables != null ? receivables : Collections.emptyList())
                 .shipping(shippingResponse)
                 .invoices(invoices != null ? invoices : Collections.emptyList())
                 .build();
@@ -164,12 +160,12 @@ public class OrderMapper {
         return OrderShippingMapper.fromEntity(entity);
     }
 
-    public static OrderInstallmentResponse fromEntity(OrderInstallmentEntity entity) {
-        return OrderInstallmentMapper.fromEntity(entity);
+    public static ReceivableResponse fromEntity(ReceivableEntity entity) {
+        return ReceivableMapper.fromEntity(entity);
     }
 
-    public static OrderInstallmentResponse fromEntity(OrderInstallmentEntity entity, List<PaymentTransactionEntity> transactions) {
-        return OrderInstallmentMapper.fromEntity(entity, transactions);
+    public static ReceivableResponse fromEntity(ReceivableEntity entity, List<PaymentTransactionEntity> transactions) {
+        return ReceivableMapper.fromEntity(entity, transactions);
     }
 
     public static PaymentTransactionResponse fromEntity(PaymentTransactionEntity entity) {

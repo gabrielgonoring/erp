@@ -99,3 +99,44 @@ CREATE TABLE `service_order_updates` (
     CONSTRAINT `fk_os_updates_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_os_updates_os` FOREIGN KEY (`service_order_id`) REFERENCES `service_orders` (`id`) ON DELETE CASCADE
 );
+
+
+-- defaultdb.receivables definição (antiga order_installments)
+
+ALTER TABLE `payment_transactions`
+    DROP FOREIGN KEY `fk_transactions_installment`,
+    DROP INDEX `idx_transactions_installment`;
+
+RENAME TABLE `order_installments` TO `receivables`;
+
+ALTER TABLE `receivables`
+    DROP FOREIGN KEY `fk_order_installments_company`,
+    DROP FOREIGN KEY `fk_order_installments_order`,
+    DROP FOREIGN KEY `fk_order_installments_partner`,
+    DROP INDEX `idx_installments_status_due`,
+    DROP INDEX `idx_installments_order`,
+    DROP INDEX `idx_installments_partner`,
+    MODIFY COLUMN `order_id` bigint DEFAULT NULL,
+    ADD COLUMN `service_order_id` bigint DEFAULT NULL AFTER `order_id`,
+    CHANGE COLUMN `bank_slip_url` `payment_file_url` text,
+    ADD COLUMN `payment_url` text AFTER `payment_file_url`,
+    ADD KEY `idx_receivables_status_due` (`company_id`, `status`, `due_date`),
+    ADD KEY `idx_receivables_order` (`order_id`),
+    ADD KEY `idx_receivables_service_order` (`service_order_id`),
+    ADD KEY `idx_receivables_partner` (`partner_id`),
+    ADD CONSTRAINT `fk_receivables_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_receivables_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_receivables_service_order` FOREIGN KEY (`service_order_id`) REFERENCES `service_orders` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_receivables_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE RESTRICT;
+
+
+-- defaultdb.payment_transactions definição
+
+ALTER TABLE `payment_transactions`
+    CHANGE COLUMN `installment_id` `receivable_id` bigint NOT NULL,
+    ADD COLUMN `refunded_transaction_id` bigint DEFAULT NULL AFTER `receivable_id`,
+    ADD COLUMN `transaction_type` varchar(15) NOT NULL AFTER `company_id`,
+    ADD KEY `idx_transactions_receivable` (`receivable_id`),
+    ADD KEY `idx_transactions_refunded` (`refunded_transaction_id`),
+    ADD CONSTRAINT `fk_transactions_receivable` FOREIGN KEY (`receivable_id`) REFERENCES `receivables` (`id`) ON DELETE CASCADE,
+    ADD CONSTRAINT `fk_transactions_refunded` FOREIGN KEY (`refunded_transaction_id`) REFERENCES `payment_transactions` (`id`) ON DELETE SET NULL;

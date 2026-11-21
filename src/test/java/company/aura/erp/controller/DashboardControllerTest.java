@@ -1,7 +1,7 @@
 package company.aura.erp.controller;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.PendingInstallmentSummary;
+import company.aura.erp.dto.dashboard.PendingReceivableSummary;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
@@ -54,7 +54,7 @@ class DashboardControllerTest {
     void shouldReturnSummaryOnGet() {
         LocalDate startDate = LocalDate.of(2026, 11, 9);
         LocalDate endDate = LocalDate.of(2026, 11, 9);
-        PendingInstallmentSummary pendingInstallments = new PendingInstallmentSummary(2L, new BigDecimal("1000.00"));
+        PendingReceivableSummary pendingReceivables = new PendingReceivableSummary(2L, new BigDecimal("1000.00"));
         DashboardSummaryResponse expectedResponse = new DashboardSummaryResponse(
                 startDate,
                 endDate,
@@ -62,7 +62,7 @@ class DashboardControllerTest {
                 new BigDecimal("5000.00"),
                 new BigDecimal("1000.00"),
                 new BigDecimal("6000.00"),
-                pendingInstallments,
+                pendingReceivables,
                 null
         );
 
