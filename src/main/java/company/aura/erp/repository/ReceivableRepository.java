@@ -6,6 +6,7 @@ import company.aura.erp.dto.job.ReceivableDueNotice;
 import company.aura.erp.dto.order.ReceivableSummaryResponse;
 import company.aura.erp.entity.ReceivableEntity;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.enums.ReceivableStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -76,6 +77,8 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
                     r.id,
                     r.orderId,
                     r.serviceOrderId,
+                    r.originType,
+                    p.id,
                     p.document,
                     p.name,
                     r.amount,
@@ -94,6 +97,7 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
                   AND (:hasStartDateOnly = false OR r.dueDate >= :startDate)
                   AND (:hasEndDateOnly = false OR r.dueDate <= :endDate)
                   AND (:hasStatuses = false OR r.status IN (:statuses))
+                  AND (:hasPaymentMethods = false OR r.paymentMethod IN (:paymentMethods))
             """,
             countQuery = """
                 SELECT count(r)
@@ -107,6 +111,7 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
                   AND (:hasStartDateOnly = false OR r.dueDate >= :startDate)
                   AND (:hasEndDateOnly = false OR r.dueDate <= :endDate)
                   AND (:hasStatuses = false OR r.status IN (:statuses))
+                  AND (:hasPaymentMethods = false OR r.paymentMethod IN (:paymentMethods))
             """
     )
     Page<ReceivableSummaryResponse> searchSummarized(
@@ -119,6 +124,8 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
             @Param("endDate") LocalDate endDate,
             @Param("hasStatuses") boolean hasStatuses,
             @Param("statuses") List<ReceivableStatus> statuses,
+            @Param("hasPaymentMethods") boolean hasPaymentMethods,
+            @Param("paymentMethods") List<PaymentMethod> paymentMethods,
             Pageable pageable
     );
 

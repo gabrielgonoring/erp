@@ -341,9 +341,9 @@ class ServiceOrderServiceTest {
 
         ArgumentCaptor<OrderCreateRequest> orderRequestCaptor = ArgumentCaptor.forClass(OrderCreateRequest.class);
         verify(orderService).openOrder(orderRequestCaptor.capture(), eq(companyId));
-        assertEquals(partnerId, orderRequestCaptor.getValue().partnerId());
-        assertEquals("Pedido referente à OS #1", orderRequestCaptor.getValue().notes());
-        assertEquals(2, orderRequestCaptor.getValue().items().size());
+        assertEquals(partnerId, orderRequestCaptor.getValue().getPartnerId());
+        assertEquals("Pedido referente à OS #1", orderRequestCaptor.getValue().getNotes());
+        assertEquals(2, orderRequestCaptor.getValue().getItems().size());
     }
 
     @Test

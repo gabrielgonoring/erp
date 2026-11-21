@@ -20,7 +20,7 @@ public class OrderShippingService {
     private final OrderShippingRepository orderShippingRepository;
 
     private boolean isShippingProvided(OrderCreateRequest request) {
-        return request.shipping() != null;
+        return request.getShipping() != null;
     }
 
     public Optional<OrderShippingEntity> findByOrderId(Long orderId) {
@@ -49,29 +49,29 @@ public class OrderShippingService {
         OrderShippingEntity shippingEntity = orderShippingRepository.findByOrderId(orderId)
                 .orElseGet(() -> OrderShippingEntity.builder().orderId(orderId).build());
 
-        if (request.freightMode() != null) {
-            shippingEntity.setFreightMode(request.freightMode());
+        if (request.getFreightMode() != null) {
+            shippingEntity.setFreightMode(request.getFreightMode());
         }
-        shippingEntity.setCarrierId(request.carrierId());
-        shippingEntity.setVehiclePlate(request.vehiclePlate());
-        shippingEntity.setVehicleState(request.vehicleState());
-        shippingEntity.setRntrcCode(request.rntrcCode());
-        if (request.packageQuantity() != null) {
-            shippingEntity.setPackageQuantity(request.packageQuantity());
+        shippingEntity.setCarrierId(request.getCarrierId());
+        shippingEntity.setVehiclePlate(request.getVehiclePlate());
+        shippingEntity.setVehicleState(request.getVehicleState());
+        shippingEntity.setRntrcCode(request.getRntrcCode());
+        if (request.getPackageQuantity() != null) {
+            shippingEntity.setPackageQuantity(request.getPackageQuantity());
         }
-        if (request.packageSpecies() != null) {
-            shippingEntity.setPackageSpecies(request.packageSpecies());
+        if (request.getPackageSpecies() != null) {
+            shippingEntity.setPackageSpecies(request.getPackageSpecies());
         }
-        shippingEntity.setPackageBrand(request.packageBrand());
-        shippingEntity.setPackageNumbering(request.packageNumbering());
-        if (request.grossWeightKg() != null) {
-            shippingEntity.setGrossWeightKg(request.grossWeightKg());
+        shippingEntity.setPackageBrand(request.getPackageBrand());
+        shippingEntity.setPackageNumbering(request.getPackageNumbering());
+        if (request.getGrossWeightKg() != null) {
+            shippingEntity.setGrossWeightKg(request.getGrossWeightKg());
         }
-        if (request.netWeightKg() != null) {
-            shippingEntity.setNetWeightKg(request.netWeightKg());
+        if (request.getNetWeightKg() != null) {
+            shippingEntity.setNetWeightKg(request.getNetWeightKg());
         }
-        shippingEntity.setTrackingCode(request.trackingCode());
-        shippingEntity.setShippingNotes(request.shippingNotes());
+        shippingEntity.setTrackingCode(request.getTrackingCode());
+        shippingEntity.setShippingNotes(request.getShippingNotes());
 
         OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);
         log.info("updateShipping() - END - orderId={}, shippingId={}", orderId, saved.getId());
@@ -87,7 +87,7 @@ public class OrderShippingService {
             return null;
         }
 
-        return saveInitialShipping(request.shipping(), savedOrder);
+        return saveInitialShipping(request.getShipping(), savedOrder);
     }
 
     public OrderShippingEntity saveInitialShipping(OrderShippingRequest shippingReq, OrderEntity savedOrder) {
@@ -99,23 +99,23 @@ public class OrderShippingService {
             return null;
         }
 
-        int freightMode = shippingReq.freightMode() != null ? shippingReq.freightMode() : 9;
+        int freightMode = shippingReq.getFreightMode() != null ? shippingReq.getFreightMode() : 9;
 
         OrderShippingEntity shippingEntity = OrderShippingEntity.builder()
                 .orderId(savedOrder.getId())
-                .carrierId(shippingReq.carrierId())
+                .carrierId(shippingReq.getCarrierId())
                 .freightMode(freightMode)
-                .vehiclePlate(shippingReq.vehiclePlate())
-                .vehicleState(shippingReq.vehicleState())
-                .rntrcCode(shippingReq.rntrcCode())
-                .packageQuantity(shippingReq.packageQuantity() != null ? shippingReq.packageQuantity() : 1)
-                .packageSpecies(shippingReq.packageSpecies() != null ? shippingReq.packageSpecies() : "CAIXA")
-                .packageBrand(shippingReq.packageBrand())
-                .packageNumbering(shippingReq.packageNumbering())
-                .grossWeightKg(shippingReq.grossWeightKg() != null ? shippingReq.grossWeightKg() : BigDecimal.ZERO)
-                .netWeightKg(shippingReq.netWeightKg() != null ? shippingReq.netWeightKg() : BigDecimal.ZERO)
-                .trackingCode(shippingReq.trackingCode())
-                .shippingNotes(shippingReq.shippingNotes())
+                .vehiclePlate(shippingReq.getVehiclePlate())
+                .vehicleState(shippingReq.getVehicleState())
+                .rntrcCode(shippingReq.getRntrcCode())
+                .packageQuantity(shippingReq.getPackageQuantity() != null ? shippingReq.getPackageQuantity() : 1)
+                .packageSpecies(shippingReq.getPackageSpecies() != null ? shippingReq.getPackageSpecies() : "CAIXA")
+                .packageBrand(shippingReq.getPackageBrand())
+                .packageNumbering(shippingReq.getPackageNumbering())
+                .grossWeightKg(shippingReq.getGrossWeightKg() != null ? shippingReq.getGrossWeightKg() : BigDecimal.ZERO)
+                .netWeightKg(shippingReq.getNetWeightKg() != null ? shippingReq.getNetWeightKg() : BigDecimal.ZERO)
+                .trackingCode(shippingReq.getTrackingCode())
+                .shippingNotes(shippingReq.getShippingNotes())
                 .build();
 
         OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);
@@ -126,7 +126,7 @@ public class OrderShippingService {
     public OrderShippingEntity upsertShippingOnClose(Long orderId, OrderCloseRequest request) {
         log.info("upsertShippingOnClose() - START - orderId={}", orderId);
 
-        if (request.shipping() == null) {
+        if (request.getShipping() == null) {
             orderShippingRepository.deleteByOrderId(orderId);
             log.info("upsertShippingOnClose() - END - orderId={}, deleted=true", orderId);
             return null;
@@ -135,20 +135,20 @@ public class OrderShippingService {
         OrderShippingEntity shippingEntity = orderShippingRepository.findByOrderId(orderId)
                 .orElseGet(() -> OrderShippingEntity.builder().orderId(orderId).build());
 
-        OrderShippingRequest shippingReq = request.shipping();
-        shippingEntity.setFreightMode(shippingReq.freightMode());
-        shippingEntity.setCarrierId(shippingReq.carrierId());
-        shippingEntity.setVehiclePlate(shippingReq.vehiclePlate());
-        shippingEntity.setVehicleState(shippingReq.vehicleState());
-        shippingEntity.setRntrcCode(shippingReq.rntrcCode());
-        shippingEntity.setPackageQuantity(shippingReq.packageQuantity());
-        shippingEntity.setPackageSpecies(shippingReq.packageSpecies());
-        shippingEntity.setPackageBrand(shippingReq.packageBrand());
-        shippingEntity.setPackageNumbering(shippingReq.packageNumbering());
-        shippingEntity.setGrossWeightKg(shippingReq.grossWeightKg());
-        shippingEntity.setNetWeightKg(shippingReq.netWeightKg());
-        shippingEntity.setTrackingCode(shippingReq.trackingCode());
-        shippingEntity.setShippingNotes(shippingReq.shippingNotes());
+        OrderShippingRequest shippingReq = request.getShipping();
+        shippingEntity.setFreightMode(shippingReq.getFreightMode());
+        shippingEntity.setCarrierId(shippingReq.getCarrierId());
+        shippingEntity.setVehiclePlate(shippingReq.getVehiclePlate());
+        shippingEntity.setVehicleState(shippingReq.getVehicleState());
+        shippingEntity.setRntrcCode(shippingReq.getRntrcCode());
+        shippingEntity.setPackageQuantity(shippingReq.getPackageQuantity());
+        shippingEntity.setPackageSpecies(shippingReq.getPackageSpecies());
+        shippingEntity.setPackageBrand(shippingReq.getPackageBrand());
+        shippingEntity.setPackageNumbering(shippingReq.getPackageNumbering());
+        shippingEntity.setGrossWeightKg(shippingReq.getGrossWeightKg());
+        shippingEntity.setNetWeightKg(shippingReq.getNetWeightKg());
+        shippingEntity.setTrackingCode(shippingReq.getTrackingCode());
+        shippingEntity.setShippingNotes(shippingReq.getShippingNotes());
 
         OrderShippingEntity saved = orderShippingRepository.save(shippingEntity);
         log.info("upsertShippingOnClose() - END - orderId={}, shippingId={}", orderId, saved.getId());

@@ -60,6 +60,7 @@ public class ReceivableMapper {
                 .id(entity.getId())
                 .orderId(entity.getOrderId())
                 .serviceOrderId(entity.getServiceOrderId())
+                .originType(entity.getOriginType())
                 .companyId(entity.getCompanyId())
                 .partnerId(entity.getPartnerId())
                 .installmentNumber(entity.getInstallmentNumber())

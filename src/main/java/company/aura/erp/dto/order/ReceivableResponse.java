@@ -1,6 +1,7 @@
 package company.aura.erp.dto.order;
 
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.ReceivableOriginType;
 import company.aura.erp.enums.ReceivableStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,6 +21,7 @@ public class ReceivableResponse {
     private Long id;
     private Long orderId;
     private Long serviceOrderId;
+    private ReceivableOriginType originType;
     private Long companyId;
     private Long partnerId;
     private Integer installmentNumber;
@@ -61,6 +63,7 @@ public class ReceivableResponse {
         this(
                 id,
                 orderId,
+                null,
                 null,
                 companyId,
                 partnerId,

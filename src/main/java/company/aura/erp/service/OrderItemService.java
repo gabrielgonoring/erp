@@ -33,9 +33,9 @@ public class OrderItemService {
     public List<OrderItemEntity> saveInitialItems(OrderCreateRequest request, OrderEntity savedOrder) {
         log.info("saveInitialItems() - START - orderId={}, totalItems={}",
                 savedOrder != null ? savedOrder.getId() : null,
-                request != null && request.items() != null ? request.items().size() : 0);
+                request != null && request.getItems() != null ? request.getItems().size() : 0);
 
-        List<OrderItemEntity> items = request.items().stream()
+        List<OrderItemEntity> items = request.getItems().stream()
                 .map(itemReq -> createItem(itemReq, savedOrder))
                 .toList();
 
@@ -88,17 +88,17 @@ public class OrderItemService {
     public OrderItemEntity createItem(OrderItemCreateRequest itemRequest, OrderEntity order) {
         log.info("createItem() - START - orderId={}, catalogItemId={}, professionalId={}",
                 order != null ? order.getId() : null,
-                itemRequest != null ? itemRequest.catalogItemId() : null,
-                itemRequest != null ? itemRequest.professionalId() : null);
+                itemRequest != null ? itemRequest.getCatalogItemId() : null,
+                itemRequest != null ? itemRequest.getProfessionalId() : null);
 
-        CatalogItemEntity catalogItem = findCatalogItem(itemRequest.catalogItemId(), order.getCompanyId());
+        CatalogItemEntity catalogItem = findCatalogItem(itemRequest.getCatalogItemId(), order.getCompanyId());
 
-        if (itemRequest.professionalId() != null) {
-            validateCollaborator(itemRequest.professionalId(), order.getCompanyId());
+        if (itemRequest.getProfessionalId() != null) {
+            validateCollaborator(itemRequest.getProfessionalId(), order.getCompanyId());
         }
 
-        BigDecimal discount = itemRequest.discountAmount() != null ? itemRequest.discountAmount() : BigDecimal.ZERO;
-        BigDecimal totalPrice = itemRequest.quantity().multiply(catalogItem.getUnitPrice()).subtract(discount);
+        BigDecimal discount = itemRequest.getDiscountAmount() != null ? itemRequest.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal totalPrice = itemRequest.getQuantity().multiply(catalogItem.getUnitPrice()).subtract(discount);
 
         if (totalPrice.compareTo(BigDecimal.ZERO) < 0) {
             totalPrice = BigDecimal.ZERO;
@@ -106,14 +106,14 @@ public class OrderItemService {
 
         OrderItemEntity item = OrderItemEntity.builder()
                 .orderId(order.getId())
-                .catalogItemId(itemRequest.catalogItemId())
+                .catalogItemId(itemRequest.getCatalogItemId())
                 .itemType(catalogItem.getType())
-                .description(itemRequest.description())
-                .quantity(itemRequest.quantity())
+                .description(itemRequest.getDescription())
+                .quantity(itemRequest.getQuantity())
                 .unitPrice(catalogItem.getUnitPrice())
                 .discountAmount(discount)
                 .totalPrice(totalPrice)
-                .professionalId(itemRequest.professionalId())
+                .professionalId(itemRequest.getProfessionalId())
                 .stockDeducted(false)
                 .build();
 
@@ -124,21 +124,21 @@ public class OrderItemService {
     }
 
     public OrderItemEntity updateOrderItem(OrderEntity order, Long itemId, OrderItemUpdateRequest request) {
-        log.info("updateOrderItem() - START - orderId={}, itemId={}, professionalId={}", order.getId(), itemId, request.professionalId());
+        log.info("updateOrderItem() - START - orderId={}, itemId={}, professionalId={}", order.getId(), itemId, request.getProfessionalId());
 
         OrderItemEntity item = findOrderItem(order.getId(), itemId);
         CatalogItemEntity catalogItem = findCatalogItem(getCatalogItemId(request, item), order.getCompanyId());
 
-        if (request.professionalId() != null) {
-            validateCollaborator(request.professionalId(), order.getCompanyId());
+        if (request.getProfessionalId() != null) {
+            validateCollaborator(request.getProfessionalId(), order.getCompanyId());
         }
 
         item.setCatalogItemId(catalogItem.getId());
-        item.setQuantity(request.quantity());
+        item.setQuantity(request.getQuantity());
         item.setUnitPrice(catalogItem.getUnitPrice());
-        item.setDiscountAmount(request.discountAmount());
-        item.setProfessionalId(request.professionalId());
-        item.setDescription(request.description());
+        item.setDiscountAmount(request.getDiscountAmount());
+        item.setProfessionalId(request.getProfessionalId());
+        item.setDescription(request.getDescription());
 
         BigDecimal discount = item.getDiscountAmount() != null ? item.getDiscountAmount() : BigDecimal.ZERO;
         BigDecimal totalPrice = item.getQuantity().multiply(item.getUnitPrice()).subtract(discount);
@@ -156,7 +156,7 @@ public class OrderItemService {
     }
 
     private Long getCatalogItemId(OrderItemUpdateRequest request, OrderItemEntity item) {
-        return request.catalogItemId() != null ? request.catalogItemId() : item.getCatalogItemId();
+        return request.getCatalogItemId() != null ? request.getCatalogItemId() : item.getCatalogItemId();
     }
 
     public void deleteItem(Long orderId, Long itemId) {

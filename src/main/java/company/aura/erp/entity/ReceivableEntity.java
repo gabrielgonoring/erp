@@ -1,6 +1,7 @@
 package company.aura.erp.entity;
 
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.ReceivableOriginType;
 import company.aura.erp.enums.ReceivableStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -31,6 +32,10 @@ public class ReceivableEntity {
 
     @Column(name = "service_order_id")
     private Long serviceOrderId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin_type", nullable = false, length = 45)
+    private ReceivableOriginType originType;
 
     @Column(name = "company_id", nullable = false)
     private Long companyId;
@@ -83,6 +88,15 @@ public class ReceivableEntity {
 
     @PrePersist
     public void prePersist() {
+        if (this.originType == null) {
+            if (this.serviceOrderId != null) {
+                this.originType = ReceivableOriginType.SERVICE_ORDER;
+            } else if (this.orderId != null) {
+                this.originType = ReceivableOriginType.ORDER;
+            } else {
+                this.originType = ReceivableOriginType.MANUAL;
+            }
+        }
         if (this.pendingAmount == null) {
             if (this.status == ReceivableStatus.PAID || this.status == ReceivableStatus.CANCELED) {
                 this.pendingAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);

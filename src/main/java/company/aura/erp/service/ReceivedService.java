@@ -5,7 +5,9 @@ import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.entity.ReceivableEntity;
+import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.enums.PaymentTransactionType;
+import company.aura.erp.enums.ReceivableOriginType;
 import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.mapper.ReceivableMapper;
 import company.aura.erp.modules.bucket.service.CloudflareR2Service;
@@ -69,7 +71,7 @@ public class ReceivedService {
 
 
     public ReceivableResponse payReceivable(Long companyId, Long receivableId, PaymentTransactionRequest request) {
-        log.info("payReceivable() - START - companyId: {}, receivableId={}, amountPaid={}", companyId, receivableId, request != null ? request.amountPaid() : null);
+        log.info("payReceivable() - START - companyId: {}, receivableId={}, amountPaid={}", companyId, receivableId, request != null ? request.getAmountPaid() : null);
 
         ReceivableEntity receivable = findReceivable(companyId, receivableId);
 
@@ -83,7 +85,7 @@ public class ReceivedService {
 
         validateRemainingValue(request, totalAmount, currentPaymentAmount);
 
-        BigDecimal newTotalPaid = currentPaymentAmount.add(request.amountPaid());
+        BigDecimal newTotalPaid = currentPaymentAmount.add(request.getAmountPaid());
 
         receivable.setStatus(getReceivableStatusAfterPayment(newTotalPaid, totalAmount));
         receivable.setPendingAmount(totalAmount.subtract(newTotalPaid));
@@ -116,8 +118,8 @@ public class ReceivedService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "A parcela já está totalmente paga.");
         }
 
-        if (request.amountPaid().compareTo(remaining) > 0) {
-            BigDecimal requestAmountFormatted = request.amountPaid().setScale(2, RoundingMode.HALF_UP);
+        if (request.getAmountPaid().compareTo(remaining) > 0) {
+            BigDecimal requestAmountFormatted = request.getAmountPaid().setScale(2, RoundingMode.HALF_UP);
             BigDecimal remainingFormatted = remaining.setScale(2, RoundingMode.HALF_UP);
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_ENTITY,
@@ -279,6 +281,7 @@ public class ReceivedService {
             LocalDate startDate,
             LocalDate endDate,
             List<ReceivableStatus> statuses,
+            List<PaymentMethod> paymentMethods,
             Long companyId,
             Pageable pageable
     ) {
@@ -296,6 +299,7 @@ public class ReceivedService {
         }
 
         boolean hasStatuses = (statuses != null && !statuses.isEmpty());
+        boolean hasPaymentMethods = (paymentMethods != null && !paymentMethods.isEmpty());
         List<ReceivableStatus> effectiveStatuses = hasStatuses ? statuses : List.of(ReceivableStatus.PENDING);
 
         Page<ReceivableSummaryResponse> page = receivableRepository.searchSummarized(
@@ -308,6 +312,8 @@ public class ReceivedService {
                 endDate,
                 hasStatuses,
                 effectiveStatuses,
+                hasPaymentMethods,
+                paymentMethods,
                 pageable
         );
 
@@ -316,13 +322,23 @@ public class ReceivedService {
         return page;
     }
 
+    @Transactional(readOnly = true)
+    public ReceivableResponse findById(Long companyId, Long receivableId) {
+        log.info("findById() - START - companyId={}, receivableId={}", companyId, receivableId);
+        ReceivableEntity receivable = findReceivable(companyId, receivableId);
+        List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByReceivableId(receivableId);
+        ReceivableResponse response = ReceivableMapper.fromEntity(receivable, transactions);
+        log.info("findById() - END - companyId={}, receivableId={}, status={}", companyId, receivableId, response != null ? response.getStatus() : null);
+        return response;
+    }
+
 
 
     public ReceivableResponse processSingleReceivable(Long companyId, ReceivableRequest receivableRequest) {
-        log.info("processSingleReceivable() - START - companyId: {}, amount: {}, partnerId: {}", companyId, receivableRequest.amount(), receivableRequest.partnerId());
+        log.info("processSingleReceivable() - START - companyId: {}, amount: {}, partnerId: {}", companyId, receivableRequest.getAmount(), receivableRequest.getPartnerId());
         ReceivableEntity savedReceivable = saveReceivable(companyId, receivableRequest);
 
-        if (receivableRequest.paid()) {
+        if (receivableRequest.getPaid()) {
             var savedTx = savePaymentTransaction(companyId, receivableRequest, savedReceivable);
             return ReceivableMapper.fromEntity(savedReceivable, List.of(savedTx));
 
@@ -332,47 +348,62 @@ public class ReceivedService {
     }
 
     private ReceivableEntity saveReceivable(Long companyId, ReceivableRequest receivableRequest) {
-        boolean isPaid = receivableRequest.paid();
-        BigDecimal amount = receivableRequest.amount() != null ? receivableRequest.amount() : BigDecimal.ZERO;
+        boolean isPaid = receivableRequest.getPaid();
+        BigDecimal amount = receivableRequest.getAmount() != null ? receivableRequest.getAmount() : BigDecimal.ZERO;
         BigDecimal pendingAmount = isPaid ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : amount.setScale(2, RoundingMode.HALF_UP);
 
         ReceivableEntity receivable = ReceivableEntity.builder()
-                .orderId(receivableRequest.orderId())
+                .orderId(receivableRequest.getOrderId())
+                .serviceOrderId(receivableRequest.getServiceOrderId())
+                .originType(resolveOriginType(receivableRequest))
                 .companyId(companyId)
-                .partnerId(receivableRequest.partnerId())
-                .installmentNumber(receivableRequest.installmentNumber())
-                .dueDate(receivableRequest.dueDate())
+                .partnerId(receivableRequest.getPartnerId())
+                .installmentNumber(receivableRequest.getInstallmentNumber())
+                .dueDate(receivableRequest.getDueDate())
                 .amount(amount)
                 .pendingAmount(pendingAmount)
-                .paymentMethod(receivableRequest.paymentMethod())
+                .paymentMethod(receivableRequest.getPaymentMethod())
                 .status(isPaid ? ReceivableStatus.PAID : ReceivableStatus.PENDING)
-                .bankSlipCode(receivableRequest.bankSlipCode())
-                .paymentFileUrl(receivableRequest.paymentFileUrl())
-                .paymentUrl(receivableRequest.paymentUrl())
-                .notes(receivableRequest.notes())
+                .bankSlipCode(receivableRequest.getBankSlipCode())
+                .paymentFileUrl(receivableRequest.getPaymentFileUrl())
+                .paymentUrl(receivableRequest.getPaymentUrl())
+                .notes(receivableRequest.getNotes())
                 .build();
 
         return receivableRepository.save(receivable);
     }
 
+    private ReceivableOriginType resolveOriginType(ReceivableRequest receivableRequest) {
+        if (receivableRequest.getOriginType() != null) {
+            return receivableRequest.getOriginType();
+        }
+        if (receivableRequest.getServiceOrderId() != null) {
+            return ReceivableOriginType.SERVICE_ORDER;
+        }
+        if (receivableRequest.getOrderId() != null) {
+            return ReceivableOriginType.ORDER;
+        }
+        return ReceivableOriginType.MANUAL;
+    }
+
     private PaymentTransactionEntity savePaymentTransaction(Long companyId, PaymentTransactionRequest request, ReceivableEntity receivable) {
 
-        LocalDateTime paidAt = request.paidAt() != null ? request.paidAt() : LocalDateTime.now();
-        PaymentTransactionType transactionType = request.transactionType() != null
-                ? request.transactionType()
+        LocalDateTime paidAt = request.getPaidAt() != null ? request.getPaidAt() : LocalDateTime.now();
+        PaymentTransactionType transactionType = request.getTransactionType() != null
+                ? request.getTransactionType()
                 : PaymentTransactionType.PAYMENT;
 
         PaymentTransactionEntity transaction = PaymentTransactionEntity.builder()
                 .receivableId(receivable.getId())
-                .refundedTransactionId(request.refundedTransactionId())
+                .refundedTransactionId(request.getRefundedTransactionId())
                 .companyId(companyId)
                 .transactionType(transactionType)
                 .paidAt(paidAt)
-                .amountPaid(request.amountPaid())
-                .paymentMethod(request.paymentMethod())
-                .cardBrand(request.cardBrand())
-                .nsuAuthorization(request.nsuAuthorization())
-                .notes(request.notes())
+                .amountPaid(request.getAmountPaid())
+                .paymentMethod(request.getPaymentMethod())
+                .cardBrand(request.getCardBrand())
+                .nsuAuthorization(request.getNsuAuthorization())
+                .notes(request.getNotes())
                 .build();
 
         return paymentTransactionRepository.save(transaction);
@@ -385,11 +416,11 @@ public class ReceivedService {
                 .companyId(companyId)
                 .transactionType(PaymentTransactionType.PAYMENT)
                 .paidAt(LocalDateTime.now())
-                .amountPaid(request.amount())
-                .paymentMethod(request.paymentMethod())
-                .cardBrand(request.cardBrand())
-                .nsuAuthorization(request.nsuAuthorization())
-                .notes(request.notes())
+                .amountPaid(request.getAmount())
+                .paymentMethod(request.getPaymentMethod())
+                .cardBrand(request.getCardBrand())
+                .nsuAuthorization(request.getNsuAuthorization())
+                .notes(request.getNotes())
                 .build();
 
         return paymentTransactionRepository.save(transaction);
@@ -403,9 +434,9 @@ public class ReceivedService {
                 .paidAt(LocalDateTime.now())
                 .amountPaid(saved.getAmount())
                 .paymentMethod(saved.getPaymentMethod())
-                .cardBrand(request.cardBrand())
-                .nsuAuthorization(request.nsuAuthorization())
-                .notes(request.notes())
+                .cardBrand(request.getCardBrand())
+                .nsuAuthorization(request.getNsuAuthorization())
+                .notes(request.getNotes())
                 .build();
         return paymentTransactionRepository.save(transaction);
     }

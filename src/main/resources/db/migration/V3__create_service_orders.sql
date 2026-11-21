@@ -118,6 +118,7 @@ ALTER TABLE `receivables`
     DROP INDEX `idx_installments_partner`,
     MODIFY COLUMN `order_id` bigint DEFAULT NULL,
     ADD COLUMN `service_order_id` bigint DEFAULT NULL AFTER `order_id`,
+    ADD COLUMN `origin_type` varchar(45) NOT NULL,
     CHANGE COLUMN `bank_slip_url` `payment_file_url` text,
     ADD COLUMN `payment_url` text AFTER `payment_file_url`,
     ADD KEY `idx_receivables_status_due` (`company_id`, `status`, `due_date`),

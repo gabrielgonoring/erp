@@ -1,19 +1,26 @@
 package company.aura.erp.controller;
 
-import company.aura.erp.dto.order.PaymentFileUrlResponse;
-import company.aura.erp.dto.order.PaymentTransactionRequest;
-import company.aura.erp.dto.order.ReceivableRequest;
-import company.aura.erp.dto.order.ReceivableResponse;
+import company.aura.erp.dto.order.*;
+import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.ReceivedService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.time.LocalDate;
+import java.util.List;
 
 
 @RestController
@@ -47,7 +54,7 @@ public class ReceivableController {
             @PathVariable Long receivableId,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        receivedService.cancelReceivable(receivableId, userPrincipal.getCompanyId());
+        receivedService.cancelReceivable(userPrincipal.getCompanyId(), receivableId);
         return ResponseEntity.noContent().build();
     }
 
@@ -78,6 +85,38 @@ public class ReceivableController {
     ) {
         receivedService.deletePaymentFile(userPrincipal.getCompanyId(), receivableId);
         return ResponseEntity.noContent().build();
+    }
+
+
+    @GetMapping
+    public ResponseEntity<Page<ReceivableSummaryResponse>> listReceivables(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) List<ReceivableStatus> status,
+            @RequestParam(required = false) List<PaymentMethod> paymentMethods,
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<ReceivableSummaryResponse> page = receivedService.listReceivables(
+                search,
+                startDate,
+                endDate,
+                status,
+                paymentMethods,
+                userPrincipal.getCompanyId(),
+                pageable
+        );
+        return ResponseEntity.ok(page);
+    }
+
+    @GetMapping("/{receivableId}")
+    public ResponseEntity<ReceivableResponse> findById(
+            @PathVariable Long receivableId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ReceivableResponse response = receivedService.findById(userPrincipal.getCompanyId(), receivableId);
+        return ResponseEntity.ok(response);
     }
 
 }

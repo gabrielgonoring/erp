@@ -191,24 +191,4 @@ public class OrderController {
         return ResponseEntity.ok(page);
     }
 
-    @GetMapping("/receivables")
-    public ResponseEntity<Page<ReceivableSummaryResponse>> listReceivables(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) List<ReceivableStatus> status,
-            @PageableDefault(size = 20, sort = "dueDate", direction = Sort.Direction.ASC) Pageable pageable,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        Page<ReceivableSummaryResponse> page = orderService.listReceivables(
-                search,
-                startDate,
-                endDate,
-                status,
-                userPrincipal.getCompanyId(),
-                pageable
-        );
-        return ResponseEntity.ok(page);
-    }
-
 }

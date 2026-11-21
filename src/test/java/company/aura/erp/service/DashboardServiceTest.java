@@ -2,6 +2,7 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.PaymentTransactionSummary;
 import company.aura.erp.dto.dashboard.PendingReceivableSummary;
 import company.aura.erp.dto.dashboard.ReceivablePaymentSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
@@ -65,13 +66,14 @@ class DashboardServiceTest {
 
         List<OrderStatusSummary> salesPerStatus = List.of(
                 new OrderStatusSummary(OrderStatus.COMPLETED, 4L),
-                new OrderStatusSummary(OrderStatus.PENDING_PAYMENT, 2L)
+                new OrderStatusSummary(OrderStatus.OPEN, 2L)
         );
         ReceivablePaymentSummary paymentSummary = new ReceivablePaymentSummary(
                 new BigDecimal("10000.00"),
                 new BigDecimal("3500.00")
         );
         PendingReceivableSummary pendingReceivables = new PendingReceivableSummary(3L, new BigDecimal("1500.00"));
+        PaymentTransactionSummary revenue = new PaymentTransactionSummary(5L, new BigDecimal("8000.00"));
 
         when(orderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
@@ -81,7 +83,7 @@ class DashboardServiceTest {
 
         when(receivableRepository.getPaymentsSummaryByOrderDate(
                 eq(companyId),
-                eq(List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED)),
+                eq(List.of(OrderStatus.COMPLETED)),
                 eq(List.of(ReceivableStatus.CANCELED)),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
@@ -93,6 +95,13 @@ class DashboardServiceTest {
                 eq(endDate)
         )).thenReturn(pendingReceivables);
 
+        when(paymentTransactionRepository.getPaymentsSummaryByStatusInAndDateRange(
+                eq(companyId),
+                eq(List.of(ReceivableStatus.PAID, ReceivableStatus.PARTIALLY_PAID)),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class)
+        )).thenReturn(revenue);
+
         DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, companyId);
 
         assertNotNull(response);
@@ -103,12 +112,14 @@ class DashboardServiceTest {
         assertEquals(new BigDecimal("3500.00"), response.pendingAmount());
         assertEquals(new BigDecimal("13500.00"), response.totalAmount());
         assertEquals(pendingReceivables, response.pendingReceivables());
+        assertEquals(revenue, response.revenue());
     }
 
     @Test
     @DisplayName("getSummary — Deve aplicar valores padrão do mês atual quando datas forem nulas")
     void shouldApplyDefaultsWhenDatesAreNull() {
         Long companyId = 1L;
+        PaymentTransactionSummary revenue = new PaymentTransactionSummary(0L, BigDecimal.ZERO);
 
         when(orderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
@@ -118,7 +129,7 @@ class DashboardServiceTest {
 
         when(receivableRepository.getPaymentsSummaryByOrderDate(
                 eq(companyId),
-                eq(List.of(OrderStatus.PENDING_PAYMENT, OrderStatus.COMPLETED)),
+                eq(List.of(OrderStatus.COMPLETED)),
                 eq(List.of(ReceivableStatus.CANCELED)),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class)
@@ -130,6 +141,13 @@ class DashboardServiceTest {
                 eq(LocalDate.now())
         )).thenReturn(new PendingReceivableSummary(0L, BigDecimal.ZERO));
 
+        when(paymentTransactionRepository.getPaymentsSummaryByStatusInAndDateRange(
+                eq(companyId),
+                eq(List.of(ReceivableStatus.PAID, ReceivableStatus.PARTIALLY_PAID)),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class)
+        )).thenReturn(revenue);
+
         DashboardSummaryResponse response = dashboardService.getSummary(null, null, companyId);
 
         assertNotNull(response);
@@ -140,6 +158,7 @@ class DashboardServiceTest {
         assertEquals(BigDecimal.ZERO, response.pendingAmount());
         assertEquals(BigDecimal.ZERO, response.totalAmount());
         assertEquals(new PendingReceivableSummary(0L, BigDecimal.ZERO), response.pendingReceivables());
+        assertEquals(revenue, response.revenue());
     }
 
     @Test

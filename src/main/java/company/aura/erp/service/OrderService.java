@@ -42,9 +42,9 @@ public class OrderService {
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
-        log.info("openOrder() - START - companyId={}, partnerId={}", companyId, request.partnerId());
+        log.info("openOrder() - START - companyId={}, partnerId={}", companyId, request.getPartnerId());
 
-        PartnerEntity partner = findPartner(request.partnerId(), companyId);
+        PartnerEntity partner = findPartner(request.getPartnerId(), companyId);
 
         OrderEntity order = buildInitialOrder(request, companyId);
 
@@ -54,7 +54,7 @@ public class OrderService {
 
         String customerName = partner.getName();
 
-        if (request.items() == null || request.items().isEmpty()) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
             OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, Collections.emptyList(), Collections.emptyList(), savedShipping);
             log.info("openOrder() - END - orderId={}, companyId={}", response.getId(), companyId);
             return response;
@@ -77,12 +77,12 @@ public class OrderService {
     }
 
     private boolean isShippingProvided(OrderCreateRequest request) {
-        return request.shipping() != null;
+        return request.getShipping() != null;
     }
 
     private BigDecimal resolveFreightAmount(OrderShippingRequest shipping) {
-        if (shipping != null && shipping.freightAmount() != null) {
-            return shipping.freightAmount();
+        if (shipping != null && shipping.getFreightAmount() != null) {
+            return shipping.getFreightAmount();
         }
         return BigDecimal.ZERO;
     }
@@ -91,15 +91,15 @@ public class OrderService {
         BigDecimal freightAmount = BigDecimal.ZERO;
 
         if (isShippingProvided(request)) {
-            freightAmount = resolveFreightAmount(request.shipping());
+            freightAmount = resolveFreightAmount(request.getShipping());
         }
 
         return OrderEntity.builder()
                 .companyId(companyId)
-                .partnerId(request.partnerId())
+                .partnerId(request.getPartnerId())
                 .status(OrderStatus.OPEN)
                 .freightAmount(freightAmount)
-                .notes(request.notes())
+                .notes(request.getNotes())
                 .servicesAmount(BigDecimal.ZERO)
                 .productsAmount(BigDecimal.ZERO)
                 .discountAmount(BigDecimal.ZERO)
@@ -164,10 +164,10 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
-        PartnerEntity partner =  findPartner(request.partnerId(), companyId);
+        PartnerEntity partner =  findPartner(request.getPartnerId(), companyId);
 
-        order.setPartnerId(request.partnerId());
-        order.setNotes(request.notes());
+        order.setPartnerId(request.getPartnerId());
+        order.setNotes(request.getNotes());
 
         OrderEntity savedOrder = orderRepository.save(order);
 
@@ -204,8 +204,8 @@ public class OrderService {
 
         OrderShippingEntity shipping = orderShippingService.updateShipping(orderId, request);
 
-        if (shipping != null && request.freightAmount() != null) {
-            order.setFreightAmount(request.freightAmount());
+        if (shipping != null && request.getFreightAmount() != null) {
+            order.setFreightAmount(request.getFreightAmount());
         } else if (shipping == null) {
             order.setFreightAmount(BigDecimal.ZERO);
         }
@@ -249,7 +249,7 @@ public class OrderService {
         validateOrderPayment(request, order);
 
         if (isShippingProvided(request)) {
-            BigDecimal updatedFreight = resolveFreightAmount(request.shipping());
+            BigDecimal updatedFreight = resolveFreightAmount(request.getShipping());
             order.setFreightAmount(updatedFreight);
         }
 
@@ -259,7 +259,13 @@ public class OrderService {
 
         recalculateOrderTotals(order, items);
 
-        receivedService.processReceivables(request.receivables(), companyId);
+        var receivablesSanitized = request.getReceivables().stream()
+                .peek(e->e.setOriginType(ReceivableOriginType.ORDER))
+                .peek(e-> e.setPartnerId(order.getPartnerId()))
+                .peek(e->e.setOrderId(orderId))
+                .toList();
+
+        receivedService.processReceivables(receivablesSanitized, companyId);
 
         order.setStatus(OrderStatus.COMPLETED);
         OrderEntity savedOrder = orderRepository.save(order);
@@ -278,8 +284,8 @@ public class OrderService {
 
     private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {
 
-        BigDecimal totalReceivables = request.receivables().stream()
-                .map(ReceivableRequest::amount)
+        BigDecimal totalReceivables = request.getReceivables().stream()
+                .map(ReceivableRequest::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         if (totalReceivables.compareTo(order.getTotalAmount()) != 0) {
@@ -350,7 +356,7 @@ public class OrderService {
 
 
     private boolean isShippingProvided(OrderCloseRequest request) {
-        return request.shipping() != null && request.shipping().freightAmount() != null;
+        return request.getShipping() != null && request.getShipping().getFreightAmount() != null;
     }
 
     private void recalculateOrderTotals(OrderEntity order, List<OrderItemEntity> items) {
@@ -463,22 +469,6 @@ public class OrderService {
         log.info("listSummarized() - START - companyId={}, search={}", companyId, search);
         Page<OrderSummaryResponse> page = listSummarized(search, null, null, null, companyId, pageable);
         log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
-        return page;
-    }
-
-    @Transactional(readOnly = true)
-    public Page<ReceivableSummaryResponse> listReceivables(
-            String search,
-            LocalDate startDate,
-            LocalDate endDate,
-            List<ReceivableStatus> statuses,
-            Long companyId,
-            Pageable pageable
-    ) {
-        log.info("listReceivables() - START - companyId={}, search={}, startDate={}, endDate={}, statuses={}",
-                companyId, search, startDate, endDate, statuses);
-        Page<ReceivableSummaryResponse> page = receivedService.listReceivables(search, startDate, endDate, statuses, companyId, pageable);
-        log.info("listReceivables() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
         return page;
     }
 }
