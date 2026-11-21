@@ -103,8 +103,8 @@ class ReceivedServiceTest {
     }
 
     @Test
-    @DisplayName("findReceivableResponses — Deve retornar recebíveis com suas transações e saldo calculado")
-    void shouldFindReceivableResponsesWithTransactions() {
+    @DisplayName("findReceivableResponses — Deve retornar recebíveis com saldo calculado sem buscar transações")
+    void shouldFindReceivableResponses() {
         ReceivableEntity receivable = ReceivableEntity.builder()
                 .id(1L)
                 .orderId(100L)
@@ -121,18 +121,7 @@ class ReceivedServiceTest {
                 .paymentUrl("https://pay.aura/1")
                 .build();
 
-        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
-                .id(10L)
-                .receivableId(1L)
-                .companyId(COMPANY_ID)
-                .transactionType(PaymentTransactionType.PAYMENT)
-                .amountPaid(BigDecimal.valueOf(40.00))
-                .paymentMethod(PaymentMethod.PIX)
-                .paidAt(LocalDateTime.now())
-                .build();
-
         when(receivableRepository.findByOrderId(100L)).thenReturn(List.of(receivable));
-        when(paymentTransactionRepository.findByReceivableId(1L)).thenReturn(List.of(tx));
 
         List<ReceivableResponse> responses = receivedService.findReceivableResponses(100L);
 
@@ -145,13 +134,13 @@ class ReceivedServiceTest {
         assertEquals(BigDecimal.valueOf(60.00), resp.getPendingAmount());
         assertEquals("https://r2/file.pdf", resp.getPaymentFileUrl());
         assertEquals("https://pay.aura/1", resp.getPaymentUrl());
-        assertEquals(1, resp.getTransactions().size());
-        assertEquals(PaymentTransactionType.PAYMENT, resp.getTransactions().get(0).getTransactionType());
+        assertTrue(resp.getTransactions().isEmpty());
+        verifyNoInteractions(paymentTransactionRepository);
     }
 
     @Test
-    @DisplayName("findReceivableResponsesByServiceOrderId — Deve retornar recebíveis da ordem de serviço com suas transações")
-    void shouldFindReceivableResponsesByServiceOrderIdWithTransactions() {
+    @DisplayName("findReceivableResponsesByServiceOrderId — Deve retornar recebíveis da ordem de serviço com saldo calculado sem buscar transações")
+    void shouldFindReceivableResponsesByServiceOrderId() {
         ReceivableEntity receivable = ReceivableEntity.builder()
                 .id(2L)
                 .serviceOrderId(200L)
@@ -166,18 +155,7 @@ class ReceivedServiceTest {
                 .status(ReceivableStatus.PARTIALLY_PAID)
                 .build();
 
-        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
-                .id(11L)
-                .receivableId(2L)
-                .companyId(COMPANY_ID)
-                .transactionType(PaymentTransactionType.PAYMENT)
-                .amountPaid(BigDecimal.valueOf(100.00))
-                .paymentMethod(PaymentMethod.PIX)
-                .paidAt(LocalDateTime.now())
-                .build();
-
         when(receivableRepository.findByServiceOrderId(200L)).thenReturn(List.of(receivable));
-        when(paymentTransactionRepository.findByReceivableId(2L)).thenReturn(List.of(tx));
 
         List<ReceivableResponse> responses = receivedService.findReceivableResponsesByServiceOrderId(200L);
 
@@ -188,7 +166,8 @@ class ReceivedServiceTest {
         assertEquals(ReceivableOriginType.SERVICE_ORDER, resp.getOriginType());
         assertEquals(BigDecimal.valueOf(100.00), resp.getPaidAmount());
         assertEquals(BigDecimal.valueOf(20.00), resp.getRemainingAmount());
-        assertEquals(1, resp.getTransactions().size());
+        assertTrue(resp.getTransactions().isEmpty());
+        verifyNoInteractions(paymentTransactionRepository);
     }
 
     @Test
