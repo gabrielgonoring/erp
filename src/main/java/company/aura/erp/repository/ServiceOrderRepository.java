@@ -1,5 +1,6 @@
 package company.aura.erp.repository;
 
+import company.aura.erp.dto.dashboard.SalesAggregationSummary;
 import company.aura.erp.dto.serviceorder.ServiceOrderSummaryResponse;
 import company.aura.erp.entity.ServiceOrderEntity;
 import company.aura.erp.enums.ServiceOrderStatus;
@@ -81,5 +82,23 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderEntity
             @Param("technicianId") Long technicianId,
             @Param("objectIdentifier") String objectIdentifier,
             Pageable pageable
+    );
+
+    @Query("""
+        SELECT new company.aura.erp.dto.dashboard.SalesAggregationSummary(
+            COALESCE(SUM(so.totalAmount), 0),
+            COUNT(so)
+        )
+        FROM ServiceOrderEntity so
+        WHERE so.companyId = :companyId
+          AND so.status <> :canceledStatus
+          AND so.createdAt >= :startDate
+          AND so.createdAt <= :endDate
+    """)
+    SalesAggregationSummary getServiceOrdersSalesSummary(
+            @Param("companyId") Long companyId,
+            @Param("canceledStatus") ServiceOrderStatus canceledStatus,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 }

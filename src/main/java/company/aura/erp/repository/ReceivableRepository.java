@@ -2,6 +2,7 @@ package company.aura.erp.repository;
 
 import company.aura.erp.dto.dashboard.PendingReceivableSummary;
 import company.aura.erp.dto.dashboard.ReceivablePaymentSummary;
+import company.aura.erp.dto.dashboard.ReceivablesKpiSummary;
 import company.aura.erp.dto.job.ReceivableDueNotice;
 import company.aura.erp.dto.order.ReceivableSummaryResponse;
 import company.aura.erp.entity.ReceivableEntity;
@@ -69,6 +70,28 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
             @Param("companyId") Long companyId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+        SELECT new company.aura.erp.dto.dashboard.ReceivablesKpiSummary(
+            COALESCE(SUM(CASE WHEN r.dueDate >= :today THEN r.pendingAmount END), 0),
+            COUNT(CASE WHEN r.dueDate >= :today THEN 1 END),
+            COALESCE(SUM(CASE WHEN r.dueDate >= :today AND r.dueDate <= :weekEndDate THEN r.pendingAmount END), 0),
+            COUNT(CASE WHEN r.dueDate >= :today AND r.dueDate <= :weekEndDate THEN 1 END),
+            COALESCE(SUM(CASE WHEN r.dueDate < :today THEN r.pendingAmount END), 0),
+            COUNT(CASE WHEN r.dueDate < :today THEN 1 END),
+            COUNT(DISTINCT CASE WHEN r.dueDate < :today THEN r.partnerId END)
+        )
+        FROM ReceivableEntity r
+        WHERE r.companyId = :companyId
+          AND r.pendingAmount > 0
+          AND r.status IN (:openStatuses)
+    """)
+    ReceivablesKpiSummary getReceivablesKpiSummary(
+            @Param("companyId") Long companyId,
+            @Param("today") LocalDate today,
+            @Param("weekEndDate") LocalDate weekEndDate,
+            @Param("openStatuses") List<ReceivableStatus> openStatuses
     );
 
     @Query(

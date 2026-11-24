@@ -1,5 +1,6 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.dashboard.DashboardKpisResponse;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
 import company.aura.erp.dto.dashboard.PendingReceivableSummary;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
@@ -74,6 +75,51 @@ class DashboardControllerTest {
         assertNotNull(response.getBody());
         assertEquals(expectedResponse, response.getBody());
         verify(dashboardService).getSummary(startDate, endDate, 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/dashboard/kpis — Deve retornar KPIs do dashboard com sucesso via GET")
+    void shouldReturnKpisOnGet() {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        DashboardKpisResponse expectedResponse = new DashboardKpisResponse(
+                new DashboardKpisResponse.Period(startDate, endDate),
+                new DashboardKpisResponse.Kpis(
+                        new DashboardKpisResponse.RealizedRevenue(
+                                new BigDecimal("8172.66"),
+                                new BigDecimal("7297.00"),
+                                new BigDecimal("12.0"),
+                                26L
+                        ),
+                        new DashboardKpisResponse.GeneratedSales(
+                                new BigDecimal("12432.34"),
+                                new BigDecimal("10096.50"),
+                                17L,
+                                new BigDecimal("2335.84"),
+                                5L
+                        ),
+                        new DashboardKpisResponse.OpenReceivables(
+                                new BigDecimal("2335.84"),
+                                8L,
+                                new BigDecimal("1250.00"),
+                                3L
+                        ),
+                        new DashboardKpisResponse.OverdueReceivables(
+                                new BigDecimal("1540.00"),
+                                4L,
+                                3L
+                        )
+                )
+        );
+
+        when(dashboardService.getKpis(startDate, endDate, 10L)).thenReturn(expectedResponse);
+
+        ResponseEntity<DashboardKpisResponse> response = dashboardController.getKpis(startDate, endDate, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(expectedResponse, response.getBody());
+        verify(dashboardService).getKpis(startDate, endDate, 10L);
     }
 
     @Test

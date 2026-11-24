@@ -1,5 +1,6 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.dashboard.DashboardKpisResponse;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.security.UserPrincipal;
@@ -30,11 +31,20 @@ public class DashboardController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/kpis")
+    public ResponseEntity<DashboardKpisResponse> getKpis(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        DashboardKpisResponse response = dashboardService.getKpis(startDate, endDate, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/alerts")
     public ResponseEntity<List<SystemAlertResponse>> getAlerts(
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        // (Importante: não coloque a implementação)
         List<SystemAlertResponse> response = dashboardService.getAlerts(userPrincipal);
         return ResponseEntity.ok(response);
     }
