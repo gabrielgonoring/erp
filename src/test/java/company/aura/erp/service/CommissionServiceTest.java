@@ -75,7 +75,6 @@ class CommissionServiceTest {
                 .id(5L)
                 .companyId(10L)
                 .name("João")
-                .defaultCommissionPercentage(new BigDecimal("5.00"))
                 .build();
 
         CatalogItemEntity catalogItem = new CatalogItemEntity();
@@ -144,8 +143,8 @@ class CommissionServiceTest {
     }
 
     @Test
-    @DisplayName("Deve usar comissão padrão do colaborador quando nenhuma regra estiver ativa")
-    void shouldFallbackToCollaboratorDefaultPercentage() {
+    @DisplayName("Não deve gerar lançamento quando nenhuma regra de comissão estiver ativa")
+    void shouldNotGenerateEntryWhenNoRuleApplies() {
         ServiceOrderEntity so = ServiceOrderEntity.builder()
                 .id(200L)
                 .companyId(10L)
@@ -166,7 +165,6 @@ class CommissionServiceTest {
                 .id(5L)
                 .companyId(10L)
                 .name("João")
-                .defaultCommissionPercentage(new BigDecimal("12.00"))
                 .build();
 
         when(commissionRuleRepository.findByCompanyIdAndStatus(10L, CommissionRuleStatus.ACTIVE))
@@ -174,19 +172,11 @@ class CommissionServiceTest {
         when(commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(10L, CommissionSourceType.SERVICE_ORDER_ITEM, 600L))
                 .thenReturn(false);
         when(collaboratorRepository.findByIdAndCompanyId(5L, 10L)).thenReturn(Optional.of(collaborator));
-        when(commissionEntryRepository.save(any(CommissionEntryEntity.class))).thenAnswer(inv -> {
-            CommissionEntryEntity e = inv.getArgument(0);
-            e.setId(901L);
-            return e;
-        });
 
         List<CommissionEntryResponse> result = commissionService.generateEntriesForServiceOrder(so, List.of(item));
 
-        assertEquals(1, result.size());
-        assertEquals(new BigDecimal("12.00"), result.get(0).getAppliedPercentage());
-        assertEquals(new BigDecimal("12.00"), result.get(0).getCommissionAmount());
-        assertEquals(CommissionRuleSource.COLLABORATOR_PROFILE, result.get(0).getRuleSource());
-        assertNull(result.get(0).getRuleId());
+        assertTrue(result.isEmpty());
+        verify(commissionEntryRepository, never()).save(any());
     }
 
     @Test

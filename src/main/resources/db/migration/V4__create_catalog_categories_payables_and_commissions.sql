@@ -75,6 +75,9 @@ CREATE TABLE `payable_transactions` (
 -- BLOCO 3: SISTEMA DE COMISSÕES (DESACOPLADO)
 -- ============================================================================
 
+ALTER TABLE `collaborators`
+  DROP COLUMN `default_commission_percentage`;
+
 CREATE TABLE `commission_rules` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `company_id` bigint NOT NULL,

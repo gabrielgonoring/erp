@@ -7,6 +7,5 @@ public enum CommissionRuleSource {
     ITEM,
     CATEGORY,
     COMPANY_DEFAULT,
-    COLLABORATOR_PROFILE,
     MANUAL
 }

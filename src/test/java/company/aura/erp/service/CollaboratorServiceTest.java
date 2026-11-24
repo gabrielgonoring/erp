@@ -2,13 +2,12 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.collaborator.*;
 import company.aura.erp.entity.CollaboratorEntity;
+import company.aura.erp.entity.CommissionEntryEntity;
+import company.aura.erp.entity.CommissionRuleEntity;
 import company.aura.erp.entity.OrderItemEntity;
 import company.aura.erp.entity.UserEntity;
-import company.aura.erp.enums.CatalogItemType;
-import company.aura.erp.enums.CollaboratorStatus;
-import company.aura.erp.repository.CollaboratorRepository;
-import company.aura.erp.repository.OrderItemRepository;
-import company.aura.erp.repository.UserRepository;
+import company.aura.erp.enums.*;
+import company.aura.erp.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +45,12 @@ class CollaboratorServiceTest {
     @Mock
     private OrderItemRepository orderItemRepository;
 
+    @Mock
+    private CommissionRuleRepository commissionRuleRepository;
+
+    @Mock
+    private CommissionEntryRepository commissionEntryRepository;
+
     @InjectMocks
     private CollaboratorService collaboratorService;
 
@@ -64,12 +70,11 @@ class CollaboratorServiceTest {
                 .phone("11999998888")
                 .status("ACTIVE")
                 .jobTitle("Desenvolvedora")
-                .defaultCommissionPercentage(new BigDecimal("10.00"))
                 .build();
     }
 
     @Test
-    @DisplayName("Deve criar colaborador com sucesso incluindo porcentagem de comissão")
+    @DisplayName("Deve criar colaborador com sucesso")
     void shouldCreateCollaboratorSuccessfully() {
         CollaboratorCreateRequest request = CollaboratorCreateRequest.builder()
                 .name("Maria Silva")
@@ -78,7 +83,6 @@ class CollaboratorServiceTest {
                 .email("maria.silva@email.com")
                 .phone("11999998888")
                 .jobTitle("Desenvolvedora")
-                .defaultCommissionPercentage(new BigDecimal("10.00"))
                 .build();
 
         UserEntity user = UserEntity.builder()
@@ -98,7 +102,6 @@ class CollaboratorServiceTest {
         assertEquals("Maria Silva", response.getName());
         assertEquals("ACTIVE", response.getStatus());
         assertEquals(100L, response.getUserId());
-        assertEquals(new BigDecimal("10.00"), response.getDefaultCommissionPercentage());
         verify(collaboratorRepository).save(any(CollaboratorEntity.class));
     }
 
@@ -117,7 +120,7 @@ class CollaboratorServiceTest {
     }
 
     @Test
-    @DisplayName("Deve atualizar colaborador com sucesso incluindo comissão")
+    @DisplayName("Deve atualizar colaborador com sucesso")
     void shouldUpdateCollaboratorSuccessfully() {
         CollaboratorUpdateRequest request = CollaboratorUpdateRequest.builder()
                 .name("Maria Santos")
@@ -125,7 +128,6 @@ class CollaboratorServiceTest {
                 .cpf("123.456.789-00")
                 .email("maria.santos@email.com")
                 .phone("11888887777")
-                .defaultCommissionPercentage(new BigDecimal("12.50"))
                 .build();
 
         UserEntity user = UserEntity.builder()
@@ -144,7 +146,6 @@ class CollaboratorServiceTest {
         assertNotNull(response);
         assertEquals("Maria Santos", response.getName());
         assertEquals("maria.santos@email.com", response.getEmail());
-        assertEquals(new BigDecimal("12.50"), response.getDefaultCommissionPercentage());
         verify(collaboratorRepository).save(collaborator);
     }
 
@@ -210,5 +211,54 @@ class CollaboratorServiceTest {
         assertEquals("Maria Silva", response.getName());
     }
 
+    @Test
+    @DisplayName("Deve gerar relatório de itens vendidos usando regras e lançamentos de comissão")
+    void shouldGetSoldItemsReportUsingCommissionRulesAndEntries() {
+        OrderItemEntity item1 = OrderItemEntity.builder()
+                .id(101L)
+                .orderId(50L)
+                .description("Corte")
+                .quantity(new BigDecimal("1"))
+                .unitPrice(new BigDecimal("100.00"))
+                .totalPrice(new BigDecimal("100.00"))
+                .createdAt(LocalDateTime.of(2026, 11, 10, 10, 0))
+                .build();
 
+        CommissionRuleEntity collabDefaultRule = CommissionRuleEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .collaboratorId(10L)
+                .commissionPercentage(new BigDecimal("10.00"))
+                .status(CommissionRuleStatus.ACTIVE)
+                .build();
+
+        CommissionEntryEntity entry = CommissionEntryEntity.builder()
+                .id(500L)
+                .companyId(companyId)
+                .sourceType(CommissionSourceType.ORDER_ITEM)
+                .sourceItemId(101L)
+                .commissionAmount(new BigDecimal("15.00"))
+                .status(CommissionEntryStatus.PENDING)
+                .build();
+
+        when(collaboratorRepository.findByIdAndCompanyId(10L, companyId)).thenReturn(Optional.of(collaborator));
+        when(orderItemRepository.findByCollaboratorAndCompanyAndCreatedAtBetween(
+                eq(10L), eq(companyId), eq(List.of(OrderStatus.COMPLETED)), any(), any()))
+                .thenReturn(List.of(item1));
+        when(commissionRuleRepository.findByCompanyIdAndStatus(companyId, CommissionRuleStatus.ACTIVE))
+                .thenReturn(List.of(collabDefaultRule));
+        when(commissionEntryRepository.findByCompanyIdAndSourceTypeAndSourceItemIdInAndStatusNot(
+                companyId, CommissionSourceType.ORDER_ITEM, List.of(101L), CommissionEntryStatus.CANCELED))
+                .thenReturn(List.of(entry));
+
+        CollaboratorCommissionReportResponse report = collaboratorService.getSoldItemsReport(
+                10L, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), companyId
+        );
+
+        assertEquals(new BigDecimal("100.00"), report.getHeader().getTotalSold());
+        assertEquals(new BigDecimal("15.00"), report.getHeader().getTotalCommission());
+        assertEquals(new BigDecimal("10.00"), report.getHeader().getCommissionPercentage());
+        assertEquals(1, report.getItems().size());
+        assertEquals(new BigDecimal("15.00"), report.getItems().getFirst().getCommissionAmount());
+    }
 }

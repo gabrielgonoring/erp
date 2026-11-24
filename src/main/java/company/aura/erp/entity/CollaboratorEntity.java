@@ -5,7 +5,6 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -44,10 +43,6 @@ public class CollaboratorEntity {
     @Builder.Default
     @Column(name = "status", nullable = false, length = 45)
     private String status = "ACTIVE";
-
-    @Builder.Default
-    @Column(name = "default_commission_percentage", precision = 5, scale = 2)
-    private BigDecimal defaultCommissionPercentage = BigDecimal.ZERO;
 
     // Endereço
     @Column(name = "street")

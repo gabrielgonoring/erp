@@ -22,8 +22,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -518,6 +516,9 @@ public class CommissionService {
 
         LocalDate occurredDate = occurredAt.toLocalDate();
         ResolvedCommissionRule resolved = resolveRule(collaborator, catalogItemId, categoryId, occurredDate, activeRules);
+        if (resolved == null) {
+            return null;
+        }
 
         BigDecimal safeBase = baseAmount != null ? baseAmount.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         BigDecimal percentage = resolved.percentage() != null ? resolved.percentage() : BigDecimal.ZERO;
@@ -615,11 +616,7 @@ public class CommissionService {
             return new ResolvedCommissionRule(companyDefault.get().getId(), companyDefault.get().getCommissionPercentage(), CommissionRuleSource.COMPANY_DEFAULT);
         }
 
-        // 7. Fallback to collaborator profile default percentage
-        BigDecimal fallback = collaborator.getDefaultCommissionPercentage() != null
-                ? collaborator.getDefaultCommissionPercentage()
-                : BigDecimal.ZERO;
-        return new ResolvedCommissionRule(null, fallback, CommissionRuleSource.COLLABORATOR_PROFILE);
+        return null;
     }
 
     private boolean isWithinValidity(CommissionRuleEntity rule, LocalDate date) {
