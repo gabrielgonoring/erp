@@ -318,10 +318,12 @@ public class ServiceOrderService {
         serviceOrder.setOrderId(openedOrder.getId());
         ServiceOrderEntity saved = serviceOrderRepository.save(serviceOrder);
 
+        List<ReceivableResponse> receivables = receivedService.linkServiceOrderReceivablesToOrder(saved.getId(), openedOrder.getId());
+
         String customerName = resolvePartnerName(saved.getPartnerId(), companyId);
         String technicianName = resolveTechnicianName(saved.getTechnicianId(), companyId);
 
-        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, customerName, technicianName, allItems);
+        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, customerName, technicianName, allItems, receivables);
         log.info("complete() - END - serviceOrderId={}, orderId={}, companyId={}, status={}", response.getId(), openedOrder.getId(), companyId, response.getStatus());
         return response;
     }

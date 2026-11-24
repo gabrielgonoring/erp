@@ -126,7 +126,7 @@ public class OrderShippingService {
     public OrderShippingEntity upsertShippingOnClose(Long orderId, OrderCloseRequest request) {
         log.info("upsertShippingOnClose() - START - orderId={}", orderId);
 
-        if (request.getShipping() == null) {
+        if (request == null || request.getShipping() == null) {
             orderShippingRepository.deleteByOrderId(orderId);
             log.info("upsertShippingOnClose() - END - orderId={}, deleted=true", orderId);
             return null;

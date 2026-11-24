@@ -293,7 +293,7 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve finalizar OS mudando status para COMPLETED e abrindo pedido com os itens ativos")
+    @DisplayName("Deve finalizar OS mudando status para COMPLETED, abrindo pedido e vinculando recebíveis da OS ao pedido")
     void shouldCompleteServiceOrderAndOpenOrder() {
         ServiceOrderItemEntity serviceItem = ServiceOrderItemEntity.builder()
                 .id(201L)
@@ -340,11 +340,22 @@ class ServiceOrderServiceTest {
                 .totalAmount(BigDecimal.valueOf(380.00))
                 .build();
 
+        List<ReceivableResponse> linkedReceivables = List.of(
+                ReceivableResponse.builder()
+                        .id(901L)
+                        .orderId(500L)
+                        .serviceOrderId(100L)
+                        .originType(ReceivableOriginType.SERVICE_ORDER)
+                        .status(ReceivableStatus.PAID)
+                        .build()
+        );
+
         when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(activeItems);
         when(orderService.openOrder(any(OrderCreateRequest.class), eq(companyId)))
                 .thenReturn(openedOrder);
         when(serviceOrderRepository.save(any(ServiceOrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(receivedService.linkServiceOrderReceivablesToOrder(100L, 500L)).thenReturn(linkedReceivables);
         when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId))
                 .thenReturn(Optional.of("Cliente Teste"));
         when(collaboratorRepository.findNameByIdAndCompanyId(technicianId, companyId))
@@ -358,7 +369,9 @@ class ServiceOrderServiceTest {
         assertEquals(500L, response.getOrderId());
         assertEquals(BigDecimal.valueOf(380.00), response.getTotalAmount());
         assertEquals("Bateria substituída e testada", response.getTechnicalReport());
+        assertEquals(linkedReceivables, response.getReceivables());
         verify(serviceOrderItemService).completeItems(activeItems);
+        verify(receivedService).linkServiceOrderReceivablesToOrder(100L, 500L);
 
         ArgumentCaptor<OrderCreateRequest> orderRequestCaptor = ArgumentCaptor.forClass(OrderCreateRequest.class);
         verify(orderService).openOrder(orderRequestCaptor.capture(), eq(companyId));
@@ -377,6 +390,7 @@ class ServiceOrderServiceTest {
                 () -> serviceOrderService.complete(100L, null, companyId));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verifyNoInteractions(orderService);
+        verifyNoInteractions(receivedService);
     }
 
     @Test

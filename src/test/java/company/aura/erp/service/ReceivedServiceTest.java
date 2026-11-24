@@ -171,6 +171,57 @@ class ReceivedServiceTest {
     }
 
     @Test
+    @DisplayName("linkServiceOrderReceivablesToOrder — Deve vincular os recebíveis da OS ao pedido criado")
+    void shouldLinkServiceOrderReceivablesToOrder() {
+        ReceivableEntity receivable1 = ReceivableEntity.builder()
+                .id(1L)
+                .serviceOrderId(200L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .companyId(COMPANY_ID)
+                .partnerId(5L)
+                .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.ZERO)
+                .status(ReceivableStatus.PAID)
+                .build();
+
+        ReceivableEntity receivable2 = ReceivableEntity.builder()
+                .id(2L)
+                .serviceOrderId(200L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .companyId(COMPANY_ID)
+                .partnerId(5L)
+                .amount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.valueOf(50.00))
+                .status(ReceivableStatus.PENDING)
+                .build();
+
+        when(receivableRepository.findByServiceOrderId(200L)).thenReturn(List.of(receivable1, receivable2));
+        when(receivableRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<ReceivableResponse> responses = receivedService.linkServiceOrderReceivablesToOrder(200L, 500L);
+
+        assertEquals(2, responses.size());
+        assertEquals(500L, receivable1.getOrderId());
+        assertEquals(500L, receivable2.getOrderId());
+        assertEquals(500L, responses.get(0).getOrderId());
+        assertEquals(200L, responses.get(0).getServiceOrderId());
+        assertEquals(500L, responses.get(1).getOrderId());
+        assertEquals(200L, responses.get(1).getServiceOrderId());
+        verify(receivableRepository).saveAll(List.of(receivable1, receivable2));
+    }
+
+    @Test
+    @DisplayName("linkServiceOrderReceivablesToOrder — Deve retornar lista vazia quando a OS não possuir recebíveis")
+    void shouldReturnEmptyListWhenServiceOrderHasNoReceivablesToLink() {
+        when(receivableRepository.findByServiceOrderId(200L)).thenReturn(Collections.emptyList());
+
+        List<ReceivableResponse> responses = receivedService.linkServiceOrderReceivablesToOrder(200L, 500L);
+
+        assertTrue(responses.isEmpty());
+        verify(receivableRepository, never()).saveAll(any());
+    }
+
+    @Test
     @DisplayName("payReceivable — Deve registrar pagamento parcial e marcar status PARTIALLY_PAID")
     void shouldPayReceivablePartially() {
         ReceivableEntity receivable = ReceivableEntity.builder()

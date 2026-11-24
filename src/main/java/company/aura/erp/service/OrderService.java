@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -246,7 +247,11 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
-        validateOrderPayment(request, order);
+        List<ReceivableRequest> requestReceivables = (request != null && request.getReceivables() != null)
+                ? request.getReceivables()
+                : Collections.emptyList();
+
+        validateOrderPayment(requestReceivables, order);
 
         if (isShippingProvided(request)) {
             BigDecimal updatedFreight = resolveFreightAmount(request.getShipping());
@@ -259,13 +264,15 @@ public class OrderService {
 
         recalculateOrderTotals(order, items);
 
-        var receivablesSanitized = request.getReceivables().stream()
-                .peek(e->e.setOriginType(ReceivableOriginType.ORDER))
-                .peek(e-> e.setPartnerId(order.getPartnerId()))
-                .peek(e->e.setOrderId(orderId))
+        var receivablesSanitized = requestReceivables.stream()
+                .peek(e -> e.setOriginType(ReceivableOriginType.ORDER))
+                .peek(e -> e.setPartnerId(order.getPartnerId()))
+                .peek(e -> e.setOrderId(orderId))
                 .toList();
 
-        receivedService.processReceivables(receivablesSanitized, companyId);
+        if (!receivablesSanitized.isEmpty()) {
+            receivedService.processReceivables(receivablesSanitized, companyId);
+        }
 
         order.setStatus(OrderStatus.COMPLETED);
         OrderEntity savedOrder = orderRepository.save(order);
@@ -282,17 +289,26 @@ public class OrderService {
         return response;
     }
 
-    private void validateOrderPayment(OrderCloseRequest request, OrderEntity order) {
-
-        BigDecimal totalReceivables = request.getReceivables().stream()
-                .map(ReceivableRequest::getAmount)
+    private void validateOrderPayment(List<ReceivableRequest> requestReceivables, OrderEntity order) {
+        List<ReceivableResponse> existingReceivables = receivedService.findReceivableResponses(order.getId());
+        BigDecimal existingReceivablesTotal = (existingReceivables != null ? existingReceivables : Collections.<ReceivableResponse>emptyList())
+                .stream()
+                .filter(r -> r.getStatus() != ReceivableStatus.CANCELED)
+                .map(ReceivableResponse::getAmount)
+                .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        if (totalReceivables.compareTo(order.getTotalAmount()) != 0) {
+        BigDecimal requestReceivablesTotal = requestReceivables.stream()
+                .map(ReceivableRequest::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalReceivables = existingReceivablesTotal.add(requestReceivablesTotal);
+        BigDecimal expectedTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+
+        if (totalReceivables.compareTo(expectedTotal) != 0) {
             BigDecimal receivablesFormatted = totalReceivables.setScale(2, RoundingMode.HALF_UP);
-            BigDecimal totalOrderFormatted = order.getTotalAmount() != null
-                    ? order.getTotalAmount().setScale(2, RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalOrderFormatted = expectedTotal.setScale(2, RoundingMode.HALF_UP);
 
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_ENTITY,
@@ -356,7 +372,7 @@ public class OrderService {
 
 
     private boolean isShippingProvided(OrderCloseRequest request) {
-        return request.getShipping() != null && request.getShipping().getFreightAmount() != null;
+        return request != null && request.getShipping() != null && request.getShipping().getFreightAmount() != null;
     }
 
     private void recalculateOrderTotals(OrderEntity order, List<OrderItemEntity> items) {

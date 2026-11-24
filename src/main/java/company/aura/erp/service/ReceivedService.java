@@ -63,6 +63,26 @@ public class ReceivedService {
         return responses;
     }
 
+    @Transactional
+    public List<ReceivableResponse> linkServiceOrderReceivablesToOrder(Long serviceOrderId, Long orderId) {
+        log.info("linkServiceOrderReceivablesToOrder() - START - serviceOrderId={}, orderId={}", serviceOrderId, orderId);
+        List<ReceivableEntity> receivables = receivableRepository.findByServiceOrderId(serviceOrderId);
+        if (receivables.isEmpty()) {
+            log.info("linkServiceOrderReceivablesToOrder() - END - serviceOrderId={}, orderId={}, linkedCount=0", serviceOrderId, orderId);
+            return Collections.emptyList();
+        }
+
+        receivables.forEach(receivable -> receivable.setOrderId(orderId));
+        List<ReceivableEntity> savedReceivables = receivableRepository.saveAll(receivables);
+        List<ReceivableResponse> responses = savedReceivables.stream()
+                .map(receivable -> ReceivableMapper.fromEntity(receivable, null))
+                .toList();
+
+        log.info("linkServiceOrderReceivablesToOrder() - END - serviceOrderId={}, orderId={}, linkedCount={}",
+                serviceOrderId, orderId, responses.size());
+        return responses;
+    }
+
     private ReceivableEntity findReceivable(Long companyId, Long receivableId) {
         return receivableRepository.findByIdAndCompanyId(receivableId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recebível não encontrado"));

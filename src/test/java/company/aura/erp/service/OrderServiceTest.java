@@ -348,7 +348,9 @@ class OrderServiceTest {
                 .amount(BigDecimal.valueOf(120.00))
                 .build();
 
-        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(receivableResponse));
+        when(receivedService.findReceivableResponses(100L))
+                .thenReturn(Collections.emptyList())
+                .thenReturn(List.of(receivableResponse));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
@@ -394,7 +396,9 @@ class OrderServiceTest {
                 .amount(BigDecimal.valueOf(15.00))
                 .build();
 
-        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(receivableResponse));
+        when(receivedService.findReceivableResponses(100L))
+                .thenReturn(Collections.emptyList())
+                .thenReturn(List.of(receivableResponse));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
@@ -442,7 +446,9 @@ class OrderServiceTest {
                 .amount(BigDecimal.valueOf(5.00))
                 .build();
 
-        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(rec1, rec2));
+        when(receivedService.findReceivableResponses(100L))
+                .thenReturn(Collections.emptyList())
+                .thenReturn(List.of(rec1, rec2));
         when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         OrderResponse response = orderService.closeOrder(100L, request, companyId);
@@ -472,7 +478,178 @@ class OrderServiceTest {
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
         assertTrue(ex.getReason().contains("100.00"));
         assertTrue(ex.getReason().contains("135.00"));
-        verifyNoInteractions(receivedService);
+        verify(receivedService).findReceivableResponses(100L);
+        verify(receivedService, never()).processReceivables(any(), any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve somar recebíveis já vinculados ao pedido (ignorando cancelados) com os da request")
+    void shouldCloseOrderConsideringAlreadyLinkedReceivables() {
+        sampleOrder.setFreightAmount(BigDecimal.ZERO);
+        sampleOrder.setTotalAmount(BigDecimal.valueOf(150.00));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ReceivableResponse existingLinked = ReceivableResponse.builder()
+                .id(400L)
+                .orderId(100L)
+                .serviceOrderId(50L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PAID)
+                .amount(BigDecimal.valueOf(50.00))
+                .build();
+        ReceivableResponse existingCanceled = ReceivableResponse.builder()
+                .id(401L)
+                .orderId(100L)
+                .serviceOrderId(50L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.CANCELED)
+                .amount(BigDecimal.valueOf(99.00))
+                .build();
+        ReceivableResponse newReceivable = ReceivableResponse.builder()
+                .id(500L)
+                .orderId(100L)
+                .originType(ReceivableOriginType.ORDER)
+                .status(ReceivableStatus.PENDING)
+                .amount(BigDecimal.valueOf(100.00))
+                .build();
+
+        OrderCloseRequest request = new OrderCloseRequest(
+                List.of(
+                        new ReceivableRequest(null, null, null, null, 1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, false, null, null, null, null, null, null)
+                ),
+                null
+        );
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.SERVICE)
+                .totalPrice(BigDecimal.valueOf(150.00))
+                .stockDeducted(false)
+                .build();
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
+        when(receivedService.findReceivableResponses(100L))
+                .thenReturn(List.of(existingLinked, existingCanceled))
+                .thenReturn(List.of(existingLinked, existingCanceled, newReceivable));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.COMPLETED, response.getStatus());
+        assertEquals(3, response.getReceivables().size());
+        verify(receivedService).processReceivables(request.getReceivables(), companyId);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve fechar pedido sem novas parcelas quando recebíveis já vinculados cobrem o total")
+    void shouldCloseOrderWhenAlreadyLinkedReceivablesCoverTotal() {
+        sampleOrder.setFreightAmount(BigDecimal.ZERO);
+        sampleOrder.setTotalAmount(BigDecimal.valueOf(150.00));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ReceivableResponse existingLinked = ReceivableResponse.builder()
+                .id(400L)
+                .orderId(100L)
+                .serviceOrderId(50L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PAID)
+                .amount(BigDecimal.valueOf(150.00))
+                .build();
+
+        OrderCloseRequest request = new OrderCloseRequest(Collections.emptyList(), null);
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.SERVICE)
+                .totalPrice(BigDecimal.valueOf(150.00))
+                .stockDeducted(false)
+                .build();
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
+        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(existingLinked));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.COMPLETED, response.getStatus());
+        assertEquals(1, response.getReceivables().size());
+        verify(receivedService, never()).processReceivables(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve lançar HTTP 422 quando soma dos recebíveis vinculados e enviados ultrapassar o total")
+    void shouldThrow422WhenAlreadyLinkedPlusRequestedReceivablesExceedTotal() {
+        sampleOrder.setTotalAmount(BigDecimal.valueOf(150.00));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ReceivableResponse existingLinked = ReceivableResponse.builder()
+                .id(400L)
+                .orderId(100L)
+                .serviceOrderId(50L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PAID)
+                .amount(BigDecimal.valueOf(50.00))
+                .build();
+
+        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(existingLinked));
+
+        OrderCloseRequest request = new OrderCloseRequest(
+                List.of(
+                        new ReceivableRequest(null, null, null, null, 1, LocalDate.now(), BigDecimal.valueOf(150.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ),
+                null
+        );
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.closeOrder(100L, request, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("200.00"));
+        assertTrue(ex.getReason().contains("150.00"));
+        verify(receivedService, never()).processReceivables(any(), any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve lançar HTTP 422 quando soma dos recebíveis vinculados e enviados for menor que o total")
+    void shouldThrow422WhenAlreadyLinkedPlusRequestedReceivablesAreLessThanTotal() {
+        sampleOrder.setTotalAmount(BigDecimal.valueOf(150.00));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ReceivableResponse existingLinked = ReceivableResponse.builder()
+                .id(400L)
+                .orderId(100L)
+                .serviceOrderId(50L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.PENDING)
+                .amount(BigDecimal.valueOf(50.00))
+                .build();
+
+        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(existingLinked));
+
+        OrderCloseRequest request = new OrderCloseRequest(
+                List.of(
+                        new ReceivableRequest(null, null, null, null, 1, LocalDate.now(), BigDecimal.valueOf(80.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ),
+                null
+        );
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.closeOrder(100L, request, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("130.00"));
+        assertTrue(ex.getReason().contains("150.00"));
+        verify(receivedService, never()).processReceivables(any(), any());
         verify(orderRepository, never()).save(any());
     }
 
