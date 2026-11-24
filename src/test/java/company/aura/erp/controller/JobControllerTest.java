@@ -24,12 +24,12 @@ class JobControllerTest {
     private JobController jobController;
 
     @Test
-    @DisplayName("POST /orders/installment/notify — Deve disparar o job e retornar 202 Accepted")
-    void shouldTriggerNotifyInstallmentsAndReturnAccepted() {
-        ResponseEntity<Void> response = jobController.notifyInstallments();
+    @DisplayName("POST /orders/receivable/notify — Deve disparar o job e retornar 202 Accepted")
+    void shouldTriggerNotifyReceivablesAndReturnAccepted() {
+        ResponseEntity<Void> response = jobController.notifyReceivables();
 
         assertNotNull(response);
         assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
-        verify(jobService).notifyUpcomingInstallments();
+        verify(jobService).notifyUpcomingReceivables();
     }
 }

@@ -11,8 +11,10 @@ public class PaymentTransactionMapper {
         }
         return PaymentTransactionResponse.builder()
                 .id(entity.getId())
-                .installmentId(entity.getInstallmentId())
+                .receivableId(entity.getReceivableId())
+                .refundedTransactionId(entity.getRefundedTransactionId())
                 .companyId(entity.getCompanyId())
+                .transactionType(entity.getTransactionType())
                 .paidAt(entity.getPaidAt())
                 .amountPaid(entity.getAmountPaid())
                 .paymentMethod(entity.getPaymentMethod())

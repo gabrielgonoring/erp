@@ -1,10 +1,11 @@
 package company.aura.erp.controller;
 
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.PendingInstallmentSummary;
-import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.DashboardKpisResponse;
+import company.aura.erp.dto.dashboard.OrderStatusTotalSummary;
+import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.enums.ServiceOrderStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.DashboardService;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,30 +51,88 @@ class DashboardControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/dashboard/summary — Deve retornar resumo do dashboard com sucesso via GET")
-    void shouldReturnSummaryOnGet() {
-        LocalDate startDate = LocalDate.of(2026, 11, 9);
-        LocalDate endDate = LocalDate.of(2026, 11, 9);
-        PendingInstallmentSummary pendingInstallments = new PendingInstallmentSummary(2L, new BigDecimal("1000.00"));
-        DashboardSummaryResponse expectedResponse = new DashboardSummaryResponse(
-                startDate,
-                endDate,
-                List.of(new OrderStatusSummary(OrderStatus.COMPLETED, 2L)),
-                new BigDecimal("5000.00"),
-                new BigDecimal("1000.00"),
-                new BigDecimal("6000.00"),
-                pendingInstallments,
-                null
+    @DisplayName("GET /api/dashboard/kpis — Deve retornar KPIs do dashboard com sucesso via GET")
+    void shouldReturnKpisOnGet() {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        DashboardKpisResponse expectedResponse = new DashboardKpisResponse(
+                new DashboardKpisResponse.Period(startDate, endDate),
+                new DashboardKpisResponse.Kpis(
+                        new DashboardKpisResponse.RealizedRevenue(
+                                new BigDecimal("8172.66"),
+                                new BigDecimal("7297.00"),
+                                new BigDecimal("12.0"),
+                                26L
+                        ),
+                        new DashboardKpisResponse.GeneratedSales(
+                                new BigDecimal("12432.34"),
+                                new BigDecimal("10096.50"),
+                                17L,
+                                new BigDecimal("2335.84"),
+                                5L
+                        ),
+                        new DashboardKpisResponse.OpenReceivables(
+                                new BigDecimal("2335.84"),
+                                8L,
+                                new BigDecimal("1250.00"),
+                                3L
+                        ),
+                        new DashboardKpisResponse.OverdueReceivables(
+                                new BigDecimal("1540.00"),
+                                4L,
+                                3L
+                        )
+                )
         );
 
-        when(dashboardService.getSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);
+        when(dashboardService.getKpis(startDate, endDate, 10L)).thenReturn(expectedResponse);
 
-        ResponseEntity<DashboardSummaryResponse> response = dashboardController.getSummary(startDate, endDate, userPrincipal);
+        ResponseEntity<DashboardKpisResponse> response = dashboardController.getKpis(startDate, endDate, userPrincipal);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(expectedResponse, response.getBody());
-        verify(dashboardService).getSummary(startDate, endDate, 10L);
+        verify(dashboardService).getKpis(startDate, endDate, 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/dashboard/orders/status-summary — Deve retornar resumo dos status e valores totais dos pedidos")
+    void shouldReturnOrdersStatusSummaryOnGet() {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        List<OrderStatusTotalSummary> expectedResponse = List.of(
+                new OrderStatusTotalSummary(OrderStatus.CANCELED, 1L, new BigDecimal("150.00")),
+                new OrderStatusTotalSummary(OrderStatus.COMPLETED, 5L, new BigDecimal("1250.50"))
+        );
+
+        when(dashboardService.getOrdersStatusSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);
+
+        ResponseEntity<List<OrderStatusTotalSummary>> response = dashboardController.getOrdersStatusSummary(startDate, endDate, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(expectedResponse, response.getBody());
+        verify(dashboardService).getOrdersStatusSummary(startDate, endDate, 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/dashboard/service-orders/status-summary — Deve retornar resumo dos status e valores totais das OSs")
+    void shouldReturnServiceOrdersStatusSummaryOnGet() {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        List<ServiceOrderStatusSummary> expectedResponse = List.of(
+                new ServiceOrderStatusSummary(ServiceOrderStatus.CANCELED, 1L, new BigDecimal("200.00")),
+                new ServiceOrderStatusSummary(ServiceOrderStatus.IN_PROGRESS, 3L, new BigDecimal("980.00"))
+        );
+
+        when(dashboardService.getServiceOrdersStatusSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);
+
+        ResponseEntity<List<ServiceOrderStatusSummary>> response = dashboardController.getServiceOrdersStatusSummary(startDate, endDate, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(expectedResponse, response.getBody());
+        verify(dashboardService).getServiceOrdersStatusSummary(startDate, endDate, 10L);
     }
 
     @Test

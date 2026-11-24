@@ -2,9 +2,8 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.order.*;
-import company.aura.erp.enums.DocumentType;
-import company.aura.erp.enums.InstallmentStatus;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.OrderService;
 import jakarta.validation.Valid;
@@ -109,90 +108,6 @@ public class OrderController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/installments")
-    public ResponseEntity<OrderInstallmentResponse> addInstallment(
-            @PathVariable Long id,
-            @RequestBody @Valid OrderInstallmentCreateRequest request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        OrderInstallmentResponse response = orderService.addInstallment(id, request, userPrincipal.getCompanyId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-    @PostMapping("/{id}/installments/{installmentId}/pay")
-    public ResponseEntity<OrderInstallmentResponse> payInstallment(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @RequestBody @Valid PaymentTransactionRequest request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        OrderInstallmentResponse response = orderService.payInstallment(id, installmentId, request, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(response);
-    }
-
-    @PutMapping("/{id}/installments/{installmentId}")
-    public ResponseEntity<OrderInstallmentResponse> updateInstallment(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @RequestBody @Valid PaymentTransactionRequest request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        OrderInstallmentResponse response = orderService.payInstallment(id, installmentId, request, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(response);
-    }
-
-    @DeleteMapping("/{id}/installments/{installmentId}")
-    public ResponseEntity<Void> cancelInstallment(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        orderService.cancelInstallment(id, installmentId, userPrincipal.getCompanyId());
-        return ResponseEntity.noContent().build();
-    }
-
-    @PatchMapping("/{id}/installments/{installmentId}/cancel")
-    public ResponseEntity<OrderInstallmentResponse> cancelInstallmentPatch(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        OrderInstallmentResponse response = orderService.cancelInstallment(id, installmentId, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping(value = "/{id}/installments/{installmentId}/bank-slip", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OrderInstallmentResponse> uploadBankSlip(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @RequestPart("file") MultipartFile file,
-            @RequestParam(value = "bankSlipCode", required = false) String bankSlipCode,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        OrderInstallmentResponse response = orderService.uploadBankSlip(id, installmentId, file, bankSlipCode, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping(value = "/{id}/installments/{installmentId}/bank-slip")
-    public ResponseEntity<BankSlipUrlResponse> getBankSlip(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        String temporaryUrl = orderService.getBankSlipUrl(id, installmentId, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(new BankSlipUrlResponse(temporaryUrl));
-    }
-
-    @DeleteMapping("/{id}/installments/{installmentId}/bank-slip")
-    public ResponseEntity<Void> deleteBankSlip(
-            @PathVariable Long id,
-            @PathVariable Long installmentId,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        orderService.deleteBankSlip(id, installmentId, userPrincipal.getCompanyId());
-        return ResponseEntity.noContent().build();
-    }
-
     @PostMapping("/{id}/close")
     public ResponseEntity<OrderResponse> closeOrder(
             @PathVariable Long id,
@@ -266,26 +181,6 @@ public class OrderController {
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
         Page<OrderSummaryResponse> page = orderService.listSummarized(
-                search,
-                startDate,
-                endDate,
-                status,
-                userPrincipal.getCompanyId(),
-                pageable
-        );
-        return ResponseEntity.ok(page);
-    }
-
-    @GetMapping("/installments")
-    public ResponseEntity<Page<OrderInstallmentSummaryResponse>> listInstallments(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) List<InstallmentStatus> status,
-            @PageableDefault(size = 20, sort = "dueDate", direction = Sort.Direction.ASC) Pageable pageable,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        Page<OrderInstallmentSummaryResponse> page = orderService.listInstallments(
                 search,
                 startDate,
                 endDate,

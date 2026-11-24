@@ -1,6 +1,7 @@
 package company.aura.erp.dto.order;
 
 import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.PaymentTransactionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,8 +16,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class PaymentTransactionResponse {
     private Long id;
-    private Long installmentId;
+    private Long receivableId;
+    private Long refundedTransactionId;
     private Long companyId;
+    private PaymentTransactionType transactionType;
     private LocalDateTime paidAt;
     private BigDecimal amountPaid;
     private PaymentMethod paymentMethod;

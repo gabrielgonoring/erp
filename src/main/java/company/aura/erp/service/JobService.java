@@ -1,12 +1,12 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.job.OrderInstallmentDueNotice;
+import company.aura.erp.dto.job.ReceivableDueNotice;
+import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.modules.email.domain.template.*;
 import company.aura.erp.modules.email.enumerate.AttachmentSource;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.service.EmailService;
-import company.aura.erp.enums.InstallmentStatus;
-import company.aura.erp.repository.OrderInstallmentRepository;
+import company.aura.erp.repository.ReceivableRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -28,7 +28,7 @@ import java.util.concurrent.ExecutorService;
 @RequiredArgsConstructor
 public class JobService {
 
-    private final OrderInstallmentRepository orderInstallmentRepository;
+    private final ReceivableRepository receivableRepository;
     private final EmailService emailService;
     private final ExecutorService executorService;
 
@@ -37,19 +37,19 @@ public class JobService {
 
     @Async
     @Transactional(readOnly = true)
-    public void notifyUpcomingInstallments() {
+    public void notifyUpcomingReceivables() {
         LocalDate targetDueDate = LocalDate.now().plusDays(DAYS_AHEAD);
-        log.info("notifyUpcomingInstallments() - START - targetDueDate={}", targetDueDate);
+        log.info("notifyUpcomingReceivables() - START - targetDueDate={}", targetDueDate);
 
         int pageNumber = 0;
-        Page<OrderInstallmentDueNotice> page;
+        Page<ReceivableDueNotice> page;
 
         long totalProcessed = 0;
         long emailsSent = 0;
 
         do {
-            log.info("notifyUpcomingInstallments() - Processing page - pageNumber={}, pageSize={}", pageNumber, PAGE_SIZE);
-            page = getInstallmentsToProcess(pageNumber, targetDueDate);
+            log.info("notifyUpcomingReceivables() - Processing page - pageNumber={}, pageSize={}", pageNumber, PAGE_SIZE);
+            page = getReceivablesToProcess(pageNumber, targetDueDate);
             totalProcessed += page.getNumberOfElements();
 
             List<CompletableFuture<Boolean>> futures = page.getContent().stream()
@@ -63,49 +63,51 @@ public class JobService {
             pageNumber++;
         } while (page.hasNext());
 
-        log.info("notifyUpcomingInstallments() - END - targetDueDate={}, totalProcessed={}, emailsSent={}", targetDueDate, totalProcessed, emailsSent);
+        log.info("notifyUpcomingReceivables() - END - targetDueDate={}, totalProcessed={}, emailsSent={}", targetDueDate, totalProcessed, emailsSent);
     }
 
-    private Page<OrderInstallmentDueNotice> getInstallmentsToProcess(int pageNumber, LocalDate targetDueDate) {
-        log.info("getInstallmentsToProcess() - START - pageNumber={}, targetDueDate={}", pageNumber, targetDueDate);
-        List<InstallmentStatus> excludedStatuses = List.of(InstallmentStatus.PAID, InstallmentStatus.CANCELED);
+    private Page<ReceivableDueNotice> getReceivablesToProcess(int pageNumber, LocalDate targetDueDate) {
+        log.info("getReceivablesToProcess() - START - pageNumber={}, targetDueDate={}", pageNumber, targetDueDate);
+        List<ReceivableStatus> excludedStatuses = List.of(ReceivableStatus.PAID, ReceivableStatus.CANCELED);
         Pageable pageable = PageRequest.of(pageNumber, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "id"));
-        Page<OrderInstallmentDueNotice> page = orderInstallmentRepository.findInstallmentsDueNotice(targetDueDate, excludedStatuses, pageable);
-        log.info("getInstallmentsToProcess() - END - pageNumber={}, totalElements={}, totalPages={}", pageNumber, page.getTotalElements(), page.getTotalPages());
+        Page<ReceivableDueNotice> page = receivableRepository.findReceivablesDueNotice(targetDueDate, excludedStatuses, pageable);
+        log.info("getReceivablesToProcess() - END - pageNumber={}, totalElements={}, totalPages={}", pageNumber, page.getTotalElements(), page.getTotalPages());
         return page;
     }
 
-    private boolean sendBillingNotification(OrderInstallmentDueNotice installment) {
-        log.info("sendBillingNotification() - START - installmentId={}, orderId={}, companyId={}", installment.installmentId(), installment.orderId(), installment.companyId());
+    private boolean sendBillingNotification(ReceivableDueNotice receivable) {
+        log.info("sendBillingNotification() - START - receivableId={}, orderId={}, serviceOrderId={}, companyId={}",
+                receivable.receivableId(), receivable.orderId(), receivable.serviceOrderId(), receivable.companyId());
         try {
             NotificationRequest request = new NotificationRequest();
             request.setCompany(new Company());
-            request.getCompany().setId(installment.companyId());
+            request.getCompany().setId(receivable.companyId());
 
             request.setCustomer(new Customer());
-            request.getCustomer().setName(installment.customerName());
+            request.getCustomer().setName(receivable.customerName());
 
-            request.setReceiveEmail(StringUtils.defaultIfBlank(installment.customerBillingEmail(), installment.customerEmail()));
+            request.setReceiveEmail(StringUtils.defaultIfBlank(receivable.customerBillingEmail(), receivable.customerEmail()));
 
             request.setPayload(new Payload());
-            request.getPayload().setAmount(installment.amount());
-            request.getPayload().setInstallmentDueDate(installment.dueDate());
-            request.getPayload().setInstallmentNumber(installment.installmentNumber());
-            request.getPayload().setOrderId(installment.orderId());
-            request.getPayload().setPaymentMethod(installment.paymentMethod().getHumanDescription());
+            request.getPayload().setAmount(receivable.amount());
+            request.getPayload().setInstallmentDueDate(receivable.dueDate());
+            request.getPayload().setInstallmentNumber(receivable.installmentNumber());
+            request.getPayload().setOrderId(receivable.orderId());
+            request.getPayload().setPaymentMethod(receivable.paymentMethod().getHumanDescription());
 
-            if (StringUtils.isNotBlank(installment.bankSlipUrl())) {
+            if (StringUtils.isNotBlank(receivable.paymentFileUrl())) {
                 Attachment attachment = new Attachment();
                 attachment.setSource(AttachmentSource.BUCKET);
-                attachment.setUrl(installment.bankSlipUrl());
+                attachment.setUrl(receivable.paymentFileUrl());
                 request.setAttachment(List.of(attachment));
             }
 
             emailService.sendNotification(NotificationType.INSTALLMENT_NOTIFY, request);
-            log.info("sendBillingNotification() - END - installmentId={}, orderId={}", installment.installmentId(), installment.orderId());
+            log.info("sendBillingNotification() - END - receivableId={}, orderId={}", receivable.receivableId(), receivable.orderId());
             return true;
         } catch (Exception ex) {
-            log.error("sendBillingNotification() - ERROR - Error when sending billing notification - installmentId={}, orderId={}, error: {}", installment.installmentId(), installment.orderId(), ex.getMessage(), ex);
+            log.error("sendBillingNotification() - ERROR - Error when sending billing notification - receivableId={}, orderId={}, error: {}",
+                    receivable.receivableId(), receivable.orderId(), ex.getMessage(), ex);
             return false;
         }
     }

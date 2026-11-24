@@ -31,7 +31,7 @@ public class OrderResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<OrderItemResponse> items;
-    private List<OrderInstallmentResponse> installments;
+    private List<ReceivableResponse> receivables;
     private OrderShippingResponse shipping;
     private List<OrderInvoiceResponse> invoices;
 
@@ -50,11 +50,11 @@ public class OrderResponse {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             List<OrderItemResponse> items,
-            List<OrderInstallmentResponse> installments
+            List<ReceivableResponse> receivables
     ) {
         this(id, companyId, partnerId, null, status,
                 servicesAmount, productsAmount, freightAmount, discountAmount,
-                totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, null, Collections.emptyList());
+                totalAmount, notes, completedAt, createdAt, updatedAt, items, receivables, null, Collections.emptyList());
     }
 
     public OrderResponse(
@@ -73,11 +73,11 @@ public class OrderResponse {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             List<OrderItemResponse> items,
-            List<OrderInstallmentResponse> installments
+            List<ReceivableResponse> receivables
     ) {
         this(id, companyId, partnerId, customerName, status,
                 servicesAmount, productsAmount, freightAmount, discountAmount,
-                totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, null, Collections.emptyList());
+                totalAmount, notes, completedAt, createdAt, updatedAt, items, receivables, null, Collections.emptyList());
     }
 
     public OrderResponse(
@@ -95,12 +95,12 @@ public class OrderResponse {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             List<OrderItemResponse> items,
-            List<OrderInstallmentResponse> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingResponse shipping
     ) {
         this(id, companyId, partnerId, null, status,
                 servicesAmount, productsAmount, freightAmount, discountAmount,
-                totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, shipping, Collections.emptyList());
+                totalAmount, notes, completedAt, createdAt, updatedAt, items, receivables, shipping, Collections.emptyList());
     }
 
     public OrderResponse(
@@ -119,11 +119,11 @@ public class OrderResponse {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             List<OrderItemResponse> items,
-            List<OrderInstallmentResponse> installments,
+            List<ReceivableResponse> receivables,
             OrderShippingResponse shipping
     ) {
         this(id, companyId, partnerId, customerName, status,
                 servicesAmount, productsAmount, freightAmount, discountAmount,
-                totalAmount, notes, completedAt, createdAt, updatedAt, items, installments, shipping, Collections.emptyList());
+                totalAmount, notes, completedAt, createdAt, updatedAt, items, receivables, shipping, Collections.emptyList());
     }
 }

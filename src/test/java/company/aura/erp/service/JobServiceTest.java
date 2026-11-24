@@ -1,12 +1,12 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.job.OrderInstallmentDueNotice;
+import company.aura.erp.dto.job.ReceivableDueNotice;
+import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.modules.email.domain.template.NotificationRequest;
 import company.aura.erp.modules.email.enumerate.NotificationType;
 import company.aura.erp.modules.email.service.EmailService;
-import company.aura.erp.enums.InstallmentStatus;
-import company.aura.erp.enums.PaymentMethod;
-import company.aura.erp.repository.OrderInstallmentRepository;
+import company.aura.erp.repository.ReceivableRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.*;
 class JobServiceTest {
 
     @Mock
-    private OrderInstallmentRepository orderInstallmentRepository;
+    private ReceivableRepository receivableRepository;
 
     @Mock
     private EmailService emailService;
@@ -50,31 +50,31 @@ class JobServiceTest {
     private JobService jobService;
 
     @Test
-    @DisplayName("notifyUpcomingInstallments — Deve recuperar parcelas paginadas a vencer em 2 dias e enviar e-mails")
-    void shouldNotifyUpcomingInstallmentsSuccessfully() {
+    @DisplayName("notifyUpcomingReceivables — Deve recuperar recebíveis paginados a vencer em 2 dias e enviar e-mails")
+    void shouldNotifyUpcomingReceivablesSuccessfully() {
         LocalDate targetDueDate = LocalDate.now().plusDays(2);
 
-        OrderInstallmentDueNotice notice1 = new OrderInstallmentDueNotice(
-                1L, 100L, 1, BigDecimal.valueOf(250.00), BigDecimal.valueOf(250.00),
-                targetDueDate, PaymentMethod.BOLETO, "http://boleto.pdf", "1234567890",
+        ReceivableDueNotice notice1 = new ReceivableDueNotice(
+                1L, 100L, null, 1, BigDecimal.valueOf(250.00), BigDecimal.valueOf(250.00),
+                targetDueDate, PaymentMethod.BOLETO, "http://boleto.pdf", "https://pay.aura/1", "1234567890",
                 10L, "Cliente Um", "cliente1@teste.com", null
         );
 
-        OrderInstallmentDueNotice notice2 = new OrderInstallmentDueNotice(
-                2L, 101L, 2, BigDecimal.valueOf(500.00), BigDecimal.valueOf(300.00),
-                targetDueDate, PaymentMethod.PIX, null, null,
+        ReceivableDueNotice notice2 = new ReceivableDueNotice(
+                2L, 101L, null, 2, BigDecimal.valueOf(500.00), BigDecimal.valueOf(300.00),
+                targetDueDate, PaymentMethod.PIX, null, null, null,
                 10L, "Cliente Dois", "cliente2@teste.com", "financeiro@cliente2.com"
         );
 
-        Page<OrderInstallmentDueNotice> page = new PageImpl<>(List.of(notice1, notice2), PageRequest.of(0, 50), 2);
+        Page<ReceivableDueNotice> page = new PageImpl<>(List.of(notice1, notice2), PageRequest.of(0, 50), 2);
 
-        when(orderInstallmentRepository.findInstallmentsDueNotice(
+        when(receivableRepository.findReceivablesDueNotice(
                 eq(targetDueDate),
-                eq(List.of(InstallmentStatus.PAID, InstallmentStatus.CANCELED)),
+                eq(List.of(ReceivableStatus.PAID, ReceivableStatus.CANCELED)),
                 any(Pageable.class)
         )).thenReturn(page);
 
-        jobService.notifyUpcomingInstallments();
+        jobService.notifyUpcomingReceivables();
 
         ArgumentCaptor<NotificationRequest> requestCaptor = ArgumentCaptor.forClass(NotificationRequest.class);
         verify(emailService, timeout(2000).times(2)).sendNotification(
@@ -94,23 +94,23 @@ class JobServiceTest {
     }
 
     @Test
-    @DisplayName("notifyUpcomingInstallments — Deve enviar notificação mesmo com e-mail nulo para que EmailService trate")
+    @DisplayName("notifyUpcomingReceivables — Deve enviar notificação mesmo com e-mail nulo para que EmailService trate")
     void shouldHandleWhenCustomerHasNoEmail() {
         LocalDate targetDueDate = LocalDate.now().plusDays(2);
 
-        OrderInstallmentDueNotice noticeWithoutEmail = new OrderInstallmentDueNotice(
-                1L, 100L, 1, BigDecimal.valueOf(250.00), BigDecimal.valueOf(250.00),
-                targetDueDate, PaymentMethod.BOLETO, null, null,
+        ReceivableDueNotice noticeWithoutEmail = new ReceivableDueNotice(
+                1L, 100L, null, 1, BigDecimal.valueOf(250.00), BigDecimal.valueOf(250.00),
+                targetDueDate, PaymentMethod.BOLETO, null, null, null,
                 10L, "Cliente Sem Email", null, null
         );
 
-        Page<OrderInstallmentDueNotice> page = new PageImpl<>(List.of(noticeWithoutEmail), PageRequest.of(0, 50), 1);
+        Page<ReceivableDueNotice> page = new PageImpl<>(List.of(noticeWithoutEmail), PageRequest.of(0, 50), 1);
 
-        when(orderInstallmentRepository.findInstallmentsDueNotice(
+        when(receivableRepository.findReceivablesDueNotice(
                 eq(targetDueDate), anyList(), any(Pageable.class)
         )).thenReturn(page);
 
-        assertDoesNotThrow(() -> jobService.notifyUpcomingInstallments());
+        assertDoesNotThrow(() -> jobService.notifyUpcomingReceivables());
 
         verify(emailService, timeout(2000).times(1)).sendNotification(
                 eq(NotificationType.INSTALLMENT_NOTIFY),
@@ -119,19 +119,19 @@ class JobServiceTest {
     }
 
     @Test
-    @DisplayName("notifyUpcomingInstallments — Deve tratar falha no envio de e-mail sem abortar execução geral")
+    @DisplayName("notifyUpcomingReceivables — Deve tratar falha no envio de e-mail sem abortar execução geral")
     void shouldHandleEmailSendFailureGracefully() {
         LocalDate targetDueDate = LocalDate.now().plusDays(2);
 
-        OrderInstallmentDueNotice notice = new OrderInstallmentDueNotice(
-                1L, 100L, 1, BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00),
-                targetDueDate, PaymentMethod.PIX, null, null,
+        ReceivableDueNotice notice = new ReceivableDueNotice(
+                1L, 100L, null, 1, BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00),
+                targetDueDate, PaymentMethod.PIX, null, null, null,
                 10L, "Cliente Teste", "erro@teste.com", null
         );
 
-        Page<OrderInstallmentDueNotice> page = new PageImpl<>(List.of(notice), PageRequest.of(0, 50), 1);
+        Page<ReceivableDueNotice> page = new PageImpl<>(List.of(notice), PageRequest.of(0, 50), 1);
 
-        when(orderInstallmentRepository.findInstallmentsDueNotice(
+        when(receivableRepository.findReceivablesDueNotice(
                 eq(targetDueDate), anyList(), any(Pageable.class)
         )).thenReturn(page);
 
@@ -139,7 +139,7 @@ class JobServiceTest {
                 .when(emailService)
                 .sendNotification(eq(NotificationType.INSTALLMENT_NOTIFY), any(NotificationRequest.class));
 
-        assertDoesNotThrow(() -> jobService.notifyUpcomingInstallments());
+        assertDoesNotThrow(() -> jobService.notifyUpcomingReceivables());
 
         verify(emailService, timeout(2000).times(1)).sendNotification(
                 eq(NotificationType.INSTALLMENT_NOTIFY),

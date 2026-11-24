@@ -174,7 +174,7 @@ class OrderControllerTest {
     @DisplayName("POST /api/orders/{id}/items — Deve adicionar item à comanda e retornar HTTP 201")
     void shouldAddItemToOrder() {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                2L, "Refrigerante Cola", BigDecimal.valueOf(2), BigDecimal.ZERO, null
+                2L, "Refrigerante Cola", null, BigDecimal.valueOf(2), BigDecimal.ZERO, null
         );
         OrderItemResponse itemResponse = new OrderItemResponse(
                 100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante Cola",
@@ -222,141 +222,13 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/orders/{id}/installments — Deve adicionar parcela ao pedido e retornar HTTP 201")
-    void shouldAddInstallment() {
-        OrderInstallmentCreateRequest request = new OrderInstallmentCreateRequest(
-                1, LocalDate.now(), BigDecimal.valueOf(50.00), PaymentMethod.PIX, false, null, null, null, null, null
-        );
-        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
-                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
-                PaymentMethod.PIX, InstallmentStatus.PENDING, null, null, null, null, null,
-                BigDecimal.ZERO, BigDecimal.valueOf(50.00), Collections.emptyList()
-        );
-
-        when(orderService.addInstallment(1L, request, 10L)).thenReturn(responseDto);
-
-        ResponseEntity<OrderInstallmentResponse> response = orderController.addInstallment(1L, request, userPrincipal);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
-        verify(orderService).addInstallment(1L, request, 10L);
-    }
-
-    @Test
-    @DisplayName("POST /api/orders/{id}/installments/{installmentId}/payments — Deve registrar pagamento da parcela")
-    void shouldPayInstallment() {
-        PaymentTransactionRequest request = new PaymentTransactionRequest(
-                BigDecimal.valueOf(25.00), PaymentMethod.PIX, null, null, null, "Parcial"
-        );
-        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
-                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
-                PaymentMethod.PIX, InstallmentStatus.PARTIALLY_PAID, null, null, null, null, null,
-                BigDecimal.valueOf(25.00), BigDecimal.valueOf(25.00), Collections.emptyList()
-        );
-
-        when(orderService.payInstallment(1L, 1L, request, 10L)).thenReturn(responseDto);
-
-        ResponseEntity<OrderInstallmentResponse> response = orderController.payInstallment(1L, 1L, request, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
-        verify(orderService).payInstallment(1L, 1L, request, 10L);
-    }
-
-    @Test
-    @DisplayName("PUT /api/orders/{id}/installments/{installmentId} — Deve registrar pagamento via PUT")
-    void shouldUpdateInstallmentPayment() {
-        PaymentTransactionRequest request = new PaymentTransactionRequest(
-                BigDecimal.valueOf(50.00), PaymentMethod.PIX, null, null, null, "Quitação"
-        );
-        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
-                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
-                PaymentMethod.PIX, InstallmentStatus.PAID, null, null, null, null, null,
-                BigDecimal.valueOf(50.00), BigDecimal.ZERO, Collections.emptyList()
-        );
-
-        when(orderService.payInstallment(1L, 1L, request, 10L)).thenReturn(responseDto);
-
-        ResponseEntity<OrderInstallmentResponse> response = orderController.updateInstallment(1L, 1L, request, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
-        verify(orderService).payInstallment(1L, 1L, request, 10L);
-    }
-
-    @Test
-    @DisplayName("DELETE /api/orders/{id}/installments/{installmentId} — Deve cancelar parcela e retornar HTTP 204")
-    void shouldCancelInstallment() {
-        ResponseEntity<Void> response = orderController.cancelInstallment(1L, 1L, userPrincipal);
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(orderService).cancelInstallment(1L, 1L, 10L);
-    }
-
-    @Test
-    @DisplayName("PATCH /api/orders/{id}/installments/{installmentId}/cancel — Deve cancelar parcela e retornar HTTP 200")
-    void shouldCancelInstallmentPatch() {
-        OrderInstallmentResponse responseDto = new OrderInstallmentResponse(
-                1L, 1L, 10L, 5L, 1, LocalDate.now(), BigDecimal.valueOf(50.00),
-                PaymentMethod.PIX, InstallmentStatus.CANCELED, null, null, null, null, null,
-                BigDecimal.ZERO, BigDecimal.valueOf(50.00), Collections.emptyList()
-        );
-
-        when(orderService.cancelInstallment(1L, 1L, 10L)).thenReturn(responseDto);
-
-        ResponseEntity<OrderInstallmentResponse> response = orderController.cancelInstallmentPatch(1L, 1L, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(responseDto, response.getBody());
-        verify(orderService).cancelInstallment(1L, 1L, 10L);
-    }
-
-    @Test
-    @DisplayName("POST /api/orders/{id}/installments/{installmentId}/bank-slip — Deve fazer upload do boleto e retornar HTTP 200")
-    void shouldUploadBankSlip() {
-        MockMultipartFile file = new MockMultipartFile("file", "boleto.pdf", "application/pdf", "content".getBytes());
-        OrderInstallmentResponse installmentResponse = new OrderInstallmentResponse();
-        installmentResponse.setId(2L);
-        installmentResponse.setBankSlipUrl("http://storage/boleto.pdf");
-
-        when(orderService.uploadBankSlip(1L, 2L, file, "12345", 10L)).thenReturn(installmentResponse);
-
-        ResponseEntity<OrderInstallmentResponse> response = orderController.uploadBankSlip(1L, 2L, file, "12345", userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(installmentResponse, response.getBody());
-        verify(orderService).uploadBankSlip(1L, 2L, file, "12345", 10L);
-    }
-
-    @Test
-    @DisplayName("GET /api/orders/{id}/installments/{installmentId}/bank-slip — Deve retornar URL temporária do boleto")
-    void shouldGetBankSlip() {
-        when(orderService.getBankSlipUrl(1L, 2L, 10L)).thenReturn("http://storage/presigned-url");
-
-        ResponseEntity<BankSlipUrlResponse> response = orderController.getBankSlip(1L, 2L, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(new BankSlipUrlResponse("http://storage/presigned-url"), response.getBody());
-        verify(orderService).getBankSlipUrl(1L, 2L, 10L);
-    }
-
-    @Test
-    @DisplayName("DELETE /api/orders/{id}/installments/{installmentId}/bank-slip — Deve apagar o boleto da parcela e retornar HTTP 204")
-    void shouldDeleteBankSlip() {
-        ResponseEntity<Void> response = orderController.deleteBankSlip(1L, 2L, userPrincipal);
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-        verify(orderService).deleteBankSlip(1L, 2L, 10L);
-    }
-
-    @Test
     @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda e retornar HTTP 200")
     void shouldCloseOrder() {
         OrderCloseRequest request = new OrderCloseRequest(List.of(
-                new OrderInstallmentRequest(1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null)
+                new ReceivableRequest(1L, null, ReceivableOriginType.ORDER, 5L, 1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
         ));
         OrderResponse responseDto = new OrderResponse(
-                1L, 10L, 5L, OrderStatus.PENDING_PAYMENT,
+                1L, 10L, 5L, OrderStatus.COMPLETED,
                 BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
                 null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
         );
@@ -458,7 +330,7 @@ class OrderControllerTest {
         Pageable pageable = PageRequest.of(0, 20);
         LocalDate startDate = LocalDate.of(2026, 11, 1);
         LocalDate endDate = LocalDate.of(2026, 11, 30);
-        List<OrderStatus> statuses = List.of(OrderStatus.OPEN, OrderStatus.PENDING_PAYMENT);
+        List<OrderStatus> statuses = List.of(OrderStatus.OPEN, OrderStatus.COMPLETED);
 
         OrderSummaryResponse summary = new OrderSummaryResponse(
                 1L, "12345678901", "Cliente Teste", BigDecimal.valueOf(150.00), OrderStatus.OPEN, LocalDateTime.now()
@@ -472,45 +344,5 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(page, response.getBody());
         verify(orderService).listSummarized("Teste", startDate, endDate, statuses, 10L, pageable);
-    }
-
-    @Test
-    @DisplayName("GET /api/orders/installments — Deve listar parcelas de forma paginada sem filtros opcionais")
-    void shouldListInstallmentsWithoutFilters() {
-        Pageable pageable = PageRequest.of(0, 20);
-        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(100.00), InstallmentStatus.PENDING, PaymentMethod.BOLETO, LocalDate.of(2026, 12, 1)
-        );
-        Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
-
-        when(orderService.listInstallments(null, null, null, null, 10L, pageable)).thenReturn(page);
-
-        ResponseEntity<Page<OrderInstallmentSummaryResponse>> response = orderController.listInstallments(null, null, null, null, pageable, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(page, response.getBody());
-        verify(orderService).listInstallments(null, null, null, null, 10L, pageable);
-    }
-
-    @Test
-    @DisplayName("GET /api/orders/installments — Deve listar parcelas de forma paginada com filtros opcionais")
-    void shouldListInstallmentsWithFilters() {
-        Pageable pageable = PageRequest.of(0, 20);
-        LocalDate startDate = LocalDate.of(2026, 11, 1);
-        LocalDate endDate = LocalDate.of(2026, 11, 30);
-        List<InstallmentStatus> statuses = List.of(InstallmentStatus.PENDING);
-
-        OrderInstallmentSummaryResponse summary = new OrderInstallmentSummaryResponse(
-                1L, 100L, "12345678901", "Cliente Teste", BigDecimal.valueOf(100.00), BigDecimal.valueOf(50.00), InstallmentStatus.PARTIALLY_PAID, PaymentMethod.PIX, LocalDate.of(2026, 11, 15)
-        );
-        Page<OrderInstallmentSummaryResponse> page = new PageImpl<>(List.of(summary), pageable, 1);
-
-        when(orderService.listInstallments("Cliente", startDate, endDate, statuses, 10L, pageable)).thenReturn(page);
-
-        ResponseEntity<Page<OrderInstallmentSummaryResponse>> response = orderController.listInstallments("Cliente", startDate, endDate, statuses, pageable, userPrincipal);
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(page, response.getBody());
-        verify(orderService).listInstallments("Cliente", startDate, endDate, statuses, 10L, pageable);
     }
 }

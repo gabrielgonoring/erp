@@ -1,8 +1,7 @@
 package company.aura.erp.repository;
 
-import company.aura.erp.dto.dashboard.PaymentTransactionSummary;
+import company.aura.erp.dto.dashboard.RealizedRevenueSummary;
 import company.aura.erp.entity.PaymentTransactionEntity;
-import company.aura.erp.enums.InstallmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,30 +14,40 @@ import java.util.Optional;
 @Repository
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransactionEntity, Long> {
 
-    List<PaymentTransactionEntity> findByInstallmentId(Long installmentId);
+    List<PaymentTransactionEntity> findByReceivableId(Long receivableId);
 
     Optional<PaymentTransactionEntity> findByIdAndCompanyId(Long id, Long companyId);
 
     List<PaymentTransactionEntity> findByCompanyId(Long companyId);
 
-
     @Query("""
-        SELECT new company.aura.erp.dto.dashboard.PaymentTransactionSummary(
-            COUNT(pt),
-            COALESCE(SUM(pt.amountPaid), 0)
+        SELECT new company.aura.erp.dto.dashboard.RealizedRevenueSummary(
+            COALESCE(SUM(
+                CASE
+                    WHEN pt.paidAt >= :startDate AND pt.paidAt <= :endDate AND pt.transactionType = company.aura.erp.enums.PaymentTransactionType.PAYMENT THEN pt.amountPaid
+                    WHEN pt.paidAt >= :startDate AND pt.paidAt <= :endDate AND pt.transactionType = company.aura.erp.enums.PaymentTransactionType.REFUND THEN -pt.amountPaid
+                END
+            ), 0),
+            COUNT(
+                CASE WHEN pt.paidAt >= :startDate AND pt.paidAt <= :endDate AND pt.transactionType = company.aura.erp.enums.PaymentTransactionType.PAYMENT THEN 1 END
+            ),
+            COALESCE(SUM(
+                CASE
+                    WHEN pt.paidAt >= :prevStartDate AND pt.paidAt < :startDate AND pt.transactionType = company.aura.erp.enums.PaymentTransactionType.PAYMENT THEN pt.amountPaid
+                    WHEN pt.paidAt >= :prevStartDate AND pt.paidAt < :startDate AND pt.transactionType = company.aura.erp.enums.PaymentTransactionType.REFUND THEN -pt.amountPaid
+                END
+            ), 0)
         )
         FROM PaymentTransactionEntity pt
-        JOIN OrderInstallmentEntity oi ON pt.installmentId = oi.id
         WHERE pt.companyId = :companyId
-          AND oi.status in :status
-          AND pt.paidAt >= :startDate
+          AND pt.paidAt >= :prevStartDate
           AND pt.paidAt <= :endDate
     """)
-    PaymentTransactionSummary getPaymentsSummaryByStatusInAndDateRange(
+    RealizedRevenueSummary getRealizedRevenueSummary(
             @Param("companyId") Long companyId,
-            @Param("status") List<InstallmentStatus> status,
             @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
+            @Param("endDate") LocalDateTime endDate,
+            @Param("prevStartDate") LocalDateTime prevStartDate
     );
 
 }

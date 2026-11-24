@@ -62,7 +62,7 @@ class ApiKeyAuthenticationFilterTest {
         when(request.getServletPath()).thenReturn("/api/auth/login");
         assertTrue(apiKeyAuthenticationFilter.shouldNotFilter(request));
 
-        when(request.getServletPath()).thenReturn("/api/jobs/orders/installment/notify");
+        when(request.getServletPath()).thenReturn("/api/jobs/orders/receivable/notify");
         assertFalse(apiKeyAuthenticationFilter.shouldNotFilter(request));
     }
 
@@ -72,7 +72,7 @@ class ApiKeyAuthenticationFilterTest {
         when(jobSecurityProperties.getHeaderName()).thenReturn("X-API-KEY");
         when(jobSecurityProperties.getApiKey()).thenReturn("secret-key");
         when(request.getHeader("X-API-KEY")).thenReturn(null);
-        when(request.getRequestURI()).thenReturn("/api/jobs/orders/installment/notify");
+        when(request.getRequestURI()).thenReturn("/api/jobs/orders/receivable/notify");
 
         apiKeyAuthenticationFilter.doFilterInternal(request, response, filterChain);
 
@@ -87,7 +87,7 @@ class ApiKeyAuthenticationFilterTest {
         when(jobSecurityProperties.getHeaderName()).thenReturn("X-API-KEY");
         when(jobSecurityProperties.getApiKey()).thenReturn("secret-key");
         when(request.getHeader("X-API-KEY")).thenReturn("wrong-key");
-        when(request.getRequestURI()).thenReturn("/api/jobs/orders/installment/notify");
+        when(request.getRequestURI()).thenReturn("/api/jobs/orders/receivable/notify");
 
         apiKeyAuthenticationFilter.doFilterInternal(request, response, filterChain);
 

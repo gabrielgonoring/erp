@@ -1,24 +1,29 @@
 package company.aura.erp.dto.order;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.util.List;
 
-public record OrderCreateRequest(
-        @NotNull(message = "O parceiro (cliente) é obrigatório.")
-        Long partnerId,
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class OrderCreateRequest {
+    @NotNull(message = "O parceiro (cliente) é obrigatório.")
+    private Long partnerId;
 
-        String notes,
+    private String notes;
 
-        List<@Valid OrderItemCreateRequest> items,
+    private List<@Valid OrderItemCreateRequest> items;
 
-        @Valid
-        OrderShippingRequest shipping
-) {
+    @Valid
+    private OrderShippingRequest shipping;
+
     public OrderCreateRequest(Long partnerId, String notes, List<@Valid OrderItemCreateRequest> items) {
         this(partnerId, notes, items, null);
     }

@@ -74,6 +74,7 @@ class OrderItemServiceTest {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
                 100L,
                 "Corte de Cabelo",
+                null,
                 BigDecimal.ONE,
                 BigDecimal.ZERO,
                 20L
@@ -98,6 +99,7 @@ class OrderItemServiceTest {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
                 100L,
                 "Corte de Cabelo",
+                null,
                 BigDecimal.ONE,
                 BigDecimal.ZERO,
                 999L
