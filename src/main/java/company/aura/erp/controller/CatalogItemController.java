@@ -1,6 +1,7 @@
 package company.aura.erp.controller;
 
 import company.aura.erp.dto.catalog.*;
+import company.aura.erp.enums.CatalogItemType;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.CatalogItemService;
 import jakarta.validation.Valid;
@@ -70,10 +71,12 @@ public class CatalogItemController {
     @GetMapping
     public ResponseEntity<Page<CatalogItemSummaryResponse>> list(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) CatalogItemType type,
             @PageableDefault(size = 20, sort = "description") Pageable pageable,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        Page<CatalogItemSummaryResponse> page = catalogItemService.listSummarized(search, userPrincipal.getCompanyId(), pageable);
+        Page<CatalogItemSummaryResponse> page = catalogItemService.listSummarized(search, categoryId, type, userPrincipal.getCompanyId(), pageable);
         return ResponseEntity.ok(page);
     }
 

@@ -34,5 +34,20 @@ public record CatalogServiceItemCreateRequest(
         @Digits(integer = 3, fraction = 2, message = "Alíquota de ISS deve ter no máximo 3 dígitos inteiros e 2 decimais.")
         BigDecimal issRate,
 
-        Boolean issWithheld
-) {}
+        Boolean issWithheld,
+
+        Long categoryId
+) {
+    public CatalogServiceItemCreateRequest(
+            String internalCode,
+            String description,
+            BigDecimal unitPrice,
+            String unitOfMeasure,
+            String lc116ServiceCode,
+            String cityTaxCode,
+            BigDecimal issRate,
+            Boolean issWithheld
+    ) {
+        this(internalCode, description, unitPrice, unitOfMeasure, lc116ServiceCode, cityTaxCode, issRate, issWithheld, null);
+    }
+}

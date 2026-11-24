@@ -62,6 +62,9 @@ class ServiceOrderServiceTest {
     @Mock
     private ReceivedService receivedService;
 
+    @Mock
+    private CommissionService commissionService;
+
     @InjectMocks
     private ServiceOrderService serviceOrderService;
 

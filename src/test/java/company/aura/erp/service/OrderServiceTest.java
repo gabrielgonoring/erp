@@ -66,6 +66,9 @@ class OrderServiceTest {
     @Mock
     private OrderInvoiceService orderInvoiceService;
 
+    @Mock
+    private CommissionService commissionService;
+
     @InjectMocks
     private OrderService orderService;
 

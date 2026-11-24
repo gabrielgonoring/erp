@@ -61,5 +61,27 @@ public record CatalogPhysicalItemUpdateRequest(
         @DecimalMin(value = "0.00", message = "Alíquota de COFINS não pode ser negativa.")
         @DecimalMax(value = "100.00", message = "Alíquota de COFINS não pode ultrapassar 100%.")
         @Digits(integer = 3, fraction = 2, message = "Alíquota de COFINS deve ter no máximo 3 inteiros e 2 decimais.")
-        BigDecimal cofinsRate
-) {}
+        BigDecimal cofinsRate,
+
+        Long categoryId
+) {
+    public CatalogPhysicalItemUpdateRequest(
+            String internalCode,
+            String description,
+            BigDecimal unitPrice,
+            String unitOfMeasure,
+            String ncm,
+            String defaultCfop,
+            String defaultCsosn,
+            String gtinEan,
+            String cest,
+            Integer origin,
+            BigDecimal defaultIcmsCreditRate,
+            BigDecimal icmsRate,
+            BigDecimal pisRate,
+            BigDecimal cofinsRate
+    ) {
+        this(internalCode, description, unitPrice, unitOfMeasure, ncm, defaultCfop, defaultCsosn,
+                gtinEan, cest, origin, defaultIcmsCreditRate, icmsRate, pisRate, cofinsRate, null);
+    }
+}
