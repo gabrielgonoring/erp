@@ -40,6 +40,7 @@ public class OrderService {
     private final OrderItemService orderItemService;
     private final OrderShippingService orderShippingService;
     private final OrderInvoiceService orderInvoiceService;
+    private final CommissionService commissionService;
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
@@ -276,6 +277,10 @@ public class OrderService {
 
         order.setStatus(OrderStatus.COMPLETED);
         OrderEntity savedOrder = orderRepository.save(order);
+
+        if (commissionService != null) {
+            commissionService.generateEntriesForOrder(savedOrder, items);
+        }
 
         String customerName = savedOrder.getPartnerId() != null
                 ? partnerRepository.findNameByIdAndCompanyId(savedOrder.getPartnerId(), companyId)

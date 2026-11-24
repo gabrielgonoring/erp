@@ -164,18 +164,20 @@ class CatalogItemControllerTest {
     void shouldListSummarizedAndReturnOk() {
         Pageable pageable = PageRequest.of(0, 20);
         CatalogItemSummaryResponse summary = new CatalogItemSummaryResponse(
-                1L, "PROD-001", "Monitor", "Monitor", new BigDecimal("1200.00")
+                1L, 5L, "PROD-001", "Monitor", CatalogItemType.PHYSICAL, "Monitor", new BigDecimal("1200.00")
         );
         Page<CatalogItemSummaryResponse> page = new PageImpl<>(List.of(summary));
 
-        when(catalogItemService.listSummarized("Monitor", 10L, pageable)).thenReturn(page);
+        when(catalogItemService.listSummarized("Monitor", 5L, CatalogItemType.PHYSICAL, 10L, pageable)).thenReturn(page);
 
-        ResponseEntity<Page<CatalogItemSummaryResponse>> response = catalogItemController.list("Monitor", pageable, userPrincipal);
+        ResponseEntity<Page<CatalogItemSummaryResponse>> response = catalogItemController.list(
+                "Monitor", 5L, CatalogItemType.PHYSICAL, pageable, userPrincipal
+        );
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().getTotalElements());
-        verify(catalogItemService).listSummarized("Monitor", 10L, pageable);
+        verify(catalogItemService).listSummarized("Monitor", 5L, CatalogItemType.PHYSICAL, 10L, pageable);
     }
 
     @Test

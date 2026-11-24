@@ -12,16 +12,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,13 +46,11 @@ class CollaboratorControllerTest {
         CollaboratorCreateRequest request = CollaboratorCreateRequest.builder()
                 .name("João Silva")
                 .cpf("12345678900")
-                .defaultCommissionPercentage(new BigDecimal("10.00"))
                 .build();
 
         CollaboratorResponse serviceResponse = CollaboratorResponse.builder()
                 .id(50L)
                 .name("João Silva")
-                .defaultCommissionPercentage(new BigDecimal("10.00"))
                 .status("ACTIVE")
                 .build();
 
@@ -69,7 +61,6 @@ class CollaboratorControllerTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(50L, response.getBody().getId());
-        assertEquals(new BigDecimal("10.00"), response.getBody().getDefaultCommissionPercentage());
         verify(collaboratorService).create(request, 10L);
     }
 
@@ -78,13 +69,11 @@ class CollaboratorControllerTest {
     void shouldUpdateCollaborator() {
         CollaboratorUpdateRequest request = CollaboratorUpdateRequest.builder()
                 .name("João Atualizado")
-                .defaultCommissionPercentage(new BigDecimal("15.00"))
                 .build();
 
         CollaboratorResponse serviceResponse = CollaboratorResponse.builder()
                 .id(50L)
                 .name("João Atualizado")
-                .defaultCommissionPercentage(new BigDecimal("15.00"))
                 .build();
 
         when(collaboratorService.update(50L, request, 10L)).thenReturn(serviceResponse);
@@ -94,7 +83,6 @@ class CollaboratorControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("João Atualizado", response.getBody().getName());
-        assertEquals(new BigDecimal("15.00"), response.getBody().getDefaultCommissionPercentage());
         verify(collaboratorService).update(50L, request, 10L);
     }
 
@@ -123,7 +111,4 @@ class CollaboratorControllerTest {
         assertNotNull(response.getBody());
         assertEquals(50L, response.getBody().getId());
     }
-
-
-
 }

@@ -1,11 +1,14 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.catalog.*;
+import company.aura.erp.entity.CatalogCategoryEntity;
 import company.aura.erp.entity.CatalogItemEntity;
 import company.aura.erp.entity.CatalogPhysicalItemEntity;
 import company.aura.erp.entity.CatalogServiceItemEntity;
+import company.aura.erp.enums.CatalogCategoryStatus;
 import company.aura.erp.enums.CatalogItemStatus;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.repository.CatalogCategoryRepository;
 import company.aura.erp.repository.CatalogItemRepository;
 import company.aura.erp.repository.CompanyRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +40,9 @@ class CatalogItemServiceTest {
 
     @Mock
     private CompanyRepository companyRepository;
+
+    @Mock
+    private CatalogCategoryRepository catalogCategoryRepository;
 
     @InjectMocks
     private CatalogItemService catalogItemService;
@@ -274,7 +280,7 @@ class CatalogItemServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<CatalogItemEntity> page = new PageImpl<>(List.of(activePhysicalItem));
 
-        when(catalogItemRepository.searchByCompanyIdAndTerm(eq(10L), eq("Monitor"), eq(pageable)))
+        when(catalogItemRepository.searchByCompanyIdAndTerm(eq(10L), eq("Monitor"), isNull(), isNull(), eq(pageable)))
                 .thenReturn(page);
 
         Page<CatalogItemSummaryResponse> result = catalogItemService.listSummarized("Monitor", 10L, pageable);
@@ -284,5 +290,46 @@ class CatalogItemServiceTest {
         assertEquals("Monitor Gamer 27", result.getContent().get(0).name());
         assertEquals("Monitor Gamer 27", result.getContent().get(0).description());
         assertEquals("PROD-001", result.getContent().get(0).internalCode());
+    }
+
+    @Test
+    void shouldListSummarizedCatalogItemsFilteredByCategoryAndType() {
+        Pageable pageable = PageRequest.of(0, 10);
+        activeServiceItem.setCategoryId(7L);
+        Page<CatalogItemEntity> page = new PageImpl<>(List.of(activeServiceItem));
+
+        when(catalogItemRepository.searchByCompanyIdAndTerm(eq(10L), isNull(), eq(7L), eq(CatalogItemType.SERVICE), eq(pageable)))
+                .thenReturn(page);
+
+        Page<CatalogItemSummaryResponse> result = catalogItemService.listSummarized(null, 7L, CatalogItemType.SERVICE, 10L, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals(7L, result.getContent().get(0).categoryId());
+        assertEquals(CatalogItemType.SERVICE, result.getContent().get(0).type());
+    }
+
+    @Test
+    void shouldSavePhysicalWithCategoryId() {
+        when(companyRepository.existsById(10L)).thenReturn(true);
+        when(catalogCategoryRepository.findByIdAndCompanyIdAndStatusNot(5L, 10L, CatalogCategoryStatus.DELETED))
+                .thenReturn(Optional.of(CatalogCategoryEntity.builder().id(5L).companyId(10L).name("Periféricos").build()));
+        when(catalogItemRepository.save(any(CatalogItemEntity.class)))
+                .thenAnswer(invocation -> {
+                    CatalogItemEntity saved = invocation.getArgument(0);
+                    saved.setId(1L);
+                    return saved;
+                });
+
+        CatalogPhysicalItemCreateRequest request = new CatalogPhysicalItemCreateRequest(
+                "PROD-001", "Monitor Gamer 27", new BigDecimal("1500.00"), "UN",
+                "85285200", "5102", "102", "7891234567890", null, 0,
+                BigDecimal.ZERO, null, null, null, 5L
+        );
+
+        CatalogItemResponse response = catalogItemService.savePhysical(request, 10L);
+
+        assertNotNull(response);
+        assertEquals(5L, response.categoryId());
     }
 }

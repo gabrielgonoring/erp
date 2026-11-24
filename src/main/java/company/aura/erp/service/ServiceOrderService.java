@@ -43,6 +43,7 @@ public class ServiceOrderService {
     private final ServiceOrderUpdateService serviceOrderUpdateService;
     private final OrderService orderService;
     private final ReceivedService receivedService;
+    private final CommissionService commissionService;
 
     @Transactional(readOnly = true)
     public Page<ServiceOrderSummaryResponse> listSummarized(
@@ -317,6 +318,10 @@ public class ServiceOrderService {
         serviceOrder.setCompletedAt(LocalDateTime.now());
         serviceOrder.setOrderId(openedOrder.getId());
         ServiceOrderEntity saved = serviceOrderRepository.save(serviceOrder);
+
+        if (commissionService != null) {
+            commissionService.generateEntriesForServiceOrder(saved, allItems);
+        }
 
         List<ReceivableResponse> receivables = receivedService.linkServiceOrderReceivablesToOrder(saved.getId(), openedOrder.getId());
 

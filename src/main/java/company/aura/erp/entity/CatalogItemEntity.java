@@ -26,6 +26,9 @@ public class CatalogItemEntity {
     @Column(name = "company_id", nullable = false)
     private Long companyId;
 
+    @Column(name = "category_id")
+    private Long categoryId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 10)
     private CatalogItemType type;

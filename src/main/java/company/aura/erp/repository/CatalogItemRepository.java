@@ -36,6 +36,8 @@ public interface CatalogItemRepository extends JpaRepository<CatalogItemEntity, 
     );
 
     @Query("SELECT c FROM CatalogItemEntity c WHERE c.companyId = :companyId AND (c.status IS NULL OR c.status <> 'DELETED') AND c.deletedAt IS NULL AND " +
+           "(:categoryId IS NULL OR c.categoryId = :categoryId) AND " +
+           "(:type IS NULL OR c.type = :type) AND " +
            "(:search IS NULL OR :search = '' OR " +
            "CAST(c.id AS string) LIKE CONCAT('%', :search, '%') OR " +
            "LOWER(c.internalCode) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
@@ -43,6 +45,16 @@ public interface CatalogItemRepository extends JpaRepository<CatalogItemEntity, 
     Page<CatalogItemEntity> searchByCompanyIdAndTerm(
             @Param("companyId") Long companyId,
             @Param("search") String search,
+            @Param("categoryId") Long categoryId,
+            @Param("type") CatalogItemType type,
             Pageable pageable
     );
+
+    default Page<CatalogItemEntity> searchByCompanyIdAndTerm(Long companyId, String search, Long categoryId, Pageable pageable) {
+        return searchByCompanyIdAndTerm(companyId, search, categoryId, null, pageable);
+    }
+
+    default Page<CatalogItemEntity> searchByCompanyIdAndTerm(Long companyId, String search, Pageable pageable) {
+        return searchByCompanyIdAndTerm(companyId, search, null, null, pageable);
+    }
 }

@@ -2,14 +2,12 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.collaborator.*;
 import company.aura.erp.entity.CollaboratorEntity;
+import company.aura.erp.entity.CommissionEntryEntity;
+import company.aura.erp.entity.CommissionRuleEntity;
 import company.aura.erp.entity.OrderItemEntity;
-import company.aura.erp.enums.CollaboratorStatus;
-import company.aura.erp.enums.OrderStatus;
-import company.aura.erp.enums.UserStatus;
+import company.aura.erp.enums.*;
 import company.aura.erp.mapper.CollaboratorMapper;
-import company.aura.erp.repository.CollaboratorRepository;
-import company.aura.erp.repository.OrderItemRepository;
-import company.aura.erp.repository.UserRepository;
+import company.aura.erp.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,9 +20,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,6 +33,8 @@ public class CollaboratorService {
     private final CollaboratorRepository collaboratorRepository;
     private final UserRepository userRepository;
     private final OrderItemRepository orderItemRepository;
+    private final CommissionRuleRepository commissionRuleRepository;
+    private final CommissionEntryRepository commissionEntryRepository;
 
     @Transactional
     public CollaboratorResponse create(CollaboratorCreateRequest request, Long companyId) {
@@ -75,10 +76,6 @@ public class CollaboratorService {
         collaborator.setCpf(request.getCpf());
         collaborator.setEmail(request.getEmail());
         collaborator.setPhone(request.getPhone());
-
-        if (request.getDefaultCommissionPercentage() != null) {
-            collaborator.setDefaultCommissionPercentage(request.getDefaultCommissionPercentage());
-        }
 
         collaborator.setStreet(request.getStreet());
         collaborator.setNumber(request.getNumber());
@@ -155,11 +152,12 @@ public class CollaboratorService {
         List<OrderItemEntity> items = orderItemRepository.findByCollaboratorAndCompanyAndCreatedAtBetween(
                 collaboratorId, companyId, allowedOrderStatuses, startDate.atStartOfDay(), endDate.atTime(LocalTime.MAX));
 
-        BigDecimal commissionRate = collaborator.getDefaultCommissionPercentage() != null
-                ? collaborator.getDefaultCommissionPercentage()
-                : BigDecimal.ZERO;
+        BigDecimal commissionRate = resolveDefaultCommissionRate(companyId, collaboratorId);
+        Map<Long, CommissionEntryEntity> entriesByItemId = resolveEntriesByOrderItemId(companyId, items);
 
-        List<CollaboratorSoldItemResponse> soldItems = items.stream().map(item -> buildReportSoldItemResponse(item, commissionRate)).toList();
+        List<CollaboratorSoldItemResponse> soldItems = items.stream()
+                .map(item -> buildReportSoldItemResponse(item, commissionRate, entriesByItemId.get(item.getId())))
+                .toList();
 
         BigDecimal totalSold = soldItems.stream()
                 .map(CollaboratorSoldItemResponse::getTotalPrice)
@@ -188,10 +186,63 @@ public class CollaboratorService {
         return response;
     }
 
-    private static CollaboratorSoldItemResponse buildReportSoldItemResponse(OrderItemEntity item, BigDecimal commissionRate) {
+    private BigDecimal resolveDefaultCommissionRate(Long companyId, Long collaboratorId) {
+        List<CommissionRuleEntity> activeRules = commissionRuleRepository.findByCompanyIdAndStatus(companyId, CommissionRuleStatus.ACTIVE);
+        if (activeRules == null || activeRules.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        LocalDate today = LocalDate.now();
+        List<CommissionRuleEntity> validRules = activeRules.stream()
+                .filter(r -> (r.getValidFrom() == null || !today.isBefore(r.getValidFrom()))
+                        && (r.getValidUntil() == null || !today.isAfter(r.getValidUntil())))
+                .sorted(Comparator.comparing(CommissionRuleEntity::getId, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+
+        return validRules.stream()
+                .filter(r -> Objects.equals(r.getCollaboratorId(), collaboratorId)
+                        && r.getCategoryId() == null && r.getCatalogItemId() == null)
+                .findFirst()
+                .or(() -> validRules.stream()
+                        .filter(r -> r.getCollaboratorId() == null
+                                && r.getCategoryId() == null && r.getCatalogItemId() == null)
+                        .findFirst())
+                .map(CommissionRuleEntity::getCommissionPercentage)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private Map<Long, CommissionEntryEntity> resolveEntriesByOrderItemId(Long companyId, List<OrderItemEntity> items) {
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> itemIds = items.stream()
+                .map(OrderItemEntity::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (itemIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<CommissionEntryEntity> entries = commissionEntryRepository.findByCompanyIdAndSourceTypeAndSourceItemIdInAndStatusNot(
+                companyId, CommissionSourceType.ORDER_ITEM, itemIds, CommissionEntryStatus.CANCELED
+        );
+        if (entries == null || entries.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return entries.stream().collect(Collectors.toMap(
+                CommissionEntryEntity::getSourceItemId,
+                Function.identity(),
+                (a, b) -> a
+        ));
+    }
+
+    private static CollaboratorSoldItemResponse buildReportSoldItemResponse(
+            OrderItemEntity item,
+            BigDecimal commissionRate,
+            CommissionEntryEntity entry
+    ) {
         BigDecimal itemTotal = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
-        BigDecimal itemCommission = itemTotal.multiply(commissionRate)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal itemCommission = (entry != null && entry.getCommissionAmount() != null)
+                ? entry.getCommissionAmount()
+                : itemTotal.multiply(commissionRate).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
         return CollaboratorSoldItemResponse.builder()
                 .itemId(item.getId())

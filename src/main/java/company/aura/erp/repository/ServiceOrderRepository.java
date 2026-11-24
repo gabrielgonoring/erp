@@ -21,6 +21,21 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderEntity
 
     Optional<ServiceOrderEntity> findByIdAndCompanyId(Long id, Long companyId);
 
+    boolean existsByOrderIdAndCompanyId(Long orderId, Long companyId);
+
+    @Query("""
+        SELECT s FROM ServiceOrderEntity s
+        WHERE s.companyId = :companyId
+          AND s.status = :status
+          AND (:startDate IS NULL OR COALESCE(s.completedAt, s.createdAt) >= :startDate)
+          AND (:endDate IS NULL OR COALESCE(s.completedAt, s.createdAt) <= :endDate)
+    """)
+    List<ServiceOrderEntity> findCompletedServiceOrdersForCommission(
+            @Param("companyId") Long companyId,
+            @Param("status") ServiceOrderStatus status,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 
     @Query(
             value = "SELECT new company.aura.erp.dto.serviceorder.ServiceOrderSummaryResponse(" +

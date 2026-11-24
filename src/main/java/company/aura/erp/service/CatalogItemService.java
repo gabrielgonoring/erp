@@ -4,8 +4,10 @@ import company.aura.erp.dto.catalog.*;
 import company.aura.erp.entity.CatalogItemEntity;
 import company.aura.erp.entity.CatalogPhysicalItemEntity;
 import company.aura.erp.entity.CatalogServiceItemEntity;
+import company.aura.erp.enums.CatalogCategoryStatus;
 import company.aura.erp.enums.CatalogItemStatus;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.repository.CatalogCategoryRepository;
 import company.aura.erp.repository.CatalogItemRepository;
 import company.aura.erp.repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ public class CatalogItemService {
 
     private final CatalogItemRepository catalogItemRepository;
     private final CompanyRepository companyRepository;
+    private final CatalogCategoryRepository catalogCategoryRepository;
 
     @Transactional
     public CatalogItemResponse savePhysical(CatalogPhysicalItemCreateRequest request, Long companyId) {
@@ -35,8 +38,11 @@ public class CatalogItemService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId);
         }
 
+        validateCategory(request.categoryId(), companyId);
+
         CatalogItemEntity item = CatalogItemEntity.builder()
                 .companyId(companyId)
+                .categoryId(request.categoryId())
                 .type(CatalogItemType.PHYSICAL)
                 .internalCode(request.internalCode())
                 .description(request.description())
@@ -79,8 +85,11 @@ public class CatalogItemService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Empresa não encontrada com ID: " + companyId);
         }
 
+        validateCategory(request.categoryId(), companyId);
+
         CatalogItemEntity item = CatalogItemEntity.builder()
                 .companyId(companyId)
+                .categoryId(request.categoryId())
                 .type(CatalogItemType.SERVICE)
                 .internalCode(request.internalCode())
                 .description(request.description())
@@ -117,6 +126,9 @@ public class CatalogItemService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O item com ID " + id + " é do tipo SERVIÇO e não pode ser atualizado como produto físico.");
         }
 
+        validateCategory(request.categoryId(), companyId);
+
+        item.setCategoryId(request.categoryId());
         item.setInternalCode(request.internalCode());
         item.setDescription(request.description());
         item.setUnitPrice(request.unitPrice());
@@ -161,6 +173,9 @@ public class CatalogItemService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O item com ID " + id + " é do tipo FÍSICO e não pode ser atualizado como serviço.");
         }
 
+        validateCategory(request.categoryId(), companyId);
+
+        item.setCategoryId(request.categoryId());
         item.setInternalCode(request.internalCode());
         item.setDescription(request.description());
         item.setUnitPrice(request.unitPrice());
@@ -213,13 +228,31 @@ public class CatalogItemService {
 
     @Transactional(readOnly = true)
     public Page<CatalogItemSummaryResponse> listSummarized(String search, Long companyId, Pageable pageable) {
-        log.info("listSummarized() - START - companyId={}, search={}", companyId, search);
+        return listSummarized(search, null, null, companyId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CatalogItemSummaryResponse> listSummarized(String search, Long categoryId, Long companyId, Pageable pageable) {
+        return listSummarized(search, categoryId, null, companyId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CatalogItemSummaryResponse> listSummarized(String search, Long categoryId, CatalogItemType type, Long companyId, Pageable pageable) {
+        log.info("listSummarized() - START - companyId={}, search={}, categoryId={}, type={}", companyId, search, categoryId, type);
 
         String cleanSearch = (search != null && !search.isBlank()) ? search.trim() : null;
-        Page<CatalogItemSummaryResponse> page = catalogItemRepository.searchByCompanyIdAndTerm(companyId, cleanSearch, pageable)
+        Page<CatalogItemSummaryResponse> page = catalogItemRepository.searchByCompanyIdAndTerm(companyId, cleanSearch, categoryId, type, pageable)
                 .map(CatalogItemSummaryResponse::fromEntity);
 
         log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
         return page;
+    }
+
+    private void validateCategory(Long categoryId, Long companyId) {
+        if (categoryId == null) {
+            return;
+        }
+        catalogCategoryRepository.findByIdAndCompanyIdAndStatusNot(categoryId, companyId, CatalogCategoryStatus.DELETED)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada com ID: " + categoryId));
     }
 }
