@@ -1,6 +1,12 @@
 package company.aura.erp.service;
 
-import company.aura.erp.dto.dashboard.*;
+import company.aura.erp.dto.dashboard.DashboardKpisResponse;
+import company.aura.erp.dto.dashboard.OrderStatusTotalSummary;
+import company.aura.erp.dto.dashboard.RealizedRevenueSummary;
+import company.aura.erp.dto.dashboard.ReceivablesKpiSummary;
+import company.aura.erp.dto.dashboard.SalesAggregationSummary;
+import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
+import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.enums.ServiceOrderStatus;
@@ -54,67 +60,7 @@ public class DashboardService {
     private final ExecutorService executorService;
 
     @Transactional(readOnly = true)
-    public DashboardSummaryResponse getSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
-        log.info("getSummary() - START - companyId={}, startDate={}, endDate={}", companyId, startDate, endDate);
-
-        LocalDate today = LocalDate.now();
-        LocalDateTime resolvedStartDate = startDate != null ? startDate.atStartOfDay() : today.withDayOfMonth(1).atStartOfDay();
-        LocalDateTime resolvedEndDate = endDate != null ? endDate.atTime(LocalTime.MAX) : today.atTime(LocalTime.MAX);
-
-        validateSummaryRequest(resolvedStartDate, resolvedEndDate);
-
-        CompletableFuture<List<OrderStatusSummary>> statusSummary = CompletableFuture.supplyAsync(
-                () -> getSalesResponseByOrderStatus(companyId, resolvedStartDate, resolvedEndDate),
-                executorService
-        );
-
-        CompletableFuture<ReceivablePaymentSummary> paymentSummary = CompletableFuture.supplyAsync(
-                () -> getPaymentSummary(companyId, resolvedStartDate, resolvedEndDate),
-                executorService
-        );
-
-        CompletableFuture<PendingReceivableSummary> pendingReceivablesFuture = CompletableFuture.supplyAsync(
-                () -> getPendingReceivablesSummary(companyId, resolvedStartDate.toLocalDate(), resolvedEndDate.toLocalDate()),
-                executorService
-        );
-
-        CompletableFuture<PaymentTransactionSummary> revenue = CompletableFuture.supplyAsync(
-                () -> getPaymentForPeriod(companyId, resolvedStartDate, resolvedEndDate),
-                executorService
-        );
-
-        try {
-            CompletableFuture.allOf(paymentSummary, statusSummary, pendingReceivablesFuture, revenue).join();
-
-            var salesPerStatus = statusSummary.join();
-            var paymentSummaryResponse = paymentSummary.join();
-            var pendingReceivablesResponse = pendingReceivablesFuture.join();
-            var revenueResponse = revenue.join();
-
-            DashboardSummaryResponse response = new DashboardSummaryResponse(
-                    resolvedStartDate.toLocalDate(),
-                    resolvedEndDate.toLocalDate(),
-                    salesPerStatus,
-                    paymentSummaryResponse.paidAmount(),
-                    paymentSummaryResponse.pendingAmount(),
-                    paymentSummaryResponse.paidAmount().add(paymentSummaryResponse.pendingAmount()),
-                    pendingReceivablesResponse,
-                    revenueResponse
-            );
-
-            log.info("getSummary() - END - companyId={}, startDate={}, endDate={}", companyId, response.startDate(), response.endDate());
-            return response;
-
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw e;
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public List<OrderStatusSummary> getOrdersStatusSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
+    public List<OrderStatusTotalSummary> getOrdersStatusSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
         log.info("getOrdersStatusSummary() - START - companyId={}, startDate={}, endDate={}", companyId, startDate, endDate);
 
         LocalDate today = LocalDate.now();
@@ -123,7 +69,13 @@ public class DashboardService {
 
         validateSummaryRequest(resolvedStartDate, resolvedEndDate);
 
-        List<OrderStatusSummary> response = getSalesResponseByOrderStatus(companyId, resolvedStartDate, resolvedEndDate);
+        List<OrderStatusTotalSummary> response = orderRepository.summarizeWithTotalsByStatusesAndDateRange(
+                        companyId,
+                        resolvedStartDate,
+                        resolvedEndDate
+                ).stream()
+                .map(item -> new OrderStatusTotalSummary(item.status(), item.count(), scaleAmount(item.totalAmount())))
+                .toList();
         log.info("getOrdersStatusSummary() - END - companyId={}, totalStatuses={}", companyId, response.size());
         return response;
     }
@@ -139,10 +91,12 @@ public class DashboardService {
         validateSummaryRequest(resolvedStartDate, resolvedEndDate);
 
         List<ServiceOrderStatusSummary> response = serviceOrderRepository.summarizeByStatusesAndDateRange(
-                companyId,
-                resolvedStartDate,
-                resolvedEndDate
-        );
+                        companyId,
+                        resolvedStartDate,
+                        resolvedEndDate
+                ).stream()
+                .map(item -> new ServiceOrderStatusSummary(item.status(), item.count(), scaleAmount(item.totalAmount())))
+                .toList();
         log.info("getServiceOrdersStatusSummary() - END - companyId={}, totalStatuses={}", companyId, response.size());
         return response;
     }
@@ -323,34 +277,6 @@ public class DashboardService {
         return currentAmount.subtract(previousAmount)
                 .multiply(BigDecimal.valueOf(100))
                 .divide(previousAmount.abs(), 1, RoundingMode.HALF_UP);
-    }
-
-    private List<OrderStatusSummary> getSalesResponseByOrderStatus(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
-        return orderRepository.summarizeByStatusesAndDateRange(companyId, resolvedStartDate, resolvedEndDate);
-    }
-
-    private PaymentTransactionSummary getPaymentForPeriod(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
-        return paymentTransactionRepository.getPaymentsSummaryByStatusInAndDateRange(
-                companyId,
-                List.of(ReceivableStatus.PAID, ReceivableStatus.PARTIALLY_PAID),
-                resolvedStartDate,
-                resolvedEndDate
-        );
-    }
-
-    private ReceivablePaymentSummary getPaymentSummary(Long companyId, LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {
-        return receivableRepository.getPaymentsSummaryByOrderDate(
-                companyId,
-                List.of(OrderStatus.COMPLETED),
-                List.of(ReceivableStatus.CANCELED),
-                resolvedStartDate,
-                resolvedEndDate
-        );
-    }
-
-    private PendingReceivableSummary getPendingReceivablesSummary(Long companyId, LocalDate startDate, LocalDate endDate) {
-        PendingReceivableSummary summary = receivableRepository.getPendingReceivablesSummaryByDueDate(companyId, startDate, endDate);
-        return summary != null ? summary : new PendingReceivableSummary(0L, BigDecimal.ZERO);
     }
 
     private void validateSummaryRequest(LocalDateTime resolvedStartDate, LocalDateTime resolvedEndDate) {

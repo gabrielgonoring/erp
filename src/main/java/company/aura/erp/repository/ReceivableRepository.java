@@ -1,12 +1,9 @@
 package company.aura.erp.repository;
 
-import company.aura.erp.dto.dashboard.PendingReceivableSummary;
-import company.aura.erp.dto.dashboard.ReceivablePaymentSummary;
 import company.aura.erp.dto.dashboard.ReceivablesKpiSummary;
 import company.aura.erp.dto.job.ReceivableDueNotice;
 import company.aura.erp.dto.order.ReceivableSummaryResponse;
 import company.aura.erp.entity.ReceivableEntity;
-import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.enums.ReceivableStatus;
 import org.springframework.data.domain.Page;
@@ -17,7 +14,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,45 +28,6 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
 
     @Query("SELECT COALESCE(MAX(r.installmentNumber), 0) FROM ReceivableEntity r WHERE r.orderId = :orderId")
     Integer findMaxInstallmentNumberByOrderId(@Param("orderId") Long orderId);
-
-    @Query("""
-        SELECT new company.aura.erp.dto.dashboard.ReceivablePaymentSummary(
-            COALESCE(SUM(r.amount - r.pendingAmount), 0),
-            COALESCE(SUM(r.pendingAmount), 0)
-        )
-        FROM ReceivableEntity r
-        JOIN OrderEntity o ON r.orderId = o.id
-        WHERE o.companyId = :companyId
-          AND o.status IN (:orderStatuses)
-          AND r.status NOT IN (:notInReceivableStatus)
-          AND COALESCE(o.completedAt, o.createdAt) >= :startDate
-          AND COALESCE(o.completedAt, o.createdAt) <= :endDate
-    """)
-    ReceivablePaymentSummary getPaymentsSummaryByOrderDate(
-            @Param("companyId") Long companyId,
-            @Param("orderStatuses") List<OrderStatus> orderStatuses,
-            @Param("notInReceivableStatus") List<ReceivableStatus> notInReceivableStatus,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
-    @Query("""
-        SELECT new company.aura.erp.dto.dashboard.PendingReceivableSummary(
-            COUNT(r),
-            COALESCE(SUM(r.pendingAmount), 0)
-        )
-        FROM ReceivableEntity r
-        WHERE r.companyId = :companyId
-          AND r.status != company.aura.erp.enums.ReceivableStatus.CANCELED
-          AND r.pendingAmount > 0
-          AND r.dueDate >= :startDate
-          AND r.dueDate <= :endDate
-    """)
-    PendingReceivableSummary getPendingReceivablesSummaryByDueDate(
-            @Param("companyId") Long companyId,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate
-    );
 
     @Query("""
         SELECT new company.aura.erp.dto.dashboard.ReceivablesKpiSummary(

@@ -1,6 +1,6 @@
 package company.aura.erp.repository;
 
-import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.OrderStatusTotalSummary;
 import company.aura.erp.dto.dashboard.SalesAggregationSummary;
 import company.aura.erp.dto.order.OrderSummaryResponse;
 import company.aura.erp.entity.OrderEntity;
@@ -65,11 +65,11 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
             Pageable pageable
     );
 
-
     @Query("""
-        SELECT new company.aura.erp.dto.dashboard.OrderStatusSummary(
+        SELECT new company.aura.erp.dto.dashboard.OrderStatusTotalSummary(
             o.status,
-            COUNT(o)
+            COUNT(o),
+            COALESCE(SUM(o.totalAmount), 0)
         )
         FROM OrderEntity o
         WHERE o.companyId = :companyId
@@ -77,7 +77,7 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
           AND COALESCE(o.completedAt, o.createdAt) <= :endDate
         GROUP BY o.status
     """)
-    List<OrderStatusSummary> summarizeByStatusesAndDateRange(
+    List<OrderStatusTotalSummary> summarizeWithTotalsByStatusesAndDateRange(
             @Param("companyId") Long companyId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate

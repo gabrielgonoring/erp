@@ -88,7 +88,8 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrderEntity
     @Query("""
         SELECT new company.aura.erp.dto.dashboard.ServiceOrderStatusSummary(
             so.status,
-            COUNT(so)
+            COUNT(so),
+            COALESCE(SUM(so.totalAmount), 0)
         )
         FROM ServiceOrderEntity so
         WHERE so.companyId = :companyId

@@ -1,8 +1,7 @@
 package company.aura.erp.controller;
 
 import company.aura.erp.dto.dashboard.DashboardKpisResponse;
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.OrderStatusTotalSummary;
 import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.security.UserPrincipal;
@@ -23,16 +22,6 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
 
-    @GetMapping("/summary")
-    public ResponseEntity<DashboardSummaryResponse> getSummary(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, userPrincipal.getCompanyId());
-        return ResponseEntity.ok(response);
-    }
-
     @GetMapping("/kpis")
     public ResponseEntity<DashboardKpisResponse> getKpis(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -44,12 +33,12 @@ public class DashboardController {
     }
 
     @GetMapping("/orders/status-summary")
-    public ResponseEntity<List<OrderStatusSummary>> getOrdersStatusSummary(
+    public ResponseEntity<List<OrderStatusTotalSummary>> getOrdersStatusSummary(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
-        List<OrderStatusSummary> response = dashboardService.getOrdersStatusSummary(startDate, endDate, userPrincipal.getCompanyId());
+        List<OrderStatusTotalSummary> response = dashboardService.getOrdersStatusSummary(startDate, endDate, userPrincipal.getCompanyId());
         return ResponseEntity.ok(response);
     }
 

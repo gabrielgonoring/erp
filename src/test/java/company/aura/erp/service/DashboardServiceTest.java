@@ -1,12 +1,8 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.dashboard.DashboardKpisResponse;
-import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
-import company.aura.erp.dto.dashboard.OrderStatusSummary;
-import company.aura.erp.dto.dashboard.PaymentTransactionSummary;
-import company.aura.erp.dto.dashboard.PendingReceivableSummary;
+import company.aura.erp.dto.dashboard.OrderStatusTotalSummary;
 import company.aura.erp.dto.dashboard.RealizedRevenueSummary;
-import company.aura.erp.dto.dashboard.ReceivablePaymentSummary;
 import company.aura.erp.dto.dashboard.ReceivablesKpiSummary;
 import company.aura.erp.dto.dashboard.SalesAggregationSummary;
 import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
@@ -71,134 +67,23 @@ class DashboardServiceTest {
     private DashboardService dashboardService;
 
     @Test
-    @DisplayName("getSummary — Deve calcular metricas corretamente para o período selecionado")
-    void shouldCalculateSummaryCorrectly() {
-        Long companyId = 1L;
-        LocalDate startDate = LocalDate.of(2026, 11, 1);
-        LocalDate endDate = LocalDate.of(2026, 11, 30);
-
-        List<OrderStatusSummary> salesPerStatus = List.of(
-                new OrderStatusSummary(OrderStatus.COMPLETED, 4L),
-                new OrderStatusSummary(OrderStatus.OPEN, 2L)
-        );
-        ReceivablePaymentSummary paymentSummary = new ReceivablePaymentSummary(
-                new BigDecimal("10000.00"),
-                new BigDecimal("3500.00")
-        );
-        PendingReceivableSummary pendingReceivables = new PendingReceivableSummary(3L, new BigDecimal("1500.00"));
-        PaymentTransactionSummary revenue = new PaymentTransactionSummary(5L, new BigDecimal("8000.00"));
-
-        when(orderRepository.summarizeByStatusesAndDateRange(
-                eq(companyId),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(salesPerStatus);
-
-        when(receivableRepository.getPaymentsSummaryByOrderDate(
-                eq(companyId),
-                eq(List.of(OrderStatus.COMPLETED)),
-                eq(List.of(ReceivableStatus.CANCELED)),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(paymentSummary);
-
-        when(receivableRepository.getPendingReceivablesSummaryByDueDate(
-                eq(companyId),
-                eq(startDate),
-                eq(endDate)
-        )).thenReturn(pendingReceivables);
-
-        when(paymentTransactionRepository.getPaymentsSummaryByStatusInAndDateRange(
-                eq(companyId),
-                eq(List.of(ReceivableStatus.PAID, ReceivableStatus.PARTIALLY_PAID)),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(revenue);
-
-        DashboardSummaryResponse response = dashboardService.getSummary(startDate, endDate, companyId);
-
-        assertNotNull(response);
-        assertEquals(startDate, response.startDate());
-        assertEquals(endDate, response.endDate());
-        assertEquals(salesPerStatus, response.salesPerStatus());
-        assertEquals(new BigDecimal("10000.00"), response.paidAmount());
-        assertEquals(new BigDecimal("3500.00"), response.pendingAmount());
-        assertEquals(new BigDecimal("13500.00"), response.totalAmount());
-        assertEquals(pendingReceivables, response.pendingReceivables());
-        assertEquals(revenue, response.revenue());
-    }
-
-    @Test
-    @DisplayName("getSummary — Deve aplicar valores padrão do mês atual quando datas forem nulas")
-    void shouldApplyDefaultsWhenDatesAreNull() {
-        Long companyId = 1L;
-        PaymentTransactionSummary revenue = new PaymentTransactionSummary(0L, BigDecimal.ZERO);
-
-        when(orderRepository.summarizeByStatusesAndDateRange(
-                eq(companyId),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(Collections.emptyList());
-
-        when(receivableRepository.getPaymentsSummaryByOrderDate(
-                eq(companyId),
-                eq(List.of(OrderStatus.COMPLETED)),
-                eq(List.of(ReceivableStatus.CANCELED)),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(new ReceivablePaymentSummary(BigDecimal.ZERO, BigDecimal.ZERO));
-
-        when(receivableRepository.getPendingReceivablesSummaryByDueDate(
-                eq(companyId),
-                eq(LocalDate.now().withDayOfMonth(1)),
-                eq(LocalDate.now())
-        )).thenReturn(new PendingReceivableSummary(0L, BigDecimal.ZERO));
-
-        when(paymentTransactionRepository.getPaymentsSummaryByStatusInAndDateRange(
-                eq(companyId),
-                eq(List.of(ReceivableStatus.PAID, ReceivableStatus.PARTIALLY_PAID)),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
-        )).thenReturn(revenue);
-
-        DashboardSummaryResponse response = dashboardService.getSummary(null, null, companyId);
-
-        assertNotNull(response);
-        assertEquals(LocalDate.now().withDayOfMonth(1), response.startDate());
-        assertEquals(LocalDate.now(), response.endDate());
-        assertEquals(Collections.emptyList(), response.salesPerStatus());
-        assertEquals(BigDecimal.ZERO, response.paidAmount());
-        assertEquals(BigDecimal.ZERO, response.pendingAmount());
-        assertEquals(BigDecimal.ZERO, response.totalAmount());
-        assertEquals(new PendingReceivableSummary(0L, BigDecimal.ZERO), response.pendingReceivables());
-        assertEquals(revenue, response.revenue());
-    }
-
-    @Test
-    @DisplayName("getSummary — Deve lançar exceção se data inicial for posterior à final")
-    void shouldThrowExceptionWhenStartDateIsAfterEndDate() {
-        Long companyId = 1L;
-        LocalDate startDate = LocalDate.of(2026, 11, 10);
-        LocalDate endDate = LocalDate.of(2026, 11, 5);
-
-        assertThrows(ResponseStatusException.class, () -> dashboardService.getSummary(startDate, endDate, companyId));
-    }
-
-    @Test
-    @DisplayName("getOrdersStatusSummary — Deve retornar resumo dos status dos pedidos no período")
+    @DisplayName("getOrdersStatusSummary — Deve retornar resumo dos status e valores totais dos pedidos no período")
     void shouldReturnOrdersStatusSummary() {
         Long companyId = 1L;
         LocalDate startDate = LocalDate.of(2026, 11, 1);
         LocalDate endDate = LocalDate.of(2026, 11, 23);
-        List<OrderStatusSummary> expected = List.of(new OrderStatusSummary(OrderStatus.CANCELED, 1L));
+        List<OrderStatusTotalSummary> expected = List.of(
+                new OrderStatusTotalSummary(OrderStatus.CANCELED, 1L, new BigDecimal("100.00")),
+                new OrderStatusTotalSummary(OrderStatus.COMPLETED, 2L, new BigDecimal("500.50"))
+        );
 
-        when(orderRepository.summarizeByStatusesAndDateRange(
+        when(orderRepository.summarizeWithTotalsByStatusesAndDateRange(
                 eq(companyId),
                 eq(startDate.atStartOfDay()),
                 eq(endDate.atTime(LocalTime.MAX))
         )).thenReturn(expected);
 
-        List<OrderStatusSummary> response = dashboardService.getOrdersStatusSummary(startDate, endDate, companyId);
+        List<OrderStatusTotalSummary> response = dashboardService.getOrdersStatusSummary(startDate, endDate, companyId);
 
         assertEquals(expected, response);
     }
@@ -209,13 +94,13 @@ class DashboardServiceTest {
         Long companyId = 1L;
         LocalDate today = LocalDate.now();
 
-        when(orderRepository.summarizeByStatusesAndDateRange(
+        when(orderRepository.summarizeWithTotalsByStatusesAndDateRange(
                 eq(companyId),
                 eq(today.withDayOfMonth(1).atStartOfDay()),
                 eq(today.atTime(LocalTime.MAX))
         )).thenReturn(Collections.emptyList());
 
-        List<OrderStatusSummary> response = dashboardService.getOrdersStatusSummary(null, null, companyId);
+        List<OrderStatusTotalSummary> response = dashboardService.getOrdersStatusSummary(null, null, companyId);
         assertTrue(response.isEmpty());
 
         LocalDate startDate = LocalDate.of(2026, 11, 10);
@@ -224,12 +109,15 @@ class DashboardServiceTest {
     }
 
     @Test
-    @DisplayName("getServiceOrdersStatusSummary — Deve retornar resumo dos status das OSs no período")
+    @DisplayName("getServiceOrdersStatusSummary — Deve retornar resumo dos status e valores totais das OSs no período")
     void shouldReturnServiceOrdersStatusSummary() {
         Long companyId = 1L;
         LocalDate startDate = LocalDate.of(2026, 11, 1);
         LocalDate endDate = LocalDate.of(2026, 11, 23);
-        List<ServiceOrderStatusSummary> expected = List.of(new ServiceOrderStatusSummary(ServiceOrderStatus.CANCELED, 1L));
+        List<ServiceOrderStatusSummary> expected = List.of(
+                new ServiceOrderStatusSummary(ServiceOrderStatus.CANCELED, 1L, new BigDecimal("100.00")),
+                new ServiceOrderStatusSummary(ServiceOrderStatus.IN_PROGRESS, 2L, new BigDecimal("400.00"))
+        );
 
         when(serviceOrderRepository.summarizeByStatusesAndDateRange(
                 eq(companyId),
