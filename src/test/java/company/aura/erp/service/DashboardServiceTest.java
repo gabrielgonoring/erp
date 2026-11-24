@@ -9,6 +9,7 @@ import company.aura.erp.dto.dashboard.RealizedRevenueSummary;
 import company.aura.erp.dto.dashboard.ReceivablePaymentSummary;
 import company.aura.erp.dto.dashboard.ReceivablesKpiSummary;
 import company.aura.erp.dto.dashboard.SalesAggregationSummary;
+import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
 import company.aura.erp.enums.ReceivableStatus;
@@ -181,6 +182,84 @@ class DashboardServiceTest {
         LocalDate endDate = LocalDate.of(2026, 11, 5);
 
         assertThrows(ResponseStatusException.class, () -> dashboardService.getSummary(startDate, endDate, companyId));
+    }
+
+    @Test
+    @DisplayName("getOrdersStatusSummary — Deve retornar resumo dos status dos pedidos no período")
+    void shouldReturnOrdersStatusSummary() {
+        Long companyId = 1L;
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        List<OrderStatusSummary> expected = List.of(new OrderStatusSummary(OrderStatus.CANCELED, 1L));
+
+        when(orderRepository.summarizeByStatusesAndDateRange(
+                eq(companyId),
+                eq(startDate.atStartOfDay()),
+                eq(endDate.atTime(LocalTime.MAX))
+        )).thenReturn(expected);
+
+        List<OrderStatusSummary> response = dashboardService.getOrdersStatusSummary(startDate, endDate, companyId);
+
+        assertEquals(expected, response);
+    }
+
+    @Test
+    @DisplayName("getOrdersStatusSummary — Deve aplicar datas padrão e validar data inicial maior que final")
+    void shouldApplyDefaultsAndValidateDatesForOrdersStatusSummary() {
+        Long companyId = 1L;
+        LocalDate today = LocalDate.now();
+
+        when(orderRepository.summarizeByStatusesAndDateRange(
+                eq(companyId),
+                eq(today.withDayOfMonth(1).atStartOfDay()),
+                eq(today.atTime(LocalTime.MAX))
+        )).thenReturn(Collections.emptyList());
+
+        List<OrderStatusSummary> response = dashboardService.getOrdersStatusSummary(null, null, companyId);
+        assertTrue(response.isEmpty());
+
+        LocalDate startDate = LocalDate.of(2026, 11, 10);
+        LocalDate endDate = LocalDate.of(2026, 11, 5);
+        assertThrows(ResponseStatusException.class, () -> dashboardService.getOrdersStatusSummary(startDate, endDate, companyId));
+    }
+
+    @Test
+    @DisplayName("getServiceOrdersStatusSummary — Deve retornar resumo dos status das OSs no período")
+    void shouldReturnServiceOrdersStatusSummary() {
+        Long companyId = 1L;
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        List<ServiceOrderStatusSummary> expected = List.of(new ServiceOrderStatusSummary(ServiceOrderStatus.CANCELED, 1L));
+
+        when(serviceOrderRepository.summarizeByStatusesAndDateRange(
+                eq(companyId),
+                eq(startDate.atStartOfDay()),
+                eq(endDate.atTime(LocalTime.MAX))
+        )).thenReturn(expected);
+
+        List<ServiceOrderStatusSummary> response = dashboardService.getServiceOrdersStatusSummary(startDate, endDate, companyId);
+
+        assertEquals(expected, response);
+    }
+
+    @Test
+    @DisplayName("getServiceOrdersStatusSummary — Deve aplicar datas padrão e validar data inicial maior que final")
+    void shouldApplyDefaultsAndValidateDatesForServiceOrdersStatusSummary() {
+        Long companyId = 1L;
+        LocalDate today = LocalDate.now();
+
+        when(serviceOrderRepository.summarizeByStatusesAndDateRange(
+                eq(companyId),
+                eq(today.withDayOfMonth(1).atStartOfDay()),
+                eq(today.atTime(LocalTime.MAX))
+        )).thenReturn(Collections.emptyList());
+
+        List<ServiceOrderStatusSummary> response = dashboardService.getServiceOrdersStatusSummary(null, null, companyId);
+        assertTrue(response.isEmpty());
+
+        LocalDate startDate = LocalDate.of(2026, 11, 10);
+        LocalDate endDate = LocalDate.of(2026, 11, 5);
+        assertThrows(ResponseStatusException.class, () -> dashboardService.getServiceOrdersStatusSummary(startDate, endDate, companyId));
     }
 
     @Test

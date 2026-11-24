@@ -1,8 +1,10 @@
 package company.aura.erp.repository;
 
+import company.aura.erp.dto.dashboard.OrderStatusSummary;
 import company.aura.erp.dto.dashboard.RealizedRevenueSummary;
 import company.aura.erp.dto.dashboard.ReceivablesKpiSummary;
 import company.aura.erp.dto.dashboard.SalesAggregationSummary;
+import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.entity.ReceivableEntity;
@@ -24,8 +26,9 @@ import org.springframework.test.context.TestPropertySource;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -121,6 +124,45 @@ class DashboardRepositoryTest {
 
         assertEquals(0, new BigDecimal("1100.00").compareTo(serviceOrdersSummary.totalAmount()));
         assertEquals(2L, serviceOrdersSummary.count());
+    }
+
+    @Test
+    @DisplayName("summarizeByStatusesAndDateRange — Deve agrupar status de pedidos e OSs por período")
+    void shouldSummarizeOrderAndServiceOrderStatusesByDateRange() {
+        Long companyId = 1L;
+        LocalDateTime start = LocalDateTime.of(2026, 11, 1, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 11, 23, 23, 59, 59, 999999999);
+
+        saveOrderWithCreatedAt(companyId, OrderStatus.CANCELED, new BigDecimal("100.00"), LocalDateTime.of(2026, 11, 5, 10, 0));
+        saveOrderWithCreatedAt(companyId, OrderStatus.COMPLETED, new BigDecimal("200.00"), LocalDateTime.of(2026, 11, 6, 10, 0));
+        saveOrderWithCreatedAt(companyId, OrderStatus.COMPLETED, new BigDecimal("300.00"), LocalDateTime.of(2026, 11, 7, 10, 0));
+        saveOrderWithCreatedAt(companyId, OrderStatus.CANCELED, new BigDecimal("50.00"), LocalDateTime.of(2026, 10, 20, 10, 0));
+        saveOrderWithCreatedAt(2L, OrderStatus.CANCELED, new BigDecimal("50.00"), LocalDateTime.of(2026, 11, 8, 10, 0));
+
+        saveServiceOrderWithCreatedAt(companyId, null, ServiceOrderStatus.CANCELED, new BigDecimal("100.00"), LocalDateTime.of(2026, 11, 5, 10, 0));
+        saveServiceOrderWithCreatedAt(companyId, null, ServiceOrderStatus.IN_PROGRESS, new BigDecimal("150.00"), LocalDateTime.of(2026, 11, 6, 10, 0));
+        saveServiceOrderWithCreatedAt(companyId, null, ServiceOrderStatus.IN_PROGRESS, new BigDecimal("250.00"), LocalDateTime.of(2026, 11, 7, 10, 0));
+        saveServiceOrderWithCreatedAt(companyId, null, ServiceOrderStatus.CANCELED, new BigDecimal("80.00"), LocalDateTime.of(2026, 10, 15, 10, 0));
+        saveServiceOrderWithCreatedAt(2L, null, ServiceOrderStatus.CANCELED, new BigDecimal("80.00"), LocalDateTime.of(2026, 11, 8, 10, 0));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        Map<OrderStatus, Long> ordersByStatus = orderRepository.summarizeByStatusesAndDateRange(companyId, start, end)
+                .stream()
+                .collect(Collectors.toMap(OrderStatusSummary::status, OrderStatusSummary::count));
+
+        Map<ServiceOrderStatus, Long> serviceOrdersByStatus = serviceOrderRepository.summarizeByStatusesAndDateRange(companyId, start, end)
+                .stream()
+                .collect(Collectors.toMap(ServiceOrderStatusSummary::status, ServiceOrderStatusSummary::count));
+
+        assertEquals(2, ordersByStatus.size());
+        assertEquals(1L, ordersByStatus.get(OrderStatus.CANCELED));
+        assertEquals(2L, ordersByStatus.get(OrderStatus.COMPLETED));
+
+        assertEquals(2, serviceOrdersByStatus.size());
+        assertEquals(1L, serviceOrdersByStatus.get(ServiceOrderStatus.CANCELED));
+        assertEquals(2L, serviceOrdersByStatus.get(ServiceOrderStatus.IN_PROGRESS));
     }
 
     @Test

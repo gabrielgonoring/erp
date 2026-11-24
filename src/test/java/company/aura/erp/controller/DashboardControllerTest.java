@@ -4,8 +4,10 @@ import company.aura.erp.dto.dashboard.DashboardKpisResponse;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
 import company.aura.erp.dto.dashboard.PendingReceivableSummary;
 import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.enums.ServiceOrderStatus;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.DashboardService;
 import org.junit.jupiter.api.BeforeEach;
@@ -120,6 +122,46 @@ class DashboardControllerTest {
         assertNotNull(response.getBody());
         assertEquals(expectedResponse, response.getBody());
         verify(dashboardService).getKpis(startDate, endDate, 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/dashboard/orders/status-summary — Deve retornar resumo dos status dos pedidos")
+    void shouldReturnOrdersStatusSummaryOnGet() {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        List<OrderStatusSummary> expectedResponse = List.of(
+                new OrderStatusSummary(OrderStatus.CANCELED, 1L),
+                new OrderStatusSummary(OrderStatus.COMPLETED, 5L)
+        );
+
+        when(dashboardService.getOrdersStatusSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);
+
+        ResponseEntity<List<OrderStatusSummary>> response = dashboardController.getOrdersStatusSummary(startDate, endDate, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(expectedResponse, response.getBody());
+        verify(dashboardService).getOrdersStatusSummary(startDate, endDate, 10L);
+    }
+
+    @Test
+    @DisplayName("GET /api/dashboard/service-orders/status-summary — Deve retornar resumo dos status das OSs")
+    void shouldReturnServiceOrdersStatusSummaryOnGet() {
+        LocalDate startDate = LocalDate.of(2026, 11, 1);
+        LocalDate endDate = LocalDate.of(2026, 11, 23);
+        List<ServiceOrderStatusSummary> expectedResponse = List.of(
+                new ServiceOrderStatusSummary(ServiceOrderStatus.CANCELED, 1L),
+                new ServiceOrderStatusSummary(ServiceOrderStatus.IN_PROGRESS, 3L)
+        );
+
+        when(dashboardService.getServiceOrdersStatusSummary(startDate, endDate, 10L)).thenReturn(expectedResponse);
+
+        ResponseEntity<List<ServiceOrderStatusSummary>> response = dashboardController.getServiceOrdersStatusSummary(startDate, endDate, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(expectedResponse, response.getBody());
+        verify(dashboardService).getServiceOrdersStatusSummary(startDate, endDate, 10L);
     }
 
     @Test

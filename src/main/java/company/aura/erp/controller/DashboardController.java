@@ -2,6 +2,8 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.dashboard.DashboardKpisResponse;
 import company.aura.erp.dto.dashboard.DashboardSummaryResponse;
+import company.aura.erp.dto.dashboard.OrderStatusSummary;
+import company.aura.erp.dto.dashboard.ServiceOrderStatusSummary;
 import company.aura.erp.dto.dashboard.SystemAlertResponse;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.DashboardService;
@@ -41,10 +43,31 @@ public class DashboardController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/orders/status-summary")
+    public ResponseEntity<List<OrderStatusSummary>> getOrdersStatusSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        List<OrderStatusSummary> response = dashboardService.getOrdersStatusSummary(startDate, endDate, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/service-orders/status-summary")
+    public ResponseEntity<List<ServiceOrderStatusSummary>> getServiceOrdersStatusSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        List<ServiceOrderStatusSummary> response = dashboardService.getServiceOrdersStatusSummary(startDate, endDate, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/alerts")
     public ResponseEntity<List<SystemAlertResponse>> getAlerts(
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
+        // (Importante: não coloque a implementação)
         List<SystemAlertResponse> response = dashboardService.getAlerts(userPrincipal);
         return ResponseEntity.ok(response);
     }

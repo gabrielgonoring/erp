@@ -12,7 +12,6 @@ import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.alert.AlertService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -115,6 +114,40 @@ public class DashboardService {
     }
 
     @Transactional(readOnly = true)
+    public List<OrderStatusSummary> getOrdersStatusSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
+        log.info("getOrdersStatusSummary() - START - companyId={}, startDate={}, endDate={}", companyId, startDate, endDate);
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime resolvedStartDate = startDate != null ? startDate.atStartOfDay() : today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime resolvedEndDate = endDate != null ? endDate.atTime(LocalTime.MAX) : today.atTime(LocalTime.MAX);
+
+        validateSummaryRequest(resolvedStartDate, resolvedEndDate);
+
+        List<OrderStatusSummary> response = getSalesResponseByOrderStatus(companyId, resolvedStartDate, resolvedEndDate);
+        log.info("getOrdersStatusSummary() - END - companyId={}, totalStatuses={}", companyId, response.size());
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ServiceOrderStatusSummary> getServiceOrdersStatusSummary(LocalDate startDate, LocalDate endDate, Long companyId) {
+        log.info("getServiceOrdersStatusSummary() - START - companyId={}, startDate={}, endDate={}", companyId, startDate, endDate);
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime resolvedStartDate = startDate != null ? startDate.atStartOfDay() : today.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime resolvedEndDate = endDate != null ? endDate.atTime(LocalTime.MAX) : today.atTime(LocalTime.MAX);
+
+        validateSummaryRequest(resolvedStartDate, resolvedEndDate);
+
+        List<ServiceOrderStatusSummary> response = serviceOrderRepository.summarizeByStatusesAndDateRange(
+                companyId,
+                resolvedStartDate,
+                resolvedEndDate
+        );
+        log.info("getServiceOrdersStatusSummary() - END - companyId={}, totalStatuses={}", companyId, response.size());
+        return response;
+    }
+
+    @Transactional(readOnly = true)
     public DashboardKpisResponse getKpis(LocalDate startDate, LocalDate endDate, Long companyId) {
         log.info("getKpis() - START - companyId={}, startDate={}, endDate={}", companyId, startDate, endDate);
 
@@ -161,7 +194,48 @@ public class DashboardService {
                     receivablesKpiFuture
             ).join();
 
-            DashboardKpisResponse response = buildKpiResponse(realizedRevenueFuture, ordersSalesFuture, serviceOrdersSalesFuture, receivablesKpiFuture, resolvedStartDate, resolvedEndDate);
+            RealizedRevenueSummary realizedRevenueSummary = realizedRevenueFuture.join();
+            SalesAggregationSummary ordersSalesSummary = ordersSalesFuture.join();
+            SalesAggregationSummary serviceOrdersSalesSummary = serviceOrdersSalesFuture.join();
+            ReceivablesKpiSummary receivablesKpiSummary = receivablesKpiFuture.join();
+
+            BigDecimal currentRevenue = scaleAmount(realizedRevenueSummary.currentRevenue());
+            BigDecimal previousRevenue = scaleAmount(realizedRevenueSummary.previousRevenue());
+            BigDecimal growthPercentage = calculateGrowthPercentage(currentRevenue, previousRevenue);
+
+            BigDecimal ordersAmount = scaleAmount(ordersSalesSummary.totalAmount());
+            BigDecimal serviceOrdersAmount = scaleAmount(serviceOrdersSalesSummary.totalAmount());
+            BigDecimal totalSalesAmount = ordersAmount.add(serviceOrdersAmount);
+
+            DashboardKpisResponse response = new DashboardKpisResponse(
+                    new DashboardKpisResponse.Period(resolvedStartDate, resolvedEndDate),
+                    new DashboardKpisResponse.Kpis(
+                            new DashboardKpisResponse.RealizedRevenue(
+                                    currentRevenue,
+                                    previousRevenue,
+                                    growthPercentage,
+                                    realizedRevenueSummary.paymentsCount()
+                            ),
+                            new DashboardKpisResponse.GeneratedSales(
+                                    totalSalesAmount,
+                                    ordersAmount,
+                                    ordersSalesSummary.count(),
+                                    serviceOrdersAmount,
+                                    serviceOrdersSalesSummary.count()
+                            ),
+                            new DashboardKpisResponse.OpenReceivables(
+                                    scaleAmount(receivablesKpiSummary.openAmount()),
+                                    receivablesKpiSummary.openInstallmentsCount(),
+                                    scaleAmount(receivablesKpiSummary.dueThisWeekAmount()),
+                                    receivablesKpiSummary.dueThisWeekCount()
+                            ),
+                            new DashboardKpisResponse.OverdueReceivables(
+                                    scaleAmount(receivablesKpiSummary.overdueAmount()),
+                                    receivablesKpiSummary.overdueInstallmentsCount(),
+                                    receivablesKpiSummary.overdueCustomersCount()
+                            )
+                    )
+            );
 
             log.info("getKpis() - END - companyId={}, startDate={}, endDate={}", companyId, resolvedStartDate, resolvedEndDate);
             return response;
@@ -174,53 +248,12 @@ public class DashboardService {
         }
     }
 
-    private DashboardKpisResponse buildKpiResponse(CompletableFuture<RealizedRevenueSummary> realizedRevenueFuture, CompletableFuture<SalesAggregationSummary> ordersSalesFuture, CompletableFuture<SalesAggregationSummary> serviceOrdersSalesFuture, CompletableFuture<ReceivablesKpiSummary> receivablesKpiFuture, LocalDate resolvedStartDate, LocalDate resolvedEndDate) {
-        RealizedRevenueSummary realizedRevenueSummary = realizedRevenueFuture.join();
-        SalesAggregationSummary ordersSalesSummary = ordersSalesFuture.join();
-        SalesAggregationSummary serviceOrdersSalesSummary = serviceOrdersSalesFuture.join();
-        ReceivablesKpiSummary receivablesKpiSummary = receivablesKpiFuture.join();
-
-        BigDecimal currentRevenue = scaleAmount(realizedRevenueSummary.currentRevenue());
-        BigDecimal previousRevenue = scaleAmount(realizedRevenueSummary.previousRevenue());
-        BigDecimal growthPercentage = calculateGrowthPercentage(currentRevenue, previousRevenue);
-
-        BigDecimal ordersAmount = scaleAmount(ordersSalesSummary.totalAmount());
-        BigDecimal serviceOrdersAmount = scaleAmount(serviceOrdersSalesSummary.totalAmount());
-        BigDecimal totalSalesAmount = ordersAmount.add(serviceOrdersAmount);
-
-        DashboardKpisResponse response = new DashboardKpisResponse(
-                new DashboardKpisResponse.Period(resolvedStartDate, resolvedEndDate),
-                new DashboardKpisResponse.Kpis(
-                        new DashboardKpisResponse.RealizedRevenue(
-                                currentRevenue,
-                                previousRevenue,
-                                growthPercentage,
-                                realizedRevenueSummary.paymentsCount()
-                        ),
-                        new DashboardKpisResponse.GeneratedSales(
-                                totalSalesAmount,
-                                ordersAmount,
-                                ordersSalesSummary.count(),
-                                serviceOrdersAmount,
-                                serviceOrdersSalesSummary.count()
-                        ),
-                        new DashboardKpisResponse.OpenReceivables(
-                                scaleAmount(receivablesKpiSummary.openAmount()),
-                                receivablesKpiSummary.openInstallmentsCount(),
-                                scaleAmount(receivablesKpiSummary.dueThisWeekAmount()),
-                                receivablesKpiSummary.dueThisWeekCount()
-                        ),
-                        new DashboardKpisResponse.OverdueReceivables(
-                                scaleAmount(receivablesKpiSummary.overdueAmount()),
-                                receivablesKpiSummary.overdueInstallmentsCount(),
-                                receivablesKpiSummary.overdueCustomersCount()
-                        )
-                )
-        );
-        return response;
-    }
-
-    private RealizedRevenueSummary getRealizedRevenueSummary(Long companyId, LocalDateTime startDate, LocalDateTime endDate, LocalDateTime prevStartDate) {
+    private RealizedRevenueSummary getRealizedRevenueSummary(
+            Long companyId,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            LocalDateTime prevStartDate
+    ) {
         RealizedRevenueSummary summary = paymentTransactionRepository.getRealizedRevenueSummary(
                 companyId,
                 startDate,
@@ -230,7 +263,11 @@ public class DashboardService {
         return summary != null ? summary : new RealizedRevenueSummary(BigDecimal.ZERO, 0L, BigDecimal.ZERO);
     }
 
-    private SalesAggregationSummary getStandaloneOrdersSalesSummary(Long companyId, LocalDateTime startDate, LocalDateTime endDate) {
+    private SalesAggregationSummary getStandaloneOrdersSalesSummary(
+            Long companyId,
+            LocalDateTime startDate,
+            LocalDateTime endDate
+    ) {
         SalesAggregationSummary summary = orderRepository.getStandaloneOrdersSalesSummary(
                 companyId,
                 OrderStatus.CANCELED,
@@ -240,7 +277,11 @@ public class DashboardService {
         return summary != null ? summary : new SalesAggregationSummary(BigDecimal.ZERO, 0L);
     }
 
-    private SalesAggregationSummary getServiceOrdersSalesSummary(Long companyId, LocalDateTime startDate, LocalDateTime endDate) {
+    private SalesAggregationSummary getServiceOrdersSalesSummary(
+            Long companyId,
+            LocalDateTime startDate,
+            LocalDateTime endDate
+    ) {
         SalesAggregationSummary summary = serviceOrderRepository.getServiceOrdersSalesSummary(
                 companyId,
                 ServiceOrderStatus.CANCELED,
@@ -250,7 +291,11 @@ public class DashboardService {
         return summary != null ? summary : new SalesAggregationSummary(BigDecimal.ZERO, 0L);
     }
 
-    private ReceivablesKpiSummary getReceivablesKpiSummary(Long companyId, LocalDate today, LocalDate weekEndDate) {
+    private ReceivablesKpiSummary getReceivablesKpiSummary(
+            Long companyId,
+            LocalDate today,
+            LocalDate weekEndDate
+    ) {
         ReceivablesKpiSummary summary = receivableRepository.getReceivablesKpiSummary(
                 companyId,
                 today,
