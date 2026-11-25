@@ -6,6 +6,9 @@ import company.aura.erp.entity.InvoiceEntity;
 import company.aura.erp.enums.*;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.OrderService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,8 +29,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -224,9 +229,11 @@ class OrderControllerTest {
     @Test
     @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda e retornar HTTP 200")
     void shouldCloseOrder() {
-        OrderCloseRequest request = new OrderCloseRequest(List.of(
-                new ReceivableRequest(1L, null, ReceivableOriginType.ORDER, 5L, 1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
-        ));
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
+                        new ReceivableRequest(1L, null, ReceivableOriginType.ORDER, 5L, 1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ))
+                .build();
         OrderResponse responseDto = new OrderResponse(
                 1L, 10L, 5L, OrderStatus.COMPLETED,
                 BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
@@ -240,6 +247,44 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda com desconto adicional e retornar HTTP 200")
+    void shouldCloseOrderWithDiscountAmount() {
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .discountAmount(BigDecimal.valueOf(10.00))
+                .receivables(List.of(
+                        new ReceivableRequest(1L, null, ReceivableOriginType.ORDER, 5L, 1, LocalDate.now(), BigDecimal.valueOf(90.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ))
+                .build();
+        OrderResponse responseDto = new OrderResponse(
+                1L, 10L, 5L, OrderStatus.COMPLETED,
+                BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.valueOf(10.00), BigDecimal.valueOf(90.00),
+                null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
+        );
+
+        when(orderService.closeOrder(1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderResponse> response = orderController.closeOrder(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("OrderCloseRequest — Deve falhar na validação por anotação quando discountAmount for negativo")
+    void shouldFailValidationWhenDiscountAmountIsNegative() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .discountAmount(new BigDecimal("-1.00"))
+                .build();
+
+        Set<ConstraintViolation<OrderCloseRequest>> violations = validator.validate(request);
+
+        assertFalse(violations.isEmpty());
+        assertEquals("O valor de desconto não pode ser negativo.", violations.iterator().next().getMessage());
     }
 
     @Test

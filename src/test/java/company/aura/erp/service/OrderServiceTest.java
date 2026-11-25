@@ -319,12 +319,12 @@ class OrderServiceTest {
                 BigDecimal.valueOf(4.5), BigDecimal.valueOf(4.0), "TR123456789BR", null, BigDecimal.valueOf(20.00)
         );
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), BigDecimal.valueOf(120.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
-                ),
-                shippingReq
-        );
+                ))
+                .shipping(shippingReq)
+                .build();
 
         OrderShippingEntity savedShipping = OrderShippingEntity.builder()
                 .id(10L)
@@ -373,12 +373,11 @@ class OrderServiceTest {
     void shouldCloseOrderWithCompletedStatusWhenReceivablesPending() {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), BigDecimal.valueOf(15.00), PaymentMethod.BOLETO, false, null, null, null, null, null, null)
-                ),
-                null
-        );
+                ))
+                .build();
 
         when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
 
@@ -416,13 +415,12 @@ class OrderServiceTest {
     void shouldCloseOrderWithCompletedStatusWhenMixedReceivables() {
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), BigDecimal.valueOf(10.00), PaymentMethod.CASH, true, null, null, null, null, null, null),
                         new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 2, LocalDate.now().plusMonths(1), BigDecimal.valueOf(5.00), PaymentMethod.BOLETO, false, null, null, null, null, null, null)
-                ),
-                null
-        );
+                ))
+                .build();
 
         when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
 
@@ -467,12 +465,11 @@ class OrderServiceTest {
         sampleOrder.setTotalAmount(BigDecimal.valueOf(135.00));
         when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
-                ),
-                null
-        );
+                ))
+                .build();
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 orderService.closeOrder(100L, request, companyId)
@@ -517,12 +514,11 @@ class OrderServiceTest {
                 .amount(BigDecimal.valueOf(100.00))
                 .build();
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(null, null, null, null, 1, LocalDate.now(), BigDecimal.valueOf(100.00), PaymentMethod.PIX, false, null, null, null, null, null, null)
-                ),
-                null
-        );
+                ))
+                .build();
 
         OrderItemEntity item = OrderItemEntity.builder()
                 .id(201L)
@@ -563,7 +559,9 @@ class OrderServiceTest {
                 .amount(BigDecimal.valueOf(150.00))
                 .build();
 
-        OrderCloseRequest request = new OrderCloseRequest(Collections.emptyList(), null);
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(Collections.emptyList())
+                .build();
 
         OrderItemEntity item = OrderItemEntity.builder()
                 .id(201L)
@@ -603,12 +601,11 @@ class OrderServiceTest {
 
         when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(existingLinked));
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(null, null, null, null, 1, LocalDate.now(), BigDecimal.valueOf(150.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
-                ),
-                null
-        );
+                ))
+                .build();
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 orderService.closeOrder(100L, request, companyId)
@@ -638,12 +635,11 @@ class OrderServiceTest {
 
         when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(existingLinked));
 
-        OrderCloseRequest request = new OrderCloseRequest(
-                List.of(
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(List.of(
                         new ReceivableRequest(null, null, null, null, 1, LocalDate.now(), BigDecimal.valueOf(80.00), PaymentMethod.PIX, true, null, null, null, null, null, null)
-                ),
-                null
-        );
+                ))
+                .build();
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 orderService.closeOrder(100L, request, companyId)
@@ -1121,5 +1117,95 @@ class OrderServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verifyNoInteractions(orderInvoiceService);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve aplicar desconto adicional no fechamento somando aos descontos dos itens e abatendo do total")
+    void shouldCloseOrderWithAdditionalDiscount() {
+        sampleOrder.setFreightAmount(BigDecimal.ZERO);
+        sampleOrder.setDiscountAmount(new BigDecimal("15.00"));
+        sampleOrder.setTotalAmount(new BigDecimal("135.00"));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .discountAmount(new BigDecimal("20.00"))
+                .receivables(List.of(
+                        new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), new BigDecimal("115.00"), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ))
+                .build();
+
+        OrderItemEntity item1 = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .discountAmount(new BigDecimal("10.00"))
+                .totalPrice(new BigDecimal("90.00"))
+                .stockDeducted(true)
+                .build();
+        OrderItemEntity item2 = OrderItemEntity.builder()
+                .id(202L)
+                .orderId(100L)
+                .itemType(CatalogItemType.SERVICE)
+                .discountAmount(new BigDecimal("5.00"))
+                .totalPrice(new BigDecimal("45.00"))
+                .stockDeducted(false)
+                .build();
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item1, item2));
+        when(receivedService.findReceivableResponses(100L))
+                .thenReturn(Collections.emptyList())
+                .thenReturn(List.of(ReceivableResponse.builder().id(500L).orderId(100L).status(ReceivableStatus.PAID).amount(new BigDecimal("115.00")).build()));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+
+        assertEquals(OrderStatus.COMPLETED, response.getStatus());
+        assertEquals(new BigDecimal("35.00"), response.getDiscountAmount());
+        assertEquals(new BigDecimal("115.00"), response.getTotalAmount());
+        verify(receivedService).processReceivables(request.getReceivables(), companyId);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve lançar HTTP 422 quando soma dos recebíveis não considerar desconto adicional do pedido")
+    void shouldThrow422WhenReceivablesDoNotMatchTotalMinusOrderDiscount() {
+        sampleOrder.setFreightAmount(BigDecimal.ZERO);
+        sampleOrder.setTotalAmount(new BigDecimal("135.00"));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .discountAmount(new BigDecimal("20.00"))
+                .receivables(List.of(
+                        new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), new BigDecimal("135.00"), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ))
+                .build();
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.closeOrder(100L, request, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("135.00"));
+        assertTrue(ex.getReason().contains("115.00"));
+        verify(receivedService, never()).processReceivables(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve lançar HTTP 422 quando desconto adicional for maior que o total do pedido")
+    void shouldThrow422WhenAdditionalDiscountExceedsOrderTotal() {
+        sampleOrder.setTotalAmount(new BigDecimal("100.00"));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .discountAmount(new BigDecimal("120.00"))
+                .receivables(Collections.emptyList())
+                .build();
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.closeOrder(100L, request, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(receivedService, never()).processReceivables(any(), any());
     }
 }

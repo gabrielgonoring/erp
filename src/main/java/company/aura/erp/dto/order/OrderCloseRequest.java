@@ -1,11 +1,13 @@
 package company.aura.erp.dto.order;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -18,7 +20,6 @@ public class OrderCloseRequest {
     @Valid
     private OrderShippingRequest shipping;
 
-    public OrderCloseRequest(List<@Valid ReceivableRequest> receivables) {
-        this(receivables, null);
-    }
+    @DecimalMin(value = "0.00", message = "O valor de desconto não pode ser negativo.")
+    private BigDecimal discountAmount;
 }

@@ -248,11 +248,15 @@ public class OrderService {
 
         validateIfOrderIsEditable(order);
 
+        BigDecimal extraDiscount = (request != null && request.getDiscountAmount() != null)
+                ? request.getDiscountAmount()
+                : BigDecimal.ZERO;
+
         List<ReceivableRequest> requestReceivables = (request != null && request.getReceivables() != null)
                 ? request.getReceivables()
                 : Collections.emptyList();
 
-        validateOrderPayment(requestReceivables, order);
+        validateOrderPayment(requestReceivables, order, extraDiscount);
 
         if (isShippingProvided(request)) {
             BigDecimal updatedFreight = resolveFreightAmount(request.getShipping());
@@ -263,7 +267,7 @@ public class OrderService {
 
         var items = orderItemService.closeItem(orderId);
 
-        recalculateOrderTotals(order, items);
+        recalculateOrderTotals(order, items, extraDiscount);
 
         var receivablesSanitized = requestReceivables.stream()
                 .peek(e -> e.setOriginType(ReceivableOriginType.ORDER))
@@ -294,7 +298,17 @@ public class OrderService {
         return response;
     }
 
-    private void validateOrderPayment(List<ReceivableRequest> requestReceivables, OrderEntity order) {
+    private void validateOrderPayment(List<ReceivableRequest> requestReceivables, OrderEntity order, BigDecimal extraDiscount) {
+        BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal discount = extraDiscount != null ? extraDiscount : BigDecimal.ZERO;
+
+        if (discount.compareTo(orderTotal) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "O valor de desconto não pode ser maior que o valor total do pedido."
+            );
+        }
+
         List<ReceivableResponse> existingReceivables = receivedService.findReceivableResponses(order.getId());
         BigDecimal existingReceivablesTotal = (existingReceivables != null ? existingReceivables : Collections.<ReceivableResponse>emptyList())
                 .stream()
@@ -309,7 +323,7 @@ public class OrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalReceivables = existingReceivablesTotal.add(requestReceivablesTotal);
-        BigDecimal expectedTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal expectedTotal = orderTotal.subtract(discount);
 
         if (totalReceivables.compareTo(expectedTotal) != 0) {
             BigDecimal receivablesFormatted = totalReceivables.setScale(2, RoundingMode.HALF_UP);
@@ -381,6 +395,10 @@ public class OrderService {
     }
 
     private void recalculateOrderTotals(OrderEntity order, List<OrderItemEntity> items) {
+        recalculateOrderTotals(order, items, BigDecimal.ZERO);
+    }
+
+    private void recalculateOrderTotals(OrderEntity order, List<OrderItemEntity> items, BigDecimal extraDiscount) {
 
         BigDecimal servicesAmount = BigDecimal.ZERO;
         BigDecimal productsAmount = BigDecimal.ZERO;
@@ -400,12 +418,16 @@ public class OrderService {
             }
         }
 
+        BigDecimal safeExtraDiscount = extraDiscount != null ? extraDiscount : BigDecimal.ZERO;
         BigDecimal freight = order.getFreightAmount() != null ? order.getFreightAmount() : BigDecimal.ZERO;
-        BigDecimal total = servicesAmount.add(productsAmount).add(freight);
+        BigDecimal total = servicesAmount.add(productsAmount).add(freight).subtract(safeExtraDiscount);
+        if (total.compareTo(BigDecimal.ZERO) < 0) {
+            total = BigDecimal.ZERO;
+        }
 
         order.setServicesAmount(servicesAmount);
         order.setProductsAmount(productsAmount);
-        order.setDiscountAmount(discountAmount);
+        order.setDiscountAmount(discountAmount.add(safeExtraDiscount));
 
         order.setTotalAmount(total);
     }
