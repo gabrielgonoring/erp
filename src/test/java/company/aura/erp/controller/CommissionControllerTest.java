@@ -54,25 +54,6 @@ class CommissionControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/commissions/entries/generate — Deve gerar lançamentos de comissão e retornar HTTP 201")
-    void shouldGenerateEntries() {
-        CommissionGenerateEntriesRequest request = CommissionGenerateEntriesRequest.builder()
-                .orderId(100L)
-                .build();
-        List<CommissionEntryResponse> expected = List.of(
-                CommissionEntryResponse.builder().id(1L).commissionAmount(new BigDecimal("25.00")).build()
-        );
-
-        when(commissionService.generateEntries(request, 10L)).thenReturn(expected);
-
-        ResponseEntity<List<CommissionEntryResponse>> response = commissionController.generateEntries(request, userPrincipal);
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(expected, response.getBody());
-        verify(commissionService).generateEntries(request, 10L);
-    }
-
-    @Test
     @DisplayName("GET /api/commissions/entries — Deve listar lançamentos de comissão paginados")
     void shouldListEntries() {
         Pageable pageable = PageRequest.of(0, 20);

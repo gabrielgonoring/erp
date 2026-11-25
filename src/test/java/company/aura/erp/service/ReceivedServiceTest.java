@@ -1,13 +1,16 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.order.*;
+import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.entity.ReceivableEntity;
+import company.aura.erp.enums.PartnerStatus;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.enums.PaymentTransactionType;
 import company.aura.erp.enums.ReceivableOriginType;
 import company.aura.erp.enums.ReceivableStatus;
 import company.aura.erp.modules.bucket.service.CloudflareR2Service;
+import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.repository.PaymentTransactionRepository;
 import company.aura.erp.repository.ReceivableRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +49,9 @@ class ReceivedServiceTest {
 
     @Mock
     private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Mock
+    private PartnerRepository partnerRepository;
 
     @Mock
     private CloudflareR2Service r2Service;
@@ -803,5 +809,254 @@ class ReceivedServiceTest {
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         verify(paymentTransactionRepository, never()).findByReceivableId(any());
+    }
+
+    @Test
+    @DisplayName("updateReceivable — Deve atualizar as informações do recebível preservando o valor e o status")
+    void shouldUpdateReceivableInformationWithoutChangingAmount() {
+        BigDecimal originalAmount = BigDecimal.valueOf(250.00);
+        BigDecimal originalPendingAmount = BigDecimal.valueOf(150.00);
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .serviceOrderId(200L)
+                .originType(ReceivableOriginType.ORDER)
+                .companyId(COMPANY_ID)
+                .partnerId(5L)
+                .installmentNumber(1)
+                .dueDate(LocalDate.of(2026, 11, 10))
+                .amount(originalAmount)
+                .pendingAmount(originalPendingAmount)
+                .paymentMethod(PaymentMethod.PIX)
+                .status(ReceivableStatus.PARTIALLY_PAID)
+                .bankSlipCode("OLD-CODE")
+                .paymentFileUrl("https://r2/old.pdf")
+                .paymentUrl("https://pay.aura/old")
+                .notes("Observação antiga")
+                .build();
+
+        ReceivableUpdateRequest request = ReceivableUpdateRequest.builder()
+                .partnerId(8L)
+                .installmentNumber(3)
+                .dueDate(LocalDate.of(2026, 12, 20))
+                .paymentMethod(PaymentMethod.BOLETO)
+                .bankSlipCode("NEW-CODE")
+                .paymentFileUrl("https://r2/new.pdf")
+                .paymentUrl("https://pay.aura/new")
+                .notes("Observação atualizada")
+                .build();
+
+        PartnerEntity partner = PartnerEntity.builder()
+                .id(8L)
+                .companyId(COMPANY_ID)
+                .status(PartnerStatus.ACTIVE.name())
+                .build();
+
+        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
+                .id(10L)
+                .receivableId(1L)
+                .companyId(COMPANY_ID)
+                .transactionType(PaymentTransactionType.PAYMENT)
+                .amountPaid(BigDecimal.valueOf(100.00))
+                .paymentMethod(PaymentMethod.PIX)
+                .paidAt(LocalDateTime.now())
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(1L, COMPANY_ID)).thenReturn(Optional.of(receivable));
+        when(partnerRepository.findByIdAndCompanyIdAndStatusNot(8L, COMPANY_ID, PartnerStatus.DELETED.name()))
+                .thenReturn(Optional.of(partner));
+        when(receivableRepository.save(any(ReceivableEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentTransactionRepository.findByReceivableId(1L)).thenReturn(List.of(tx));
+
+        ReceivableResponse response = receivedService.updateReceivable(COMPANY_ID, 1L, request);
+
+        assertNotNull(response);
+        assertEquals(8L, response.getPartnerId());
+        assertEquals(3, response.getInstallmentNumber());
+        assertEquals(LocalDate.of(2026, 12, 20), response.getDueDate());
+        assertEquals(PaymentMethod.BOLETO, response.getPaymentMethod());
+        assertEquals("NEW-CODE", response.getBankSlipCode());
+        assertEquals("https://r2/new.pdf", response.getPaymentFileUrl());
+        assertEquals("https://pay.aura/new", response.getPaymentUrl());
+        assertEquals("Observação atualizada", response.getNotes());
+        assertEquals(originalAmount, response.getAmount());
+        assertEquals(originalPendingAmount, response.getPendingAmount());
+        assertEquals(originalPendingAmount, response.getRemainingAmount());
+        assertEquals(ReceivableStatus.PARTIALLY_PAID, response.getStatus());
+        assertEquals(1, response.getTransactions().size());
+        verify(receivableRepository).save(receivable);
+    }
+
+    @Test
+    @DisplayName("updateReceivable — Deve lançar NOT_FOUND quando recebível não existir")
+    void shouldThrowNotFoundWhenReceivableDoesNotExistOnUpdate() {
+        ReceivableUpdateRequest request = ReceivableUpdateRequest.builder()
+                .partnerId(5L)
+                .installmentNumber(1)
+                .dueDate(LocalDate.of(2026, 12, 1))
+                .paymentMethod(PaymentMethod.PIX)
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(999L, COMPANY_ID)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.updateReceivable(COMPANY_ID, 999L, request)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(receivableRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateReceivable — Deve lançar UNPROCESSABLE_ENTITY quando recebível estiver cancelado")
+    void shouldThrowUnprocessableEntityWhenUpdatingCanceledReceivable() {
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(1L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.CANCELED)
+                .build();
+
+        ReceivableUpdateRequest request = ReceivableUpdateRequest.builder()
+                .partnerId(5L)
+                .installmentNumber(1)
+                .dueDate(LocalDate.of(2026, 12, 1))
+                .paymentMethod(PaymentMethod.PIX)
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(1L, COMPANY_ID)).thenReturn(Optional.of(receivable));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.updateReceivable(COMPANY_ID, 1L, request)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(receivableRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateReceivable — Deve lançar NOT_FOUND quando parceiro não existir ou estiver deletado")
+    void shouldThrowNotFoundWhenPartnerDoesNotExistOnUpdate() {
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(1L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PENDING)
+                .build();
+
+        ReceivableUpdateRequest request = ReceivableUpdateRequest.builder()
+                .partnerId(999L)
+                .installmentNumber(1)
+                .dueDate(LocalDate.of(2026, 12, 1))
+                .paymentMethod(PaymentMethod.PIX)
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(1L, COMPANY_ID)).thenReturn(Optional.of(receivable));
+        when(partnerRepository.findByIdAndCompanyIdAndStatusNot(999L, COMPANY_ID, PartnerStatus.DELETED.name()))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.updateReceivable(COMPANY_ID, 1L, request)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(receivableRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updatePaymentTransaction — Deve atualizar dados da transação preservando valor e tipo/status")
+    void shouldUpdatePaymentTransactionWithoutChangingAmountOrType() {
+        LocalDateTime originalPaidAt = LocalDateTime.of(2026, 11, 1, 12, 0);
+        LocalDateTime updatedPaidAt = LocalDateTime.of(2026, 11, 5, 16, 45);
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(1L)
+                .companyId(COMPANY_ID)
+                .partnerId(5L)
+                .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.ZERO)
+                .status(ReceivableStatus.PAID)
+                .build();
+
+        PaymentTransactionEntity tx = PaymentTransactionEntity.builder()
+                .id(20L)
+                .receivableId(1L)
+                .companyId(COMPANY_ID)
+                .transactionType(PaymentTransactionType.PAYMENT)
+                .amountPaid(BigDecimal.valueOf(100.00))
+                .paymentMethod(PaymentMethod.PIX)
+                .paidAt(originalPaidAt)
+                .build();
+
+        PaymentTransactionUpdateRequest request = PaymentTransactionUpdateRequest.builder()
+                .paymentMethod(PaymentMethod.DEBIT_CARD)
+                .paidAt(updatedPaidAt)
+                .cardBrand("ELO")
+                .nsuAuthorization("NSU-555")
+                .notes("Pagamento corrigido")
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(1L, COMPANY_ID)).thenReturn(Optional.of(receivable));
+        when(paymentTransactionRepository.findByIdAndReceivableIdAndCompanyId(20L, 1L, COMPANY_ID))
+                .thenReturn(Optional.of(tx));
+        when(paymentTransactionRepository.save(any(PaymentTransactionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentTransactionRepository.findByReceivableId(1L)).thenReturn(List.of(tx));
+
+        ReceivableResponse response = receivedService.updatePaymentTransaction(COMPANY_ID, 1L, 20L, request);
+
+        assertEquals(ReceivableStatus.PAID, response.getStatus());
+        assertEquals(BigDecimal.valueOf(100.00), response.getAmount());
+        PaymentTransactionResponse updatedTx = response.getTransactions().get(0);
+        assertEquals(BigDecimal.valueOf(100.00), updatedTx.getAmountPaid());
+        assertEquals(PaymentTransactionType.PAYMENT, updatedTx.getTransactionType());
+        assertEquals(PaymentMethod.DEBIT_CARD, updatedTx.getPaymentMethod());
+        assertEquals(updatedPaidAt, updatedTx.getPaidAt());
+        assertEquals("ELO", updatedTx.getCardBrand());
+        assertEquals("NSU-555", updatedTx.getNsuAuthorization());
+        assertEquals("Pagamento corrigido", updatedTx.getNotes());
+        verify(paymentTransactionRepository).save(tx);
+    }
+
+    @Test
+    @DisplayName("updatePaymentTransaction — Deve lançar UNPROCESSABLE_ENTITY quando recebível estiver cancelado")
+    void shouldThrowUnprocessableEntityWhenUpdatingTransactionOfCanceledReceivable() {
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(1L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.CANCELED)
+                .build();
+        PaymentTransactionUpdateRequest request = PaymentTransactionUpdateRequest.builder()
+                .paymentMethod(PaymentMethod.PIX)
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(1L, COMPANY_ID)).thenReturn(Optional.of(receivable));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.updatePaymentTransaction(COMPANY_ID, 1L, 20L, request)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(paymentTransactionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updatePaymentTransaction — Deve lançar NOT_FOUND quando transação não existir para o recebível")
+    void shouldThrowNotFoundWhenPaymentTransactionDoesNotExistOnUpdate() {
+        ReceivableEntity receivable = ReceivableEntity.builder()
+                .id(1L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PAID)
+                .build();
+        PaymentTransactionUpdateRequest request = PaymentTransactionUpdateRequest.builder()
+                .paymentMethod(PaymentMethod.PIX)
+                .build();
+
+        when(receivableRepository.findByIdAndCompanyId(1L, COMPANY_ID)).thenReturn(Optional.of(receivable));
+        when(paymentTransactionRepository.findByIdAndReceivableIdAndCompanyId(999L, 1L, COMPANY_ID))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.updatePaymentTransaction(COMPANY_ID, 1L, 999L, request)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(paymentTransactionRepository, never()).save(any());
     }
 }

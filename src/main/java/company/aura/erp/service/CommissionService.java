@@ -33,10 +33,6 @@ public class CommissionService {
     private final CommissionEntryRepository commissionEntryRepository;
     private final CollaboratorRepository collaboratorRepository;
     private final CatalogItemRepository catalogItemRepository;
-    private final OrderRepository orderRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final ServiceOrderRepository serviceOrderRepository;
-    private final ServiceOrderItemRepository serviceOrderItemRepository;
     private final PayableRepository payableRepository;
     private final PayableService payableService;
 
@@ -45,144 +41,50 @@ public class CommissionService {
         if (order == null || order.getStatus() != OrderStatus.COMPLETED || items == null || items.isEmpty()) {
             return Collections.emptyList();
         }
-        if (serviceOrderRepository.existsByOrderIdAndCompanyId(order.getId(), order.getCompanyId())) {
+
+        List<CommissionSourceItem> sourceItems = items.stream()
+                .filter(item -> item.getProfessionalId() != null)
+                .map(item -> buildCommissionSourceItem(order, item))
+                .toList();
+
+        return generateEntries(order.getCompanyId(), sourceItems);
+    }
+
+    private static CommissionSourceItem buildCommissionSourceItem(OrderEntity orderEntity, OrderItemEntity item) {
+        return new CommissionSourceItem(
+                item.getId(),
+                orderEntity.getCompanyId(),
+                item.getProfessionalId(),
+                item.getCatalogItemId(),
+                item.getDescription(),
+                item.getTotalPrice(),
+                CommissionSourceType.ORDER_ITEM,
+                orderEntity.getId(),
+                orderEntity.getCompletedAt() != null ? orderEntity.getCompletedAt() : LocalDateTime.now()
+        );
+    }
+
+    private List<CommissionEntryResponse> generateEntries(Long companyId, List<CommissionSourceItem> sourceItems) {
+        if (sourceItems.isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<CommissionRuleEntity> activeRules = commissionRuleRepository
-                .findByCompanyIdAndStatus(order.getCompanyId(), CommissionRuleStatus.ACTIVE);
-        LocalDateTime occurredAt = order.getCompletedAt() != null ? order.getCompletedAt() : LocalDateTime.now();
+        List<CommissionRuleEntity> activeRules = commissionRuleRepository.findByCompanyIdAndStatus(companyId, CommissionRuleStatus.ACTIVE);
 
         List<CommissionEntryEntity> created = new ArrayList<>();
-        for (OrderItemEntity item : items) {
-            if (item.getProfessionalId() == null) {
+
+        for (CommissionSourceItem item : sourceItems) {
+            if (commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(companyId, item.sourceType(), item.itemId())) {
                 continue;
             }
-            if (commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(
-                    order.getCompanyId(), CommissionSourceType.ORDER_ITEM, item.getId())) {
-                continue;
-            }
-            CommissionEntryEntity entry = buildEntry(
-                    order.getCompanyId(),
-                    item.getProfessionalId(),
-                    CommissionSourceType.ORDER_ITEM,
-                    order.getId(),
-                    item.getId(),
-                    item.getCatalogItemId(),
-                    item.getDescription(),
-                    item.getTotalPrice(),
-                    occurredAt,
-                    activeRules
-            );
+
+            CommissionEntryEntity entry = buildEntry(item, activeRules);
+
             if (entry != null) {
                 created.add(commissionEntryRepository.save(entry));
             }
         }
         return created.stream().map(CommissionEntryMapper::fromEntity).toList();
-    }
-
-    @Transactional
-    public List<CommissionEntryResponse> generateEntriesForServiceOrder(ServiceOrderEntity serviceOrder, List<ServiceOrderItemEntity> items) {
-        if (serviceOrder == null || serviceOrder.getStatus() != ServiceOrderStatus.COMPLETED || items == null || items.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<CommissionRuleEntity> activeRules = commissionRuleRepository
-                .findByCompanyIdAndStatus(serviceOrder.getCompanyId(), CommissionRuleStatus.ACTIVE);
-        LocalDateTime occurredAt = serviceOrder.getCompletedAt() != null ? serviceOrder.getCompletedAt() : LocalDateTime.now();
-
-        List<CommissionEntryEntity> created = new ArrayList<>();
-        for (ServiceOrderItemEntity item : items) {
-            if (item.getStatus() == ServiceOrderItemStatus.CANCELED || item.getProfessionalId() == null) {
-                continue;
-            }
-            if (commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(
-                    serviceOrder.getCompanyId(), CommissionSourceType.SERVICE_ORDER_ITEM, item.getId())) {
-                continue;
-            }
-            CommissionEntryEntity entry = buildEntry(
-                    serviceOrder.getCompanyId(),
-                    item.getProfessionalId(),
-                    CommissionSourceType.SERVICE_ORDER_ITEM,
-                    serviceOrder.getId(),
-                    item.getId(),
-                    item.getCatalogItemId(),
-                    item.getDescription(),
-                    item.getTotalPrice(),
-                    occurredAt,
-                    activeRules
-            );
-            if (entry != null) {
-                created.add(commissionEntryRepository.save(entry));
-            }
-        }
-        return created.stream().map(CommissionEntryMapper::fromEntity).toList();
-    }
-
-    @Transactional
-    public List<CommissionEntryResponse> generateEntries(CommissionGenerateEntriesRequest request, Long companyId) {
-        log.info("generateEntries() - START - companyId={}, request={}", companyId, request);
-
-        LocalDate startDate = request != null ? request.getStartDate() : null;
-        LocalDate endDate = request != null ? request.getEndDate() : null;
-        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A data inicial não pode ser posterior à data final.");
-        }
-
-        LocalDateTime startDateTime = startDate != null ? startDate.atStartOfDay() : null;
-        LocalDateTime endDateTime = endDate != null ? endDate.atTime(LocalTime.MAX) : null;
-        Long filterCollaboratorId = request != null ? request.getCollaboratorId() : null;
-
-        List<CommissionEntryResponse> generated = new ArrayList<>();
-
-        if (request != null && request.getOrderId() != null) {
-            OrderEntity order = orderRepository.findByIdAndCompanyId(request.getOrderId(), companyId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com ID: " + request.getOrderId()));
-            if (order.getStatus() != OrderStatus.COMPLETED) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O pedido precisa estar concluído para gerar comissões.");
-            }
-            List<OrderItemEntity> items = orderItemRepository.findByOrderId(order.getId()).stream()
-                    .filter(i -> filterCollaboratorId == null || filterCollaboratorId.equals(i.getProfessionalId()))
-                    .toList();
-            generated.addAll(generateEntriesForOrder(order, items));
-            return generated;
-        }
-
-        if (request != null && request.getServiceOrderId() != null) {
-            ServiceOrderEntity so = serviceOrderRepository.findByIdAndCompanyId(request.getServiceOrderId(), companyId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ordem de serviço não encontrada com ID: " + request.getServiceOrderId()));
-            if (so.getStatus() != ServiceOrderStatus.COMPLETED) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A ordem de serviço precisa estar concluída para gerar comissões.");
-            }
-            List<ServiceOrderItemEntity> items = serviceOrderItemRepository
-                    .findByServiceOrderIdAndStatusNotIn(so.getId(), List.of(ServiceOrderItemStatus.CANCELED)).stream()
-                    .filter(i -> filterCollaboratorId == null || filterCollaboratorId.equals(i.getProfessionalId()))
-                    .toList();
-            generated.addAll(generateEntriesForServiceOrder(so, items));
-            return generated;
-        }
-
-        List<OrderEntity> orders = orderRepository.findCompletedStandaloneOrdersForCommission(
-                companyId, OrderStatus.COMPLETED, startDateTime, endDateTime);
-        for (OrderEntity order : orders) {
-            List<OrderItemEntity> items = orderItemRepository.findByOrderId(order.getId()).stream()
-                    .filter(i -> filterCollaboratorId == null || filterCollaboratorId.equals(i.getProfessionalId()))
-                    .toList();
-            generated.addAll(generateEntriesForOrder(order, items));
-        }
-
-        List<ServiceOrderEntity> serviceOrders = serviceOrderRepository.findCompletedServiceOrdersForCommission(
-                companyId, ServiceOrderStatus.COMPLETED, startDateTime, endDateTime);
-        for (ServiceOrderEntity so : serviceOrders) {
-            List<ServiceOrderItemEntity> items = serviceOrderItemRepository
-                    .findByServiceOrderIdAndStatusNotIn(so.getId(), List.of(ServiceOrderItemStatus.CANCELED)).stream()
-                    .filter(i -> filterCollaboratorId == null || filterCollaboratorId.equals(i.getProfessionalId()))
-                    .toList();
-            generated.addAll(generateEntriesForServiceOrder(so, items));
-        }
-
-        log.info("generateEntries() - END - companyId={}, generatedCount={}", companyId, generated.size());
-        return generated;
     }
 
     @Transactional(readOnly = true)
@@ -489,79 +391,69 @@ public class CommissionService {
                         "Fechamento de comissão não encontrado com ID: " + statementId));
     }
 
-    private CommissionEntryEntity buildEntry(
-            Long companyId,
-            Long collaboratorId,
-            CommissionSourceType sourceType,
-            Long sourceDocumentId,
-            Long sourceItemId,
-            Long catalogItemId,
-            String itemDescription,
-            BigDecimal baseAmount,
-            LocalDateTime occurredAt,
-            List<CommissionRuleEntity> activeRules
-    ) {
-        CollaboratorEntity collaborator = collaboratorRepository.findByIdAndCompanyId(collaboratorId, companyId)
+    private CommissionEntryEntity buildEntry(CommissionSourceItem item, List<CommissionRuleEntity> activeRules) {
+        CollaboratorEntity collaborator = collaboratorRepository.findByIdAndCompanyId(item.collaboratorId(), item.companyId())
                 .orElse(null);
         if (collaborator == null) {
-            return null;
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Colaborador inválido");
         }
 
         Long categoryId = null;
-        if (catalogItemId != null) {
-            categoryId = catalogItemRepository.findByIdAndCompanyId(catalogItemId, companyId)
-                    .map(CatalogItemEntity::getCategoryId)
-                    .orElse(null);
+        if (item.catalogItemId() != null) {
+            CatalogItemEntity catalogItem = catalogItemRepository
+                    .findByIdAndCompanyId(item.catalogItemId(), item.companyId())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.INTERNAL_SERVER_ERROR, "Item de catálogo inválido"));
+            categoryId = catalogItem.getCategoryId();
         }
 
-        LocalDate occurredDate = occurredAt.toLocalDate();
-        ResolvedCommissionRule resolved = resolveRule(collaborator, catalogItemId, categoryId, occurredDate, activeRules);
-        if (resolved == null) {
+        LocalDateTime occurredAt = item.occurredAt() != null ? item.occurredAt() : LocalDateTime.now();
+        ResolvedCommissionRule commissionRule = resolveRule(item, categoryId, occurredAt.toLocalDate(), activeRules);
+
+        if (commissionRule == null) {
             return null;
         }
 
-        BigDecimal safeBase = baseAmount != null ? baseAmount.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
-        BigDecimal percentage = resolved.percentage() != null ? resolved.percentage() : BigDecimal.ZERO;
-        BigDecimal commissionAmount = safeBase.multiply(percentage)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal safeBase = item.totalPrice() != null ? item.totalPrice().setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal percentage = commissionRule.percentage() != null ? commissionRule.percentage() : BigDecimal.ZERO;
+        BigDecimal commissionAmount = safeBase.multiply(percentage).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
         return CommissionEntryEntity.builder()
-                .companyId(companyId)
+                .companyId(item.companyId())
                 .collaboratorId(collaborator.getId())
                 .collaboratorName(collaborator.getName())
-                .sourceType(sourceType)
-                .sourceDocumentId(sourceDocumentId)
-                .sourceItemId(sourceItemId)
-                .catalogItemId(catalogItemId)
+                .sourceType(item.sourceType())
+                .sourceDocumentId(item.sourceDocumentId())
+                .sourceItemId(item.itemId())
+                .catalogItemId(item.catalogItemId())
                 .categoryId(categoryId)
-                .itemDescription(itemDescription)
+                .itemDescription(item.description())
                 .baseAmount(safeBase)
                 .appliedPercentage(percentage)
                 .commissionAmount(commissionAmount)
-                .ruleId(resolved.ruleId())
-                .ruleSource(resolved.source())
+                .ruleId(commissionRule.ruleId())
+                .ruleSource(commissionRule.source())
                 .status(CommissionEntryStatus.PENDING)
                 .occurredAt(occurredAt)
                 .build();
     }
 
     private ResolvedCommissionRule resolveRule(
-            CollaboratorEntity collaborator,
-            Long catalogItemId,
+            CommissionSourceItem item,
             Long categoryId,
-            LocalDate date,
+            LocalDate occurredDate,
             List<CommissionRuleEntity> activeRules
     ) {
-        List<CommissionRuleEntity> validRules = activeRules.stream()
-                .filter(r -> isWithinValidity(r, date))
+        List<CommissionRuleEntity> validRulesInOccurredDate = activeRules.stream()
+                .filter(r -> isWithinValidity(r, occurredDate))
                 .sorted(Comparator.comparing(CommissionRuleEntity::getId, Comparator.reverseOrder()))
                 .toList();
 
         // 1. Collaborator + Item
-        if (catalogItemId != null) {
-            Optional<CommissionRuleEntity> match = validRules.stream()
-                    .filter(r -> Objects.equals(r.getCollaboratorId(), collaborator.getId())
-                            && Objects.equals(r.getCatalogItemId(), catalogItemId))
+        if (item.catalogItemId() != null) {
+            Optional<CommissionRuleEntity> match = validRulesInOccurredDate.stream()
+                    .filter(r -> Objects.equals(r.getCollaboratorId(), item.collaboratorId())
+                            && Objects.equals(r.getCatalogItemId(), item.catalogItemId()))
                     .findFirst();
             if (match.isPresent()) {
                 return new ResolvedCommissionRule(match.get().getId(), match.get().getCommissionPercentage(), CommissionRuleSource.COLLABORATOR_ITEM);
@@ -570,8 +462,8 @@ public class CommissionService {
 
         // 2. Collaborator + Category
         if (categoryId != null) {
-            Optional<CommissionRuleEntity> match = validRules.stream()
-                    .filter(r -> Objects.equals(r.getCollaboratorId(), collaborator.getId())
+            Optional<CommissionRuleEntity> match = validRulesInOccurredDate.stream()
+                    .filter(r -> Objects.equals(r.getCollaboratorId(), item.collaboratorId())
                             && Objects.equals(r.getCategoryId(), categoryId))
                     .findFirst();
             if (match.isPresent()) {
@@ -580,18 +472,19 @@ public class CommissionService {
         }
 
         // 3. Collaborator general rule
-        Optional<CommissionRuleEntity> collabDefault = validRules.stream()
-                .filter(r -> Objects.equals(r.getCollaboratorId(), collaborator.getId())
+        Optional<CommissionRuleEntity> collabDefault = validRulesInOccurredDate.stream()
+                .filter(r -> Objects.equals(r.getCollaboratorId(), item.collaboratorId())
                         && r.getCatalogItemId() == null && r.getCategoryId() == null)
                 .findFirst();
+
         if (collabDefault.isPresent()) {
             return new ResolvedCommissionRule(collabDefault.get().getId(), collabDefault.get().getCommissionPercentage(), CommissionRuleSource.COLLABORATOR_DEFAULT);
         }
 
         // 4. Global + Item
-        if (catalogItemId != null) {
-            Optional<CommissionRuleEntity> match = validRules.stream()
-                    .filter(r -> r.getCollaboratorId() == null && Objects.equals(r.getCatalogItemId(), catalogItemId))
+        if (item.catalogItemId() != null) {
+            Optional<CommissionRuleEntity> match = validRulesInOccurredDate.stream()
+                    .filter(r -> r.getCollaboratorId() == null && Objects.equals(r.getCatalogItemId(), item.catalogItemId()))
                     .findFirst();
             if (match.isPresent()) {
                 return new ResolvedCommissionRule(match.get().getId(), match.get().getCommissionPercentage(), CommissionRuleSource.ITEM);
@@ -600,7 +493,7 @@ public class CommissionService {
 
         // 5. Global + Category
         if (categoryId != null) {
-            Optional<CommissionRuleEntity> match = validRules.stream()
+            Optional<CommissionRuleEntity> match = validRulesInOccurredDate.stream()
                     .filter(r -> r.getCollaboratorId() == null && Objects.equals(r.getCategoryId(), categoryId))
                     .findFirst();
             if (match.isPresent()) {
@@ -609,7 +502,7 @@ public class CommissionService {
         }
 
         // 6. Company default rule
-        Optional<CommissionRuleEntity> companyDefault = validRules.stream()
+        Optional<CommissionRuleEntity> companyDefault = validRulesInOccurredDate.stream()
                 .filter(r -> r.getCollaboratorId() == null && r.getCatalogItemId() == null && r.getCategoryId() == null)
                 .findFirst();
         if (companyDefault.isPresent()) {
@@ -627,6 +520,19 @@ public class CommissionService {
             return false;
         }
         return true;
+    }
+
+    private record CommissionSourceItem(
+            Long itemId,
+            Long companyId,
+            Long collaboratorId,
+            Long catalogItemId,
+            String description,
+            BigDecimal totalPrice,
+            CommissionSourceType sourceType,
+            Long sourceDocumentId,
+            LocalDateTime occurredAt
+    ) {
     }
 
     private record ResolvedCommissionRule(Long ruleId, BigDecimal percentage, CommissionRuleSource source) {

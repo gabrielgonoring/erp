@@ -23,6 +23,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -83,6 +84,91 @@ class ReceivableControllerTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         verify(receivedService).processSingleReceivable(10L, request);
+    }
+
+    @Test
+    @DisplayName("PUT /api/receivables/{receivableId} — Deve editar informações do recebível e retornar HTTP 200")
+    void shouldUpdateReceivable() {
+        ReceivableUpdateRequest request = ReceivableUpdateRequest.builder()
+                .partnerId(6L)
+                .installmentNumber(2)
+                .dueDate(LocalDate.of(2026, 12, 15))
+                .paymentMethod(PaymentMethod.BOLETO)
+                .bankSlipCode("34191.79001")
+                .paymentFileUrl("https://r2/boleto.pdf")
+                .paymentUrl("https://pay.aura/boleto")
+                .notes("Vencimento prorrogado")
+                .build();
+
+        ReceivableResponse responseDto = ReceivableResponse.builder()
+                .id(1L)
+                .orderId(1L)
+                .originType(ReceivableOriginType.ORDER)
+                .companyId(10L)
+                .partnerId(6L)
+                .installmentNumber(2)
+                .dueDate(LocalDate.of(2026, 12, 15))
+                .amount(BigDecimal.valueOf(50.00))
+                .paymentMethod(PaymentMethod.BOLETO)
+                .status(ReceivableStatus.PENDING)
+                .bankSlipCode("34191.79001")
+                .paymentFileUrl("https://r2/boleto.pdf")
+                .paymentUrl("https://pay.aura/boleto")
+                .notes("Vencimento prorrogado")
+                .paidAmount(BigDecimal.ZERO)
+                .remainingAmount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.valueOf(50.00))
+                .transactions(Collections.emptyList())
+                .build();
+
+        when(receivedService.updateReceivable(10L, 1L, request)).thenReturn(responseDto);
+
+        ResponseEntity<ReceivableResponse> response = receivableController.updateReceivable(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(receivedService).updateReceivable(10L, 1L, request);
+    }
+
+    @Test
+    @DisplayName("PUT /api/receivables/{receivableId}/transactions/{transactionId} — Deve editar dados do pagamento e retornar HTTP 200")
+    void shouldUpdatePaymentTransaction() {
+        LocalDateTime paidAt = LocalDateTime.of(2026, 11, 25, 14, 30);
+        PaymentTransactionUpdateRequest request = PaymentTransactionUpdateRequest.builder()
+                .paymentMethod(PaymentMethod.CREDIT_CARD)
+                .paidAt(paidAt)
+                .cardBrand("VISA")
+                .nsuAuthorization("NSU-987")
+                .notes("Ajuste de bandeira e NSU")
+                .build();
+
+        PaymentTransactionResponse txResponse = PaymentTransactionResponse.builder()
+                .id(20L)
+                .receivableId(1L)
+                .companyId(10L)
+                .amountPaid(BigDecimal.valueOf(50.00))
+                .paymentMethod(PaymentMethod.CREDIT_CARD)
+                .paidAt(paidAt)
+                .cardBrand("VISA")
+                .nsuAuthorization("NSU-987")
+                .notes("Ajuste de bandeira e NSU")
+                .build();
+
+        ReceivableResponse responseDto = ReceivableResponse.builder()
+                .id(1L)
+                .companyId(10L)
+                .amount(BigDecimal.valueOf(50.00))
+                .status(ReceivableStatus.PAID)
+                .transactions(List.of(txResponse))
+                .build();
+
+        when(receivedService.updatePaymentTransaction(10L, 1L, 20L, request)).thenReturn(responseDto);
+
+        ResponseEntity<ReceivableResponse> response = receivableController.updatePaymentTransaction(1L, 20L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        verify(receivedService).updatePaymentTransaction(10L, 1L, 20L, request);
     }
 
     @Test

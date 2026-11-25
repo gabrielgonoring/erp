@@ -23,21 +23,6 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     boolean existsByIdAndCompanyId(Long id, Long companyId);
 
-    @Query("""
-        SELECT o FROM OrderEntity o
-        WHERE o.companyId = :companyId
-          AND o.status = :status
-          AND (:startDate IS NULL OR COALESCE(o.completedAt, o.createdAt) >= :startDate)
-          AND (:endDate IS NULL OR COALESCE(o.completedAt, o.createdAt) <= :endDate)
-          AND NOT EXISTS (SELECT 1 FROM ServiceOrderEntity so WHERE so.orderId = o.id)
-    """)
-    List<OrderEntity> findCompletedStandaloneOrdersForCommission(
-            @Param("companyId") Long companyId,
-            @Param("status") OrderStatus status,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
-
     @Query(
             value = "SELECT new company.aura.erp.dto.order.OrderSummaryResponse(" +
                     "o.id, p.document, p.name, o.totalAmount, o.status, o.createdAt) " +

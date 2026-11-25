@@ -18,6 +18,8 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
 
     Optional<PaymentTransactionEntity> findByIdAndCompanyId(Long id, Long companyId);
 
+    Optional<PaymentTransactionEntity> findByIdAndReceivableIdAndCompanyId(Long id, Long receivableId, Long companyId);
+
     List<PaymentTransactionEntity> findByCompanyId(Long companyId);
 
     @Query("""

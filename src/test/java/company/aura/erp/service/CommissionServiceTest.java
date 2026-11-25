@@ -38,14 +38,6 @@ class CommissionServiceTest {
     @Mock
     private CatalogItemRepository catalogItemRepository;
     @Mock
-    private OrderRepository orderRepository;
-    @Mock
-    private OrderItemRepository orderItemRepository;
-    @Mock
-    private ServiceOrderRepository serviceOrderRepository;
-    @Mock
-    private ServiceOrderItemRepository serviceOrderItemRepository;
-    @Mock
     private PayableRepository payableRepository;
     @Mock
     private PayableService payableService;
@@ -97,7 +89,6 @@ class CommissionServiceTest {
                 .status(CommissionRuleStatus.ACTIVE)
                 .build();
 
-        when(serviceOrderRepository.existsByOrderIdAndCompanyId(100L, 10L)).thenReturn(false);
         when(commissionRuleRepository.findByCompanyIdAndStatus(10L, CommissionRuleStatus.ACTIVE))
                 .thenReturn(List.of(companyDefaultRule, collabCategoryRule));
         when(commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(10L, CommissionSourceType.ORDER_ITEM, 500L))
@@ -118,44 +109,21 @@ class CommissionServiceTest {
         assertEquals(new BigDecimal("30.00"), entry.getCommissionAmount());
         assertEquals(CommissionRuleSource.COLLABORATOR_CATEGORY, entry.getRuleSource());
         assertEquals(2L, entry.getRuleId());
-    }
-
-    @Test
-    @DisplayName("Deve ignorar pedido vinculado a OS para evitar duplicidade de comissão")
-    void shouldSkipOrderLinkedToServiceOrder() {
-        OrderEntity order = OrderEntity.builder()
-                .id(100L)
-                .companyId(10L)
-                .status(OrderStatus.COMPLETED)
-                .build();
-        OrderItemEntity item = OrderItemEntity.builder()
-                .id(500L)
-                .professionalId(5L)
-                .totalPrice(new BigDecimal("100.00"))
-                .build();
-
-        when(serviceOrderRepository.existsByOrderIdAndCompanyId(100L, 10L)).thenReturn(true);
-
-        List<CommissionEntryResponse> result = commissionService.generateEntriesForOrder(order, List.of(item));
-
-        assertTrue(result.isEmpty());
-        verifyNoInteractions(commissionEntryRepository);
+        assertEquals(3L, entry.getCategoryId());
     }
 
     @Test
     @DisplayName("Não deve gerar lançamento quando nenhuma regra de comissão estiver ativa")
     void shouldNotGenerateEntryWhenNoRuleApplies() {
-        ServiceOrderEntity so = ServiceOrderEntity.builder()
+        OrderEntity order = OrderEntity.builder()
                 .id(200L)
                 .companyId(10L)
-                .status(ServiceOrderStatus.COMPLETED)
+                .status(OrderStatus.COMPLETED)
                 .completedAt(LocalDateTime.of(2026, 11, 20, 16, 0))
                 .build();
-        ServiceOrderItemEntity item = ServiceOrderItemEntity.builder()
+        OrderItemEntity item = OrderItemEntity.builder()
                 .id(600L)
-                .serviceOrderId(200L)
-                .itemType(CatalogItemType.SERVICE)
-                .status(ServiceOrderItemStatus.COMPLETED)
+                .orderId(200L)
                 .description("Reparo")
                 .totalPrice(new BigDecimal("100.00"))
                 .professionalId(5L)
@@ -169,11 +137,11 @@ class CommissionServiceTest {
 
         when(commissionRuleRepository.findByCompanyIdAndStatus(10L, CommissionRuleStatus.ACTIVE))
                 .thenReturn(List.of());
-        when(commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(10L, CommissionSourceType.SERVICE_ORDER_ITEM, 600L))
+        when(commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceItemId(10L, CommissionSourceType.ORDER_ITEM, 600L))
                 .thenReturn(false);
         when(collaboratorRepository.findByIdAndCompanyId(5L, 10L)).thenReturn(Optional.of(collaborator));
 
-        List<CommissionEntryResponse> result = commissionService.generateEntriesForServiceOrder(so, List.of(item));
+        List<CommissionEntryResponse> result = commissionService.generateEntriesForOrder(order, List.of(item));
 
         assertTrue(result.isEmpty());
         verify(commissionEntryRepository, never()).save(any());

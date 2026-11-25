@@ -39,6 +39,32 @@ public class ReceivableController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PutMapping("/{receivableId}")
+    public ResponseEntity<ReceivableResponse> updateReceivable(
+            @PathVariable Long receivableId,
+            @RequestBody @Valid ReceivableUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ReceivableResponse response = receivedService.updateReceivable(userPrincipal.getCompanyId(), receivableId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{receivableId}/transactions/{transactionId}")
+    public ResponseEntity<ReceivableResponse> updatePaymentTransaction(
+            @PathVariable Long receivableId,
+            @PathVariable Long transactionId,
+            @RequestBody @Valid PaymentTransactionUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        ReceivableResponse response = receivedService.updatePaymentTransaction(
+                userPrincipal.getCompanyId(),
+                receivableId,
+                transactionId,
+                request
+        );
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{receivableId}/pay")
     public ResponseEntity<ReceivableResponse> payReceivable(
             @PathVariable Long receivableId,

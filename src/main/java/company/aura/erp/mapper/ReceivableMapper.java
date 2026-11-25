@@ -2,6 +2,7 @@ package company.aura.erp.mapper;
 
 import company.aura.erp.dto.order.PaymentTransactionResponse;
 import company.aura.erp.dto.order.ReceivableResponse;
+import company.aura.erp.dto.order.ReceivableUpdateRequest;
 import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.entity.ReceivableEntity;
 import company.aura.erp.enums.ReceivableStatus;
@@ -11,6 +12,20 @@ import java.util.Collections;
 import java.util.List;
 
 public class ReceivableMapper {
+
+    public static void updateEntity(ReceivableEntity entity, ReceivableUpdateRequest request) {
+        if (entity == null || request == null) {
+            return;
+        }
+        entity.setPartnerId(request.getPartnerId());
+        entity.setInstallmentNumber(request.getInstallmentNumber());
+        entity.setDueDate(request.getDueDate());
+        entity.setPaymentMethod(request.getPaymentMethod());
+        entity.setBankSlipCode(request.getBankSlipCode());
+        entity.setPaymentFileUrl(request.getPaymentFileUrl());
+        entity.setPaymentUrl(request.getPaymentUrl());
+        entity.setNotes(request.getNotes());
+    }
 
     public static ReceivableResponse fromEntity(ReceivableEntity entity) {
         if (entity == null) {

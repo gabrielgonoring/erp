@@ -29,15 +29,6 @@ public class CommissionController {
 
     private final CommissionService commissionService;
 
-    @PostMapping("/entries/generate")
-    public ResponseEntity<List<CommissionEntryResponse>> generateEntries(
-            @RequestBody(required = false) CommissionGenerateEntriesRequest request,
-            @AuthenticationPrincipal UserPrincipal userPrincipal
-    ) {
-        List<CommissionEntryResponse> generated = commissionService.generateEntries(request, userPrincipal.getCompanyId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(generated);
-    }
-
     @GetMapping("/entries")
     public ResponseEntity<Page<CommissionEntryResponse>> listEntries(
             @RequestParam(required = false) String search,

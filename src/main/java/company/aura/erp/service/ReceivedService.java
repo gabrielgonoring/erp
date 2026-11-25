@@ -5,12 +5,15 @@ import company.aura.erp.dto.order.*;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.PaymentTransactionEntity;
 import company.aura.erp.entity.ReceivableEntity;
+import company.aura.erp.enums.PartnerStatus;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.enums.PaymentTransactionType;
 import company.aura.erp.enums.ReceivableOriginType;
 import company.aura.erp.enums.ReceivableStatus;
+import company.aura.erp.mapper.PaymentTransactionMapper;
 import company.aura.erp.mapper.ReceivableMapper;
 import company.aura.erp.modules.bucket.service.CloudflareR2Service;
+import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.repository.PaymentTransactionRepository;
 import company.aura.erp.repository.ReceivableRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,7 @@ public class ReceivedService {
 
     private final ReceivableRepository receivableRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final PartnerRepository partnerRepository;
     private final CloudflareR2Service r2Service;
 
 
@@ -126,6 +130,64 @@ public class ReceivedService {
         ReceivableResponse response = ReceivableMapper.fromEntity(savedReceivable, allTransactions);
         log.info("payReceivable() - END - companyId={}, receivableId={}, status={}", companyId, receivableId, response != null ? response.getStatus() : null);
         return response;
+    }
+
+    @Transactional
+    public ReceivableResponse updateReceivable(Long companyId, Long receivableId, ReceivableUpdateRequest request) {
+        log.info("updateReceivable() - START - companyId={}, receivableId={}", companyId, receivableId);
+
+        ReceivableEntity receivable = findReceivable(companyId, receivableId);
+
+        if (receivable.getStatus() == ReceivableStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível editar um recebível cancelado.");
+        }
+
+        partnerRepository.findByIdAndCompanyIdAndStatusNot(
+                        request.getPartnerId(),
+                        companyId,
+                        PartnerStatus.DELETED.name()
+                )
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não encontrado"));
+
+        ReceivableMapper.updateEntity(receivable, request);
+
+        ReceivableEntity saved = receivableRepository.save(receivable);
+        List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByReceivableId(receivableId);
+        ReceivableResponse response = ReceivableMapper.fromEntity(saved, transactions);
+
+        log.info("updateReceivable() - END - companyId={}, receivableId={}, status={}", companyId, receivableId, response != null ? response.getStatus() : null);
+        return response;
+    }
+
+    @Transactional
+    public ReceivableResponse updatePaymentTransaction(
+            Long companyId,
+            Long receivableId,
+            Long transactionId,
+            PaymentTransactionUpdateRequest request
+    ) {
+        log.info("updatePaymentTransaction() - START - companyId={}, receivableId={}, transactionId={}", companyId, receivableId, transactionId);
+
+        ReceivableEntity receivable = findReceivable(companyId, receivableId);
+        if (receivable.getStatus() == ReceivableStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Não é possível editar o pagamento de um recebível cancelado.");
+        }
+
+        PaymentTransactionEntity transaction = findPaymentTransaction(companyId, receivableId, transactionId);
+        PaymentTransactionMapper.updateEntity(transaction, request);
+        paymentTransactionRepository.save(transaction);
+
+        List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByReceivableId(receivableId);
+        ReceivableResponse response = ReceivableMapper.fromEntity(receivable, transactions);
+
+        log.info("updatePaymentTransaction() - END - companyId={}, receivableId={}, transactionId={}, status={}",
+                companyId, receivableId, transactionId, response != null ? response.getStatus() : null);
+        return response;
+    }
+
+    private PaymentTransactionEntity findPaymentTransaction(Long companyId, Long receivableId, Long transactionId) {
+        return paymentTransactionRepository.findByIdAndReceivableIdAndCompanyId(transactionId, receivableId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transação de pagamento não encontrada"));
     }
 
     private ReceivableStatus getReceivableStatusAfterPayment(BigDecimal newTotalPaid, BigDecimal receivableAmount) {
