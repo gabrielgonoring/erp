@@ -1,7 +1,9 @@
 package company.aura.erp.repository;
 
 import company.aura.erp.dto.dashboard.RealizedRevenueSummary;
+import company.aura.erp.dto.payment.CardBrandPaymentSummary;
 import company.aura.erp.entity.PaymentTransactionEntity;
+import company.aura.erp.enums.PaymentMethod;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -50,6 +52,41 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
             @Param("prevStartDate") LocalDateTime prevStartDate
+    );
+
+    @Query("""
+        SELECT new company.aura.erp.dto.payment.CardBrandPaymentSummary(
+            COALESCE(NULLIF(TRIM(pt.cardBrand), ''), 'Não informada'),
+            COUNT(CASE WHEN pt.transactionType = company.aura.erp.enums.PaymentTransactionType.PAYMENT THEN 1 END),
+            COALESCE(SUM(
+                CASE
+                    WHEN pt.transactionType = company.aura.erp.enums.PaymentTransactionType.PAYMENT THEN pt.amountPaid
+                    WHEN pt.transactionType = company.aura.erp.enums.PaymentTransactionType.REFUND THEN -pt.amountPaid
+                    ELSE 0
+                END
+            ), 0)
+        )
+        FROM PaymentTransactionEntity pt
+        WHERE pt.companyId = :companyId
+          AND pt.paymentMethod IN (:cardMethods)
+          AND (:hasStartDate = false OR pt.paidAt >= :startDate)
+          AND (:hasEndDate = false OR pt.paidAt <= :endDate)
+        GROUP BY COALESCE(NULLIF(TRIM(pt.cardBrand), ''), 'Não informada')
+        ORDER BY COALESCE(SUM(
+            CASE
+                WHEN pt.transactionType = company.aura.erp.enums.PaymentTransactionType.PAYMENT THEN pt.amountPaid
+                WHEN pt.transactionType = company.aura.erp.enums.PaymentTransactionType.REFUND THEN -pt.amountPaid
+                ELSE 0
+            END
+        ), 0) DESC
+    """)
+    List<CardBrandPaymentSummary> summarizeCardPaymentsByBrand(
+            @Param("companyId") Long companyId,
+            @Param("cardMethods") List<PaymentMethod> cardMethods,
+            @Param("hasStartDate") boolean hasStartDate,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("hasEndDate") boolean hasEndDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
 }
