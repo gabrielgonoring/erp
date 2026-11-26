@@ -179,11 +179,11 @@ class OrderControllerTest {
     @DisplayName("POST /api/orders/{id}/items — Deve adicionar item à comanda e retornar HTTP 201")
     void shouldAddItemToOrder() {
         OrderItemCreateRequest request = new OrderItemCreateRequest(
-                2L, "Refrigerante Cola", null, BigDecimal.valueOf(2), BigDecimal.ZERO, null
+                2L, "Refrigerante Cola", new BigDecimal("9.50"), BigDecimal.valueOf(2), BigDecimal.ZERO, null
         );
         OrderItemResponse itemResponse = new OrderItemResponse(
                 100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante Cola",
-                BigDecimal.valueOf(2), BigDecimal.valueOf(8.00), BigDecimal.ZERO, BigDecimal.valueOf(16.00),
+                BigDecimal.valueOf(2), new BigDecimal("9.50"), BigDecimal.ZERO, new BigDecimal("19.00"),
                 null, false, LocalDateTime.now()
         );
 
@@ -197,14 +197,17 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /api/orders/{id}/items/{itemId} — Deve atualizar item da comanda e retornar HTTP 200")
+    @DisplayName("PUT /api/orders/{id}/items/{itemId} — Deve atualizar item da comanda incluindo unitPrice e retornar HTTP 200")
     void shouldUpdateItemInOrder() {
-        OrderItemUpdateRequest request = new OrderItemUpdateRequest(null,
-                BigDecimal.valueOf(3), BigDecimal.valueOf(2.00), null, "Refrigerante com desconto"
-        );
+        OrderItemUpdateRequest request = OrderItemUpdateRequest.builder()
+                .quantity(BigDecimal.valueOf(3))
+                .unitPrice(new BigDecimal("12.00"))
+                .discountAmount(BigDecimal.valueOf(2.00))
+                .description("Refrigerante com preço editado")
+                .build();
         OrderItemResponse itemResponse = new OrderItemResponse(
-                100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante com desconto",
-                BigDecimal.valueOf(3), BigDecimal.valueOf(8.00), BigDecimal.valueOf(2.00), BigDecimal.valueOf(22.00),
+                100L, 1L, 2L, CatalogItemType.PHYSICAL, "Refrigerante com preço editado",
+                BigDecimal.valueOf(3), new BigDecimal("12.00"), BigDecimal.valueOf(2.00), new BigDecimal("34.00"),
                 null, false, LocalDateTime.now()
         );
 
@@ -215,6 +218,29 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(itemResponse, response.getBody());
         verify(orderService).updateItem(1L, 100L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("OrderItemCreateRequest e OrderItemUpdateRequest — Deve falhar na validação quando unitPrice for negativo")
+    void shouldFailValidationWhenItemUnitPriceIsNegative() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+        OrderItemCreateRequest createRequest = OrderItemCreateRequest.builder()
+                .catalogItemId(1L)
+                .description("Item teste")
+                .unitPrice(new BigDecimal("-1.00"))
+                .quantity(BigDecimal.ONE)
+                .build();
+        Set<ConstraintViolation<OrderItemCreateRequest>> createViolations = validator.validate(createRequest);
+        assertFalse(createViolations.isEmpty());
+        assertEquals("O preço unitário não pode ser negativo.", createViolations.iterator().next().getMessage());
+
+        OrderItemUpdateRequest updateRequest = OrderItemUpdateRequest.builder()
+                .unitPrice(new BigDecimal("-0.01"))
+                .build();
+        Set<ConstraintViolation<OrderItemUpdateRequest>> updateViolations = validator.validate(updateRequest);
+        assertFalse(updateViolations.isEmpty());
+        assertEquals("O preço unitário não pode ser negativo.", updateViolations.iterator().next().getMessage());
     }
 
     @Test

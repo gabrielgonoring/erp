@@ -19,6 +19,9 @@ public class OrderItemUpdateRequest {
     @DecimalMin(value = "0.0001", message = "A quantidade deve ser maior que zero.")
     private BigDecimal quantity;
 
+    @DecimalMin(value = "0.00", message = "O preço unitário não pode ser negativo.")
+    private BigDecimal unitPrice;
+
     @DecimalMin(value = "0.00", message = "O desconto não pode ser negativo.")
     private BigDecimal discountAmount;
 
@@ -26,4 +29,14 @@ public class OrderItemUpdateRequest {
 
     @Size(max = 255, message = "A descrição deve ter no máximo 255 caracteres.")
     private String description;
+
+    public OrderItemUpdateRequest(
+            Long catalogItemId,
+            BigDecimal quantity,
+            BigDecimal discountAmount,
+            Long professionalId,
+            String description
+    ) {
+        this(catalogItemId, quantity, null, discountAmount, professionalId, description);
+    }
 }
