@@ -1,12 +1,12 @@
 package company.aura.erp.service;
 
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
-import company.aura.erp.dto.order.OrderShippingRequest;
-import company.aura.erp.dto.partner.PartnerCreateRequest;
+import company.aura.erp.entity.InvoiceEntity;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
 import company.aura.erp.enums.PaymentMethod;
 import company.aura.erp.enums.PersonType;
+import company.aura.erp.mapper.InvoiceMapper;
 import company.aura.erp.modules.invoice.domain.InvoiceAdditionalInfoData;
 import company.aura.erp.modules.invoice.domain.InvoiceBillingData;
 import company.aura.erp.modules.invoice.domain.InvoiceFreightData;
@@ -19,7 +19,6 @@ import company.aura.erp.modules.invoice.domain.ParsedInvoiceXml;
 import company.aura.erp.modules.invoice.enumerate.FreightMode;
 import company.aura.erp.modules.invoice.enumerate.SefazPaymentCode;
 import company.aura.erp.modules.invoice.exception.InvoiceXmlParseException;
-import company.aura.erp.modules.invoice.mapper.InvoiceXmlErpMapper;
 import company.aura.erp.modules.invoice.parser.SecureXmlDocumentFactory;
 import company.aura.erp.modules.invoice.parser.XmlElementReader;
 import company.aura.erp.modules.invoice.parser.extractor.AdditionalInfoXmlExtractor;
@@ -31,6 +30,7 @@ import company.aura.erp.modules.invoice.parser.extractor.PartnerXmlExtractor;
 import company.aura.erp.modules.invoice.parser.extractor.ProtocolXmlExtractor;
 import company.aura.erp.modules.invoice.parser.extractor.TotalsXmlExtractor;
 import company.aura.erp.modules.invoice.service.InvoiceXmlReaderService;
+import company.aura.erp.security.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +41,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -301,7 +302,6 @@ class InvoiceXmlReaderServiceTest {
 
         assertNotNull(parsed);
 
-        // Identification
         InvoiceIdentificationData id = parsed.getIdentification();
         assertNotNull(id);
         assertEquals("35261112345678000195550010000012341000012345", id.getAccessKey());
@@ -314,14 +314,12 @@ class InvoiceXmlReaderServiceTest {
         assertEquals(LocalDateTime.of(2026, 11, 27, 10, 15, 30), id.getIssuedAt());
         assertEquals(List.of("35261012345678000195550010000009991000009999"), id.getReferencedAccessKeys());
 
-        // Protocol
         InvoiceProtocolData protocol = parsed.getProtocol();
         assertNotNull(protocol);
         assertTrue(protocol.isAuthorized());
         assertEquals("100", protocol.getStatusCode());
         assertEquals("135260000999999", protocol.getAuthorizationProtocol());
 
-        // Emitter & Recipient & Partner
         InvoicePartnerData emitter = parsed.getEmitter();
         assertNotNull(emitter);
         assertEquals(PersonType.PJ, emitter.getPersonType());
@@ -337,7 +335,6 @@ class InvoiceXmlReaderServiceTest {
         assertEquals("fiscal@clienteparceiro.com.br", recipient.getEmail());
         assertEquals(recipient, parsed.getPartner());
 
-        // Items + Taxes
         assertEquals(1, parsed.getItems().size());
         InvoiceItemData item = parsed.getItems().get(0);
         assertEquals(1, item.getItemNumber());
@@ -353,14 +350,12 @@ class InvoiceXmlReaderServiceTest {
         assertEquals(new BigDecimal("45.50"), item.getTaxes().getPisAmount());
         assertEquals(new BigDecimal("210.00"), item.getTaxes().getCofinsAmount());
 
-        // Totals
         InvoiceTotalsData totals = parsed.getTotals();
         assertEquals(new BigDecimal("7000.00"), totals.getProductsAmount());
         assertEquals(new BigDecimal("100.00"), totals.getFreightAmount());
         assertEquals(new BigDecimal("200.00"), totals.getDiscountAmount());
         assertEquals(new BigDecimal("7300.00"), totals.getTotalAmount());
 
-        // Freight
         InvoiceFreightData freight = parsed.getFreight();
         assertEquals(FreightMode.SENDER, freight.getFreightMode());
         assertEquals(0, freight.getFreightModeCode());
@@ -371,7 +366,6 @@ class InvoiceXmlReaderServiceTest {
         assertEquals(2, freight.getVolumes().get(0).getQuantity());
         assertEquals(new BigDecimal("5.200"), freight.getVolumes().get(0).getGrossWeightKg());
 
-        // Billing
         InvoiceBillingData billing = parsed.getBilling();
         assertNotNull(billing.getInvoiceSummary());
         assertEquals("FAT-1234", billing.getInvoiceSummary().getInvoiceNumber());
@@ -382,7 +376,6 @@ class InvoiceXmlReaderServiceTest {
         assertEquals(SefazPaymentCode.BOLETO_BANCARIO, billing.getPayments().get(0).getSefazPaymentCode());
         assertEquals(PaymentMethod.BOLETO, billing.getPayments().get(0).getPaymentMethod());
 
-        // Additional Info
         InvoiceAdditionalInfoData additionalInfo = parsed.getAdditionalInfo();
         assertEquals("Pedido referente ao contrato #88", additionalInfo.getTaxpayerInfo());
         assertEquals(1, additionalInfo.getTaxpayerObservations().size());
@@ -510,33 +503,28 @@ class InvoiceXmlReaderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve converter ParsedInvoiceXml para DTOs do ERP via InvoiceXmlErpMapper")
-    void shouldMapParsedXmlToErpRequests() {
+    @DisplayName("Deve converter ParsedInvoiceXml para InvoiceEntity via InvoiceMapper")
+    void shouldMapParsedXmlToInvoiceEntityViaInvoiceMapper() {
         ParsedInvoiceXml parsed = readerService.read(FULL_NFE_PROC_XML);
+        UserPrincipal user = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .email("user@company.com")
+                .authorities(Collections.emptyList())
+                .build();
 
-        InvoiceCreateRequest invoiceRequest = InvoiceXmlErpMapper.toInvoiceCreateRequest(parsed, 5L, "ORDER-10");
-        PartnerCreateRequest partnerRequest = InvoiceXmlErpMapper.toPartnerCreateRequest(parsed.getRecipient(), true, false, false);
-        OrderShippingRequest shippingRequest = InvoiceXmlErpMapper.toOrderShippingRequest(parsed, 9L);
+        InvoiceEntity invoiceEntity = InvoiceMapper.buildInvoiceEntity(
+                user, new InvoiceCreateRequest(5L), parsed, "https://r2/nfe.xml", "https://r2/danfe.pdf"
+        );
 
-        assertNotNull(invoiceRequest);
-        assertEquals(5L, invoiceRequest.getPartnerId());
-        assertEquals("ORDER-10", invoiceRequest.getExternalReference());
-        assertEquals("35261112345678000195550010000012341000012345", invoiceRequest.getAccessKey());
-        assertEquals("135260000999999", invoiceRequest.getAuthorizationProtocol());
-        assertEquals("BOLETO", invoiceRequest.getPaymentMethod());
-        assertEquals(LocalDate.of(2026, 12, 27), invoiceRequest.getDueDate());
-        assertEquals(new BigDecimal("7300.00"), invoiceRequest.getTotalAmount());
-
-        assertNotNull(partnerRequest);
-        assertEquals("98765432000188", partnerRequest.document());
-        assertEquals(PersonType.PJ, partnerRequest.personType());
-        assertEquals("01001000", partnerRequest.zipCode());
-
-        assertNotNull(shippingRequest);
-        assertEquals(9L, shippingRequest.getCarrierId());
-        assertEquals("ABC1D23", shippingRequest.getVehiclePlate());
-        assertEquals(2, shippingRequest.getPackageQuantity());
-        assertEquals(new BigDecimal("100.00"), shippingRequest.getFreightAmount());
+        assertNotNull(invoiceEntity);
+        assertEquals(10L, invoiceEntity.getCompanyId());
+        assertEquals(5L, invoiceEntity.getPartnerId());
+        assertEquals("35261112345678000195550010000012341000012345", invoiceEntity.getAccessKey());
+        assertEquals("135260000999999", invoiceEntity.getAuthorizationProtocol());
+        assertEquals("BOLETO", invoiceEntity.getPaymentMethod());
+        assertEquals(LocalDate.of(2026, 12, 27), invoiceEntity.getDueDate());
+        assertEquals(new BigDecimal("7300.00"), invoiceEntity.getTotalAmount());
     }
 
     @Test

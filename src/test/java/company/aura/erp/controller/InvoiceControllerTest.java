@@ -55,27 +55,14 @@ class InvoiceControllerTest {
     @Test
     @DisplayName("Deve criar nota fiscal via controller retornando 201 CREATED")
     void createInvoiceSuccess() {
-        InvoiceCreateRequest request = new InvoiceCreateRequest(
-                5L,
-                new BigDecimal("1000.00"),
-                DocumentType.NFE,
-                EnvironmentType.PRD,
-                "AUTHORIZED",
-                1, 101, 1,
-                "35261100000000000000550010000001011000000001",
-                "135260000000001",
-                "PIX",
-                null, 9,
-                BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("1000.00"), BigDecimal.ZERO,
-                "Obs", "EXT-1", LocalDateTime.now()
-        );
+        InvoiceCreateRequest request = new InvoiceCreateRequest(5L);
 
         MockMultipartFile xmlFile = new MockMultipartFile("xmlFile", "nfe.xml", "application/xml", "<xml/>".getBytes());
         MockMultipartFile danfePdf = new MockMultipartFile("danfePdf", "danfe.pdf", "application/pdf", "%PDF".getBytes());
 
         InvoiceResponse responseDto = new InvoiceResponse(
-                1L, 10L, 5L, "EXT-1", 1, DocumentType.NFE, EnvironmentType.PRD,
-                "AUTHORIZED", 101, 1, "35261100000000000000550010000001011000000001",
+                1L, 10L, 5L, null, 1, DocumentType.NFE, EnvironmentType.PRD,
+                "ISSUED", 101, 1, "35261100000000000000550010000001011000000001",
                 "135260000000001", "PIX", null, 9, BigDecimal.ZERO, BigDecimal.ZERO,
                 new BigDecimal("1000.00"), BigDecimal.ZERO, new BigDecimal("1000.00"),
                 "Obs", "https://r2/danfe.pdf", "https://r2/nfe.xml",
@@ -92,6 +79,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1L, response.getBody().getId());
+        assertEquals(5L, response.getBody().getPartnerId());
         assertEquals("https://r2/danfe.pdf", response.getBody().getPdfUrl());
         assertEquals("https://r2/nfe.xml", response.getBody().getXmlUrl());
 

@@ -7,7 +7,8 @@ import company.aura.erp.dto.order.OrderExternalInvoiceRequest;
 import company.aura.erp.dto.order.OrderInvoiceResponse;
 import company.aura.erp.entity.OrderEntity;
 import company.aura.erp.entity.OrderInvoiceEntity;
-import company.aura.erp.enums.*;
+import company.aura.erp.enums.DocumentType;
+import company.aura.erp.enums.InvoicePurpose;
 import company.aura.erp.mapper.OrderInvoiceMapper;
 import company.aura.erp.repository.OrderInvoiceRepository;
 import company.aura.erp.security.UserPrincipal;
@@ -66,15 +67,8 @@ public class OrderInvoiceService {
                 ? request.getInvoicePurpose()
                 : (request.getDocumentType() == DocumentType.NFSE ? InvoicePurpose.SERVICE : InvoicePurpose.PRODUCT);
 
-        //todo: implementar a leitura do pdf ou xml para recuperar as informaçoes
         InvoiceCreateRequest invoiceRequest = InvoiceCreateRequest.builder()
                 .partnerId(order.getPartnerId())
-                .totalAmount(request.getTotalAmount() != null ? request.getTotalAmount() : order.getTotalAmount())
-                .documentType(request.getDocumentType())
-                .environment(EnvironmentType.PRD)
-                .status(InvoiceStatus.ISSUED.name())
-                .operationType(request.getOperationType())
-                .externalReference(request.getExternalReference() != null ? request.getExternalReference() : "ORDER-" + order.getId())
                 .build();
 
         InvoiceResponse invoiceResponse = invoiceService.createExternalInvoice(invoiceRequest, xmlFile, pdfFile, currentUser);

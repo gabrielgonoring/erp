@@ -1,5 +1,6 @@
 package company.aura.erp.exception;
 
+import company.aura.erp.modules.invoice.exception.InvoiceXmlParseException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -62,6 +63,13 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(error, description);
         return ResponseEntity.status(ex.getStatusCode()).body(response);
+    }
+
+    @ExceptionHandler(InvoiceXmlParseException.class)
+    public ResponseEntity<ErrorResponse> handleInvoiceXmlParseException(InvoiceXmlParseException ex) {
+        log.error("handleInvoiceXmlParseException() - ERROR - Erro ao interpretar XML da nota fiscal - error: {}", ex.getMessage(), ex);
+        ErrorResponse response = new ErrorResponse("Bad Request", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})

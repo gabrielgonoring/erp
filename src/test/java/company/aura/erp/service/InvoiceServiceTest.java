@@ -1,11 +1,24 @@
 package company.aura.erp.service;
 
-import company.aura.erp.modules.bucket.service.CloudflareR2Service;
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.entity.InvoiceEntity;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
+import company.aura.erp.enums.PaymentMethod;
+import company.aura.erp.modules.bucket.service.CloudflareR2Service;
+import company.aura.erp.modules.invoice.domain.InvoiceAdditionalInfoData;
+import company.aura.erp.modules.invoice.domain.InvoiceBillingData;
+import company.aura.erp.modules.invoice.domain.InvoiceFreightData;
+import company.aura.erp.modules.invoice.domain.InvoiceIdentificationData;
+import company.aura.erp.modules.invoice.domain.InvoiceInstallmentData;
+import company.aura.erp.modules.invoice.domain.InvoicePaymentData;
+import company.aura.erp.modules.invoice.domain.InvoiceProtocolData;
+import company.aura.erp.modules.invoice.domain.InvoiceTotalsData;
+import company.aura.erp.modules.invoice.domain.ParsedInvoiceXml;
+import company.aura.erp.modules.invoice.enumerate.FreightMode;
+import company.aura.erp.modules.invoice.exception.InvoiceXmlParseException;
+import company.aura.erp.modules.invoice.service.InvoiceXmlReaderService;
 import company.aura.erp.repository.InvoiceRepository;
 import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
@@ -50,6 +63,9 @@ class InvoiceServiceTest {
     @Mock
     private CloudflareR2Service r2Service;
 
+    @Mock
+    private InvoiceXmlReaderService invoiceXmlReaderService;
+
     @InjectMocks
     private InvoiceService invoiceService;
 
@@ -59,6 +75,7 @@ class InvoiceServiceTest {
     private InvoiceCreateRequest request;
     private MockMultipartFile xmlFile;
     private MockMultipartFile danfePdf;
+    private ParsedInvoiceXml parsedInvoiceXml;
 
     @BeforeEach
     void setUp() {
@@ -72,28 +89,7 @@ class InvoiceServiceTest {
                 .authorities(Collections.emptyList())
                 .build();
 
-        request = new InvoiceCreateRequest(
-                partnerId,
-                new BigDecimal("1500.00"),
-                DocumentType.NFE,
-                EnvironmentType.PRD,
-                "AUTHORIZED",
-                1,
-                101,
-                1,
-                "35261100000000000000550010000001011000000001",
-                "135260000000001",
-                "PIX",
-                LocalDate.now().plusDays(30),
-                9,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                new BigDecimal("1500.00"),
-                BigDecimal.ZERO,
-                "Informações adicionais da nota",
-                "EXT-9999",
-                LocalDateTime.now()
-        );
+        request = new InvoiceCreateRequest(partnerId);
 
         xmlFile = new MockMultipartFile(
                 "xmlFile",
@@ -108,13 +104,58 @@ class InvoiceServiceTest {
                 "application/pdf",
                 "%PDF-1.4 teste".getBytes()
         );
+
+        LocalDate dueDate = LocalDate.now().plusDays(30);
+        LocalDateTime issuedAt = LocalDateTime.of(2026, 11, 27, 10, 0);
+
+        parsedInvoiceXml = ParsedInvoiceXml.builder()
+                .identification(InvoiceIdentificationData.builder()
+                        .accessKey("35261100000000000000550010000001011000000001")
+                        .documentType(DocumentType.NFE)
+                        .environment(EnvironmentType.PRD)
+                        .operationType(1)
+                        .invoiceNumber(101)
+                        .series(1)
+                        .issuedAt(issuedAt)
+                        .build())
+                .protocol(InvoiceProtocolData.builder()
+                        .authorizationProtocol("135260000000001")
+                        .authorized(true)
+                        .build())
+                .totals(InvoiceTotalsData.builder()
+                        .productsAmount(new BigDecimal("1500.00"))
+                        .freightAmount(BigDecimal.ZERO)
+                        .additionalExpenses(BigDecimal.ZERO)
+                        .discountAmount(BigDecimal.ZERO)
+                        .totalAmount(new BigDecimal("1500.00"))
+                        .build())
+                .freight(InvoiceFreightData.builder()
+                        .freightModeCode(9)
+                        .freightMode(FreightMode.NO_FREIGHT)
+                        .build())
+                .billing(InvoiceBillingData.builder()
+                        .payments(List.of(InvoicePaymentData.builder()
+                                .paymentMethod(PaymentMethod.PIX)
+                                .amount(new BigDecimal("1500.00"))
+                                .build()))
+                        .installments(List.of(InvoiceInstallmentData.builder()
+                                .installmentNumber("001")
+                                .dueDate(dueDate)
+                                .amount(new BigDecimal("1500.00"))
+                                .build()))
+                        .build())
+                .additionalInfo(InvoiceAdditionalInfoData.builder()
+                        .taxpayerInfo("Informações adicionais da nota")
+                        .build())
+                .build();
     }
 
     @Test
-    @DisplayName("Deve criar nota fiscal externa com sucesso")
+    @DisplayName("Deve criar nota fiscal externa lendo dados do XML com sucesso")
     void createExternalInvoiceSuccess() {
         when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
-        when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(false);
+        when(invoiceXmlReaderService.read(xmlFile)).thenReturn(parsedInvoiceXml);
+        when(invoiceRepository.existsByCompanyIdAndAccessKey(companyId, "35261100000000000000550010000001011000000001")).thenReturn(false);
 
         when(r2Service.getFileUrl(anyString())).thenReturn("https://r2.storage/mock-url");
 
@@ -133,12 +174,33 @@ class InvoiceServiceTest {
         assertEquals(companyId, response.getCompanyId());
         assertEquals(partnerId, response.getPartnerId());
         assertEquals("35261100000000000000550010000001011000000001", response.getAccessKey());
+        assertEquals("135260000000001", response.getAuthorizationProtocol());
+        assertEquals(101, response.getInvoiceNumber());
+        assertEquals(1, response.getSeries());
+        assertEquals(DocumentType.NFE, response.getDocumentType());
+        assertEquals(EnvironmentType.PRD, response.getEnvironment());
+        assertEquals("PIX", response.getPaymentMethod());
         assertEquals(new BigDecimal("1500.00"), response.getTotalAmount());
+        assertEquals("Informações adicionais da nota", response.getAdditionalInformation());
         assertNotNull(response.getXmlUrl());
         assertNotNull(response.getPdfUrl());
 
+        verify(invoiceXmlReaderService, times(1)).read(xmlFile);
         verify(r2Service, times(2)).upload(anyString(), any(InputStream.class), anyLong(), anyString());
         verify(invoiceRepository, times(1)).save(any(InvoiceEntity.class));
+    }
+
+    @Test
+    @DisplayName("Deve lançar BAD_REQUEST se o partnerId estiver ausente")
+    void createExternalInvoiceMissingPartnerId() {
+        InvoiceCreateRequest emptyRequest = new InvoiceCreateRequest(null);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.createExternalInvoice(emptyRequest, xmlFile, danfePdf, userPrincipal)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("O ID do parceiro"));
     }
 
     @Test
@@ -181,9 +243,24 @@ class InvoiceServiceTest {
     }
 
     @Test
+    @DisplayName("Deve propagar InvoiceXmlParseException quando XML for inválido")
+    void createExternalInvoiceInvalidXml() {
+        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(invoiceXmlReaderService.read(xmlFile)).thenThrow(new InvoiceXmlParseException("XML inválido"));
+
+        assertThrows(InvoiceXmlParseException.class, () ->
+                invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
+        );
+
+        verify(r2Service, never()).upload(anyString(), any(InputStream.class), anyLong(), anyString());
+        verify(invoiceRepository, never()).save(any(InvoiceEntity.class));
+    }
+
+    @Test
     @DisplayName("Deve lançar CONFLICT se já existir nota com a mesma chave de acesso na empresa")
     void createExternalInvoiceAlreadyExists() {
         when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(invoiceXmlReaderService.read(xmlFile)).thenReturn(parsedInvoiceXml);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
@@ -198,6 +275,7 @@ class InvoiceServiceTest {
     @DisplayName("Deve fazer rollback/limpeza dos arquivos no R2 quando falhar o upload do PDF")
     void createExternalInvoiceRollbackOnUploadFailure() throws Exception {
         when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(invoiceXmlReaderService.read(xmlFile)).thenReturn(parsedInvoiceXml);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(false);
 
         when(r2Service.upload(anyString(), any(InputStream.class), anyLong(), anyString()))
