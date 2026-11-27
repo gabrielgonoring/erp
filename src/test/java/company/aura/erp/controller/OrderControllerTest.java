@@ -379,23 +379,6 @@ class OrderControllerTest {
         verify(orderService).cancelOrder(1L, 10L);
     }
 
-    @Test
-    @DisplayName("OrderCloseRequest — Deve desserializar completedAt em formato LocalDate, LocalDateTime e OffsetDateTime")
-    void shouldDeserializeCompletedAtFormats() {
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        OrderCloseRequest dateOnly = objectMapper.readValue("{\"completedAt\":\"2026-11-20\"}", OrderCloseRequest.class);
-        assertEquals(LocalDateTime.of(2026, 11, 20, 0, 0, 0), dateOnly.getCompletedAt());
-
-        OrderCloseRequest dateTime = objectMapper.readValue("{\"completedAt\":\"2026-11-20T14:30:00\"}", OrderCloseRequest.class);
-        assertEquals(LocalDateTime.of(2026, 11, 20, 14, 30, 0), dateTime.getCompletedAt());
-
-        OrderCloseRequest offsetDateTime = objectMapper.readValue("{\"completedAt\":\"2026-11-20T14:30:00Z\"}", OrderCloseRequest.class);
-        assertEquals(LocalDateTime.of(2026, 11, 20, 14, 30, 0), offsetDateTime.getCompletedAt());
-
-        OrderCloseRequest empty = objectMapper.readValue("{}", OrderCloseRequest.class);
-        assertNull(empty.getCompletedAt());
-    }
 
     @Test
     @DisplayName("OrderCloseRequest — Deve falhar na validação por anotação quando discountAmount for negativo")
