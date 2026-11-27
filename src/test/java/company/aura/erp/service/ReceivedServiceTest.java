@@ -1135,4 +1135,109 @@ class ReceivedServiceTest {
         assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), receivable2.getPendingAmount());
         verify(receivableRepository).saveAll(List.of(receivable1, receivable2));
     }
+
+    @Test
+    @DisplayName("cancelServiceOrderReceivables — Deve cancelar recebíveis pendentes vinculados à OS")
+    void shouldCancelPendingServiceOrderReceivables() {
+        ReceivableEntity pendingReceivable = ReceivableEntity.builder()
+                .id(1L)
+                .serviceOrderId(200L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PENDING)
+                .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.valueOf(100.00))
+                .build();
+        ReceivableEntity alreadyCanceledReceivable = ReceivableEntity.builder()
+                .id(2L)
+                .serviceOrderId(200L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.CANCELED)
+                .amount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .build();
+
+        when(receivableRepository.findByServiceOrderId(200L))
+                .thenReturn(List.of(pendingReceivable, alreadyCanceledReceivable));
+
+        receivedService.cancelServiceOrderReceivables(200L, COMPANY_ID);
+
+        assertEquals(ReceivableStatus.CANCELED, pendingReceivable.getStatus());
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), pendingReceivable.getPendingAmount());
+        verify(receivableRepository).saveAll(List.of(pendingReceivable));
+    }
+
+    @Test
+    @DisplayName("cancelServiceOrderReceivables — Não deve salvar nada quando OS não possuir recebíveis pendentes")
+    void shouldDoNothingWhenServiceOrderHasNoPendingReceivables() {
+        ReceivableEntity alreadyCanceledReceivable = ReceivableEntity.builder()
+                .id(2L)
+                .serviceOrderId(200L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.CANCELED)
+                .amount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
+                .build();
+
+        when(receivableRepository.findByServiceOrderId(200L))
+                .thenReturn(List.of(alreadyCanceledReceivable));
+
+        receivedService.cancelServiceOrderReceivables(200L, COMPANY_ID);
+
+        verify(receivableRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("cancelServiceOrderReceivables — Deve lançar UNPROCESSABLE_ENTITY quando existir recebível PAID vinculado à OS")
+    void shouldThrowUnprocessableEntityWhenServiceOrderHasPaidReceivable() {
+        ReceivableEntity paidReceivable = ReceivableEntity.builder()
+                .id(1L)
+                .serviceOrderId(200L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PAID)
+                .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.ZERO)
+                .build();
+        ReceivableEntity pendingReceivable = ReceivableEntity.builder()
+                .id(2L)
+                .serviceOrderId(200L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PENDING)
+                .amount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.valueOf(50.00))
+                .build();
+
+        when(receivableRepository.findByServiceOrderId(200L))
+                .thenReturn(List.of(paidReceivable, pendingReceivable));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.cancelServiceOrderReceivables(200L, COMPANY_ID)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertEquals(ReceivableStatus.PENDING, pendingReceivable.getStatus());
+        verify(receivableRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("cancelServiceOrderReceivables — Deve lançar UNPROCESSABLE_ENTITY quando existir recebível PARTIALLY_PAID vinculado à OS")
+    void shouldThrowUnprocessableEntityWhenServiceOrderHasPartiallyPaidReceivable() {
+        ReceivableEntity partiallyPaidReceivable = ReceivableEntity.builder()
+                .id(1L)
+                .serviceOrderId(200L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PARTIALLY_PAID)
+                .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.valueOf(40.00))
+                .build();
+
+        when(receivableRepository.findByServiceOrderId(200L))
+                .thenReturn(List.of(partiallyPaidReceivable));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                receivedService.cancelServiceOrderReceivables(200L, COMPANY_ID)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(receivableRepository, never()).saveAll(any());
+    }
 }

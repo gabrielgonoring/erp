@@ -302,6 +302,40 @@ public class ReceivedService {
                 orderId, companyId, receivables.size());
     }
 
+    @Transactional
+    public void cancelServiceOrderReceivables(Long serviceOrderId, Long companyId) {
+        log.info("cancelServiceOrderReceivables() - START - serviceOrderId={}, companyId={}", serviceOrderId, companyId);
+
+        List<ReceivableEntity> receivables = receivableRepository.findByServiceOrderId(serviceOrderId).stream()
+                .filter(r -> r.getCompanyId() == null || Objects.equals(r.getCompanyId(), companyId))
+                .toList();
+
+        boolean hasPaidOrPartiallyPaid = receivables.stream()
+                .anyMatch(r -> r.getStatus() == ReceivableStatus.PAID || r.getStatus() == ReceivableStatus.PARTIALLY_PAID);
+
+        if (hasPaidOrPartiallyPaid) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível cancelar a ordem de serviço pois existem cobranças pagas ou parcialmente pagas vinculadas."
+            );
+        }
+
+        List<ReceivableEntity> receivablesToCancel = receivables.stream()
+                .filter(r -> r.getStatus() != ReceivableStatus.CANCELED)
+                .toList();
+
+        if (!receivablesToCancel.isEmpty()) {
+            for (ReceivableEntity receivable : receivablesToCancel) {
+                receivable.setStatus(ReceivableStatus.CANCELED);
+                receivable.setPendingAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            }
+            receivableRepository.saveAll(receivablesToCancel);
+        }
+
+        log.info("cancelServiceOrderReceivables() - END - serviceOrderId={}, companyId={}, canceledCount={}",
+                serviceOrderId, companyId, receivablesToCancel.size());
+    }
+
     public ReceivableResponse uploadPaymentFile(Long companyId, Long receivableId, MultipartFile file, String bankSlipCode) {
         log.info("uploadPaymentFile() - START - companyId={}, receivableId={}, originalFilename={}", companyId, receivableId, file != null ? file.getOriginalFilename() : null);
 

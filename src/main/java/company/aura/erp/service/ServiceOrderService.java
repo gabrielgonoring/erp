@@ -287,6 +287,8 @@ public class ServiceOrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Não é possível cancelar uma ordem de serviço já concluída.");
         }
 
+        receivedService.cancelServiceOrderReceivables(serviceOrderId, companyId);
+
         serviceOrderItemService.cancelItems(serviceOrderId);
 
         serviceOrder.setStatus(ServiceOrderStatus.CANCELED);
@@ -295,8 +297,9 @@ public class ServiceOrderService {
         String customerName = resolvePartnerName(saved.getPartnerId(), companyId);
         String technicianName = resolveTechnicianName(saved.getTechnicianId(), companyId);
         List<ServiceOrderItemEntity> items = serviceOrderItemService.findServiceOrderItems(saved.getId());
+        List<ReceivableResponse> receivables = receivedService.findReceivableResponsesByServiceOrderId(saved.getId());
 
-        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, customerName, technicianName, items);
+        ServiceOrderResponse response = ServiceOrderMapper.fromEntity(saved, customerName, technicianName, items, receivables);
         log.info("cancel() - END - serviceOrderId={}, companyId={}, status={}", response.getId(), companyId, response.getStatus());
         return response;
     }

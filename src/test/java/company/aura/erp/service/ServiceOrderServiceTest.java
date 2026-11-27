@@ -276,8 +276,16 @@ class ServiceOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Deve cancelar OS e cancelar seus itens liberando estoque reservado")
+    @DisplayName("Deve cancelar OS, cancelar recebíveis vinculados e cancelar seus itens liberando estoque reservado")
     void shouldCancelServiceOrder() {
+        ReceivableResponse canceledReceivable = ReceivableResponse.builder()
+                .id(900L)
+                .serviceOrderId(100L)
+                .originType(ReceivableOriginType.SERVICE_ORDER)
+                .status(ReceivableStatus.CANCELED)
+                .pendingAmount(BigDecimal.ZERO)
+                .build();
+
         when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
         when(serviceOrderRepository.save(any(ServiceOrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId))
@@ -285,11 +293,36 @@ class ServiceOrderServiceTest {
         when(collaboratorRepository.findNameByIdAndCompanyId(technicianId, companyId))
                 .thenReturn(Optional.of("Técnico João"));
         when(serviceOrderItemService.findServiceOrderItems(100L)).thenReturn(Collections.emptyList());
+        when(receivedService.findReceivableResponsesByServiceOrderId(100L)).thenReturn(List.of(canceledReceivable));
 
         ServiceOrderResponse response = serviceOrderService.cancel(100L, companyId);
 
         assertEquals(ServiceOrderStatus.CANCELED, response.getStatus());
+        assertEquals(1, response.getReceivables().size());
+        assertEquals(ReceivableStatus.CANCELED, response.getReceivables().get(0).getStatus());
+        verify(receivedService).cancelServiceOrderReceivables(100L, companyId);
         verify(serviceOrderItemService).cancelItems(100L);
+        verify(serviceOrderRepository).save(sampleServiceOrder);
+    }
+
+    @Test
+    @DisplayName("Deve impedir cancelamento de OS quando houver recebível pago ou parcialmente pago vinculado")
+    void shouldThrowUnprocessableEntityWhenCancelingServiceOrderWithPaidOrPartiallyPaidReceivable() {
+        when(serviceOrderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleServiceOrder));
+        doThrow(new ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Não é possível cancelar a ordem de serviço pois existem cobranças pagas ou parcialmente pagas vinculadas."
+        )).when(receivedService).cancelServiceOrderReceivables(100L, companyId);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> serviceOrderService.cancel(100L, companyId));
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertEquals(ServiceOrderStatus.TRIAGE, sampleServiceOrder.getStatus());
+        verify(receivedService).cancelServiceOrderReceivables(100L, companyId);
+        verify(serviceOrderItemService, never()).cancelItems(any());
+        verify(serviceOrderRepository, never()).save(any());
+        verify(receivedService, never()).findReceivableResponsesByServiceOrderId(any());
     }
 
     @Test
