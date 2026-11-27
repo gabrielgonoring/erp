@@ -1,12 +1,22 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.invoice.InvoiceCatalogItemsImportResponse;
+import company.aura.erp.dto.invoice.InvoiceCreateOrderRequest;
 import company.aura.erp.dto.invoice.InvoiceCreateRequest;
+import company.aura.erp.dto.invoice.InvoiceImportCarrierRequest;
+import company.aura.erp.dto.invoice.InvoiceImportCatalogItemsRequest;
+import company.aura.erp.dto.invoice.InvoiceImportCustomerRequest;
 import company.aura.erp.dto.invoice.InvoiceResponse;
 import company.aura.erp.dto.invoice.InvoiceUrlResponse;
+import company.aura.erp.dto.order.OrderResponse;
+import company.aura.erp.dto.partner.PartnerResponse;
 import company.aura.erp.enums.DocumentType;
 import company.aura.erp.enums.EnvironmentType;
+import company.aura.erp.enums.OrderStatus;
+import company.aura.erp.enums.PersonType;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.InvoiceService;
+import company.aura.erp.service.InvoiceXmlImportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +46,9 @@ class InvoiceControllerTest {
 
     @Mock
     private InvoiceService invoiceService;
+
+    @Mock
+    private InvoiceXmlImportService invoiceXmlImportService;
 
     @InjectMocks
     private InvoiceController invoiceController;
@@ -84,6 +97,115 @@ class InvoiceControllerTest {
         assertEquals("https://r2/nfe.xml", response.getBody().getXmlUrl());
 
         verify(invoiceService, times(1)).createExternalInvoice(eq(request), eq(xmlFile), eq(danfePdf), eq(userPrincipal));
+    }
+
+    @Test
+    @DisplayName("Deve importar itens do XML para o catálogo via controller retornando 200 OK")
+    void importCatalogItemsFromXmlSuccess() {
+        InvoiceImportCatalogItemsRequest request = InvoiceImportCatalogItemsRequest.builder()
+                .invoiceId(1L)
+                .categoryId(2L)
+                .build();
+
+        InvoiceCatalogItemsImportResponse importResponse = InvoiceCatalogItemsImportResponse.builder()
+                .invoiceId(1L)
+                .totalItemsInXml(2)
+                .createdCount(1)
+                .existingCount(1)
+                .skippedCount(0)
+                .build();
+
+        when(invoiceXmlImportService.importCatalogItemsFromInvoice(request, userPrincipal))
+                .thenReturn(importResponse);
+
+        ResponseEntity<InvoiceCatalogItemsImportResponse> response = invoiceController.importCatalogItemsFromXml(
+                request, userPrincipal
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1L, response.getBody().getInvoiceId());
+        assertEquals(1, response.getBody().getCreatedCount());
+        verify(invoiceXmlImportService, times(1)).importCatalogItemsFromInvoice(request, userPrincipal);
+    }
+
+    @Test
+    @DisplayName("Deve criar cliente a partir do XML via controller retornando 201 CREATED")
+    void createCustomerFromXmlSuccess() {
+        InvoiceImportCustomerRequest request = InvoiceImportCustomerRequest.builder()
+                .invoiceId(1L)
+                .build();
+
+        PartnerResponse partnerResponse = new PartnerResponse(
+                20L, 10L, true, false, false, PersonType.PJ, "12345678000199",
+                "Cliente XML Ltda", 1, "12345678", "cliente@xml.com", "11999999999",
+                "ACTIVE", "Rua A", "100", null, "Centro", "3550308", "São Paulo", "SP", "01001000",
+                "1058", "Brasil", LocalDateTime.now(), LocalDateTime.now()
+        );
+
+        when(invoiceXmlImportService.createCustomerFromInvoice(request, userPrincipal))
+                .thenReturn(partnerResponse);
+
+        ResponseEntity<PartnerResponse> response = invoiceController.createCustomerFromXml(request, userPrincipal);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(20L, response.getBody().id());
+        assertEquals(true, response.getBody().isCustomer());
+        verify(invoiceXmlImportService, times(1)).createCustomerFromInvoice(request, userPrincipal);
+    }
+
+    @Test
+    @DisplayName("Deve criar transportadora a partir do XML via controller retornando 201 CREATED")
+    void createCarrierFromXmlSuccess() {
+        InvoiceImportCarrierRequest request = InvoiceImportCarrierRequest.builder()
+                .invoiceId(1L)
+                .build();
+
+        PartnerResponse carrierResponse = new PartnerResponse(
+                30L, 10L, false, false, true, PersonType.PJ, "98765432000188",
+                "Transportadora XML SA", 1, "87654321", null, null,
+                "ACTIVE", "Rodovia BR", null, null, null, null, "Campinas", "SP", null,
+                "1058", "Brasil", LocalDateTime.now(), LocalDateTime.now()
+        );
+
+        when(invoiceXmlImportService.createCarrierFromInvoice(request, userPrincipal))
+                .thenReturn(carrierResponse);
+
+        ResponseEntity<PartnerResponse> response = invoiceController.createCarrierFromXml(request, userPrincipal);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(30L, response.getBody().id());
+        assertEquals(true, response.getBody().isCarrier());
+        verify(invoiceXmlImportService, times(1)).createCarrierFromInvoice(request, userPrincipal);
+    }
+
+    @Test
+    @DisplayName("Deve criar pedido a partir do XML via controller retornando 201 CREATED")
+    void createOrderFromXmlSuccess() {
+        InvoiceCreateOrderRequest request = InvoiceCreateOrderRequest.builder()
+                .invoiceId(1L)
+                .notes("Obs")
+                .build();
+
+        OrderResponse orderResponse = OrderResponse.builder()
+                .id(100L)
+                .companyId(10L)
+                .partnerId(20L)
+                .status(OrderStatus.OPEN)
+                .totalAmount(new BigDecimal("500.00"))
+                .build();
+
+        when(invoiceXmlImportService.createOrderFromInvoice(request, userPrincipal))
+                .thenReturn(orderResponse);
+
+        ResponseEntity<OrderResponse> response = invoiceController.createOrderFromXml(request, userPrincipal);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(100L, response.getBody().getId());
+        verify(invoiceXmlImportService, times(1)).createOrderFromInvoice(request, userPrincipal);
     }
 
     @Test

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -22,6 +23,27 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
     boolean existsByIdAndCompanyId(Long id, Long companyId);
 
     Optional<PartnerEntity> findByIdAndCompanyIdAndStatusNot(Long id, Long companyId, String status);
+
+    @Query("SELECT p FROM PartnerEntity p " +
+           "WHERE p.id = :id " +
+           "AND p.companyId = :companyId " +
+           "AND (p.status IS NULL OR p.status <> 'DELETED') " +
+           "AND p.deletedAt IS NULL")
+    Optional<PartnerEntity> findActiveByIdAndCompanyId(
+            @Param("id") Long id,
+            @Param("companyId") Long companyId
+    );
+
+    @Query("SELECT p FROM PartnerEntity p " +
+           "WHERE p.companyId = :companyId " +
+           "AND p.document = :document " +
+           "AND (p.status IS NULL OR p.status <> 'DELETED') " +
+           "AND p.deletedAt IS NULL " +
+           "ORDER BY p.id ASC")
+    List<PartnerEntity> findActiveByCompanyIdAndDocument(
+            @Param("companyId") Long companyId,
+            @Param("document") String document
+    );
 
     @Query("SELECT p FROM PartnerEntity p WHERE p.companyId = :companyId AND (p.status IS NULL OR p.status <> 'DELETED') AND p.deletedAt IS NULL AND " +
            "(:isCustomer IS NULL OR COALESCE(p.isCustomer, false) = :isCustomer) AND " +

@@ -16,9 +16,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -120,6 +123,30 @@ class PartnerRepositoryTest {
                 companyId, "Alice", false, null, null, PageRequest.of(0, 20)
         );
         assertEquals(0, mismatch.getTotalElements());
+    }
+
+    @Test
+    @DisplayName("findActiveByCompanyIdAndDocument e findActiveByIdAndCompanyId — Devem ignorar parceiros excluídos e de outras empresas")
+    void shouldFindActivePartnersByDocumentAndId() {
+        Long companyId = 10L;
+        Long otherCompanyId = 20L;
+
+        PartnerEntity active = savePartner(companyId, null, "Cliente Ativo", "12345678000199", true, false, false, PartnerStatus.ACTIVE.name(), null);
+        PartnerEntity deletedStatus = savePartner(companyId, null, "Cliente Deletado", "99999999000199", true, false, false, PartnerStatus.DELETED.name(), null);
+        savePartner(otherCompanyId, null, "Cliente Outra Empresa", "12345678000199", true, false, false, PartnerStatus.ACTIVE.name(), null);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<PartnerEntity> foundByDoc = partnerRepository.findActiveByCompanyIdAndDocument(companyId, "12345678000199");
+        assertEquals(1, foundByDoc.size());
+        assertEquals(active.getId(), foundByDoc.get(0).getId());
+
+        Optional<PartnerEntity> foundById = partnerRepository.findActiveByIdAndCompanyId(active.getId(), companyId);
+        assertTrue(foundById.isPresent());
+
+        assertTrue(partnerRepository.findActiveByCompanyIdAndDocument(companyId, "99999999000199").isEmpty());
+        assertTrue(partnerRepository.findActiveByIdAndCompanyId(deletedStatus.getId(), companyId).isEmpty());
     }
 
     private PartnerEntity savePartner(

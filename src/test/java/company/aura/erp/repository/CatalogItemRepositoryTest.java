@@ -2,6 +2,7 @@ package company.aura.erp.repository;
 
 import company.aura.erp.dto.catalog.CatalogItemSearchResponse;
 import company.aura.erp.entity.CatalogItemEntity;
+import company.aura.erp.entity.CatalogPhysicalItemEntity;
 import company.aura.erp.enums.CatalogItemStatus;
 import company.aura.erp.enums.CatalogItemType;
 import jakarta.persistence.EntityManager;
@@ -17,9 +18,11 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -93,6 +96,32 @@ class CatalogItemRepositoryTest {
         assertEquals(noCode.getId(), byId.getContent().get(0).id());
     }
 
+    @Test
+    @DisplayName("findActiveByCompanyIdAndInternalCode e findActiveByCompanyIdAndGtinEan — Devem buscar apenas itens não excluídos da empresa")
+    void shouldFindActiveItemsByInternalCodeAndGtinEan() {
+        Long companyId = 10L;
+        Long otherCompanyId = 20L;
+
+        CatalogItemEntity active = savePhysicalItem(companyId, "SKU-100", "7891234567890", "Teclado", CatalogItemStatus.ACTIVE.name(), null);
+        savePhysicalItem(companyId, "SKU-DEL", "7899999999999", "Teclado Deletado", CatalogItemStatus.DELETED.name(), null);
+        savePhysicalItem(companyId, "SKU-DEL2", "7898888888888", "Teclado DeletedAt", CatalogItemStatus.ACTIVE.name(), LocalDateTime.now());
+        savePhysicalItem(otherCompanyId, "SKU-100", "7891234567890", "Teclado Outra Empresa", CatalogItemStatus.ACTIVE.name(), null);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        List<CatalogItemEntity> byCode = catalogItemRepository.findActiveByCompanyIdAndInternalCode(companyId, " sku-100 ");
+        assertEquals(1, byCode.size());
+        assertEquals(active.getId(), byCode.get(0).getId());
+
+        List<CatalogItemEntity> byGtin = catalogItemRepository.findActiveByCompanyIdAndGtinEan(companyId, "7891234567890");
+        assertEquals(1, byGtin.size());
+        assertEquals(active.getId(), byGtin.get(0).getId());
+
+        assertTrue(catalogItemRepository.findActiveByCompanyIdAndInternalCode(companyId, "SKU-DEL").isEmpty());
+        assertTrue(catalogItemRepository.findActiveByCompanyIdAndGtinEan(companyId, "7898888888888").isEmpty());
+    }
+
     private CatalogItemEntity saveItem(
             Long companyId,
             String internalCode,
@@ -114,5 +143,35 @@ class CatalogItemRepositoryTest {
                         .deletedAt(deletedAt)
                         .build()
         );
+    }
+
+    private CatalogItemEntity savePhysicalItem(
+            Long companyId,
+            String internalCode,
+            String gtinEan,
+            String description,
+            String status,
+            LocalDateTime deletedAt
+    ) {
+        CatalogItemEntity item = CatalogItemEntity.builder()
+                .companyId(companyId)
+                .type(CatalogItemType.PHYSICAL)
+                .internalCode(internalCode)
+                .description(description)
+                .unitPrice(new BigDecimal("100.00"))
+                .unitOfMeasure("UN")
+                .status(status)
+                .deletedAt(deletedAt)
+                .build();
+
+        CatalogPhysicalItemEntity physical = CatalogPhysicalItemEntity.builder()
+                .catalogItem(item)
+                .ncm("84716052")
+                .defaultCfop("5102")
+                .gtinEan(gtinEan)
+                .build();
+
+        item.setPhysicalItem(physical);
+        return catalogItemRepository.saveAndFlush(item);
     }
 }

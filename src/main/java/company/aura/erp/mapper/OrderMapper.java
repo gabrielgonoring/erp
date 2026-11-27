@@ -1,8 +1,11 @@
 package company.aura.erp.mapper;
 
+import company.aura.erp.dto.order.OrderCreateRequest;
 import company.aura.erp.dto.order.OrderInvoiceResponse;
+import company.aura.erp.dto.order.OrderItemCreateRequest;
 import company.aura.erp.dto.order.OrderItemResponse;
 import company.aura.erp.dto.order.OrderResponse;
+import company.aura.erp.dto.order.OrderShippingRequest;
 import company.aura.erp.dto.order.OrderShippingResponse;
 import company.aura.erp.dto.order.PaymentTransactionResponse;
 import company.aura.erp.dto.order.ReceivableResponse;
@@ -17,6 +20,20 @@ import java.util.Collections;
 import java.util.List;
 
 public class OrderMapper {
+
+    public static OrderCreateRequest toOrderCreateRequest(
+            Long partnerId,
+            String notes,
+            List<OrderItemCreateRequest> items,
+            OrderShippingRequest shipping
+    ) {
+        return OrderCreateRequest.builder()
+                .partnerId(partnerId)
+                .notes(notes)
+                .items(items)
+                .shipping(shipping)
+                .build();
+    }
 
     public static OrderResponse fromEntity(
             OrderEntity order,

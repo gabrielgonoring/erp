@@ -20,8 +20,8 @@ import company.aura.erp.modules.invoice.enumerate.FreightMode;
 import company.aura.erp.modules.invoice.exception.InvoiceXmlParseException;
 import company.aura.erp.modules.invoice.service.InvoiceXmlReaderService;
 import company.aura.erp.repository.InvoiceRepository;
-import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
+import company.aura.erp.service.InvoiceService.LoadedInvoiceXml;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +40,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -58,7 +59,7 @@ class InvoiceServiceTest {
     private InvoiceRepository invoiceRepository;
 
     @Mock
-    private PartnerRepository partnerRepository;
+    private PartnerService partnerService;
 
     @Mock
     private CloudflareR2Service r2Service;
@@ -153,7 +154,7 @@ class InvoiceServiceTest {
     @Test
     @DisplayName("Deve criar nota fiscal externa lendo dados do XML com sucesso")
     void createExternalInvoiceSuccess() {
-        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(partnerService.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
         when(invoiceXmlReaderService.read(xmlFile)).thenReturn(parsedInvoiceXml);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(companyId, "35261100000000000000550010000001011000000001")).thenReturn(false);
 
@@ -188,6 +189,77 @@ class InvoiceServiceTest {
         verify(invoiceXmlReaderService, times(1)).read(xmlFile);
         verify(r2Service, times(2)).upload(anyString(), any(InputStream.class), anyLong(), anyString());
         verify(invoiceRepository, times(1)).save(any(InvoiceEntity.class));
+    }
+
+    @Test
+    @DisplayName("Deve carregar e interpretar o XML de uma nota fiscal existente no R2")
+    void loadAndParseXmlSuccess() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .xmlUrl("https://r2.aura.company/invoices/10/xml/nota.xml")
+                .build();
+        byte[] xmlBytes = "<NFe/>".getBytes(StandardCharsets.UTF_8);
+
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(r2Service.extractKeyFromUrl("https://r2.aura.company/invoices/10/xml/nota.xml"))
+                .thenReturn("invoices/10/xml/nota.xml");
+        when(r2Service.download("invoices/10/xml/nota.xml")).thenReturn(xmlBytes);
+        when(invoiceXmlReaderService.read(xmlBytes)).thenReturn(parsedInvoiceXml);
+
+        LoadedInvoiceXml loaded = invoiceService.loadAndParseXml(1L, companyId);
+
+        assertNotNull(loaded);
+        assertEquals(invoice, loaded.invoice());
+        assertEquals(parsedInvoiceXml, loaded.parsedXml());
+        verify(r2Service).download("invoices/10/xml/nota.xml");
+        verify(invoiceXmlReaderService).read(xmlBytes);
+    }
+
+    @Test
+    @DisplayName("Deve lançar NOT_FOUND ao carregar XML de nota inexistente")
+    void loadAndParseXmlInvoiceNotFound() {
+        when(invoiceRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.loadAndParseXml(999L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Deve lançar FORBIDDEN ao carregar XML de nota pertencente a outra empresa")
+    void loadAndParseXmlForbidden() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(999L)
+                .xmlUrl("https://r2.aura.company/invoices/999/xml/nota.xml")
+                .build();
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.loadAndParseXml(1L, companyId)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("Deve lançar NOT_FOUND ao carregar XML quando xmlUrl estiver ausente")
+    void loadAndParseXmlMissingUrl() {
+        InvoiceEntity invoice = InvoiceEntity.builder()
+                .id(1L)
+                .companyId(companyId)
+                .xmlUrl("  ")
+                .build();
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                invoiceService.loadAndParseXml(1L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
 
     @Test
@@ -232,7 +304,7 @@ class InvoiceServiceTest {
     @Test
     @DisplayName("Deve lançar NOT_FOUND se o parceiro não pertencer à empresa")
     void createExternalInvoicePartnerNotFound() {
-        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(false);
+        when(partnerService.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 invoiceService.createExternalInvoice(request, xmlFile, danfePdf, userPrincipal)
@@ -245,7 +317,7 @@ class InvoiceServiceTest {
     @Test
     @DisplayName("Deve propagar InvoiceXmlParseException quando XML for inválido")
     void createExternalInvoiceInvalidXml() {
-        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(partnerService.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
         when(invoiceXmlReaderService.read(xmlFile)).thenThrow(new InvoiceXmlParseException("XML inválido"));
 
         assertThrows(InvoiceXmlParseException.class, () ->
@@ -259,7 +331,7 @@ class InvoiceServiceTest {
     @Test
     @DisplayName("Deve lançar CONFLICT se já existir nota com a mesma chave de acesso na empresa")
     void createExternalInvoiceAlreadyExists() {
-        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(partnerService.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
         when(invoiceXmlReaderService.read(xmlFile)).thenReturn(parsedInvoiceXml);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(true);
 
@@ -274,7 +346,7 @@ class InvoiceServiceTest {
     @Test
     @DisplayName("Deve fazer rollback/limpeza dos arquivos no R2 quando falhar o upload do PDF")
     void createExternalInvoiceRollbackOnUploadFailure() throws Exception {
-        when(partnerRepository.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
+        when(partnerService.existsByIdAndCompanyId(partnerId, companyId)).thenReturn(true);
         when(invoiceXmlReaderService.read(xmlFile)).thenReturn(parsedInvoiceXml);
         when(invoiceRepository.existsByCompanyIdAndAccessKey(eq(companyId), anyString())).thenReturn(false);
 

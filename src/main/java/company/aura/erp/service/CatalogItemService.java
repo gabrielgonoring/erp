@@ -7,11 +7,13 @@ import company.aura.erp.entity.CatalogServiceItemEntity;
 import company.aura.erp.enums.CatalogCategoryStatus;
 import company.aura.erp.enums.CatalogItemStatus;
 import company.aura.erp.enums.CatalogItemType;
+import company.aura.erp.mapper.CatalogItemMapper;
 import company.aura.erp.repository.CatalogCategoryRepository;
 import company.aura.erp.repository.CatalogItemRepository;
 import company.aura.erp.repository.CompanyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -20,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -211,6 +215,33 @@ public class CatalogItemService {
 
         log.info("findById() - END - id={}, companyId={}", response.id(), companyId);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<CatalogItemResponse> findByXmlIdentifiers(Long companyId, String productCode, String gtinEan) {
+        log.info("findByXmlIdentifiers() - START - companyId={}, productCode={}, gtinEan={}", companyId, productCode, gtinEan);
+
+        if (CatalogItemMapper.isValidGtinEan(gtinEan)) {
+            String normalizedGtin = CatalogItemMapper.normalizeGtinEan(gtinEan);
+            List<CatalogItemEntity> byGtin = catalogItemRepository.findActiveByCompanyIdAndGtinEan(companyId, normalizedGtin);
+            if (!byGtin.isEmpty()) {
+                CatalogItemResponse found = CatalogItemResponse.fromEntity(byGtin.get(0));
+                log.info("findByXmlIdentifiers() - END - matchedBy=GTIN_EAN, catalogItemId={}", found.id());
+                return Optional.of(found);
+            }
+        }
+
+        if (StringUtils.isNotBlank(productCode)) {
+            List<CatalogItemEntity> byCode = catalogItemRepository.findActiveByCompanyIdAndInternalCode(companyId, productCode.trim());
+            if (!byCode.isEmpty()) {
+                CatalogItemResponse found = CatalogItemResponse.fromEntity(byCode.get(0));
+                log.info("findByXmlIdentifiers() - END - matchedBy=INTERNAL_CODE, catalogItemId={}", found.id());
+                return Optional.of(found);
+            }
+        }
+
+        log.info("findByXmlIdentifiers() - END - companyId={}, found=false", companyId);
+        return Optional.empty();
     }
 
     @Transactional

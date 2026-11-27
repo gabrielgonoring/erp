@@ -7,15 +7,20 @@ import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
 import company.aura.erp.entity.PartnerEntity;
 import company.aura.erp.enums.PartnerStatus;
+import company.aura.erp.mapper.PartnerMapper;
 import company.aura.erp.repository.PartnerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -112,6 +117,44 @@ public class PartnerService {
         PartnerResponse response = PartnerResponse.fromEntity(partner);
 
         log.info("findById() - END - id={}, companyId={}", response.id(), companyId);
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsByIdAndCompanyId(Long id, Long companyId) {
+        log.info("existsByIdAndCompanyId() - START - id={}, companyId={}", id, companyId);
+        boolean exists = id != null && companyId != null && partnerRepository.existsByIdAndCompanyId(id, companyId);
+        log.info("existsByIdAndCompanyId() - END - id={}, companyId={}, exists={}", id, companyId, exists);
+        return exists;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<PartnerResponse> findActiveByIdAndCompanyId(Long id, Long companyId) {
+        log.info("findActiveByIdAndCompanyId() - START - id={}, companyId={}", id, companyId);
+        if (id == null || companyId == null) {
+            log.info("findActiveByIdAndCompanyId() - END - found=false");
+            return Optional.empty();
+        }
+        Optional<PartnerResponse> response = partnerRepository.findActiveByIdAndCompanyId(id, companyId)
+                .map(PartnerResponse::fromEntity);
+        log.info("findActiveByIdAndCompanyId() - END - id={}, found={}", id, response.isPresent());
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<PartnerResponse> findByDocumentAndCompanyId(String document, Long companyId) {
+        String normalizedDocument = PartnerMapper.normalizeDocument(document);
+        log.info("findByDocumentAndCompanyId() - START - companyId={}, document={}", companyId, normalizedDocument);
+
+        if (companyId == null || StringUtils.isBlank(normalizedDocument)) {
+            log.info("findByDocumentAndCompanyId() - END - companyId={}, found=false", companyId);
+            return Optional.empty();
+        }
+
+        List<PartnerEntity> matches = partnerRepository.findActiveByCompanyIdAndDocument(companyId, normalizedDocument);
+        Optional<PartnerResponse> response = matches.stream().findFirst().map(PartnerResponse::fromEntity);
+
+        log.info("findByDocumentAndCompanyId() - END - companyId={}, found={}", companyId, response.isPresent());
         return response;
     }
 

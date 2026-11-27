@@ -11,7 +11,6 @@ import company.aura.erp.modules.invoice.domain.InvoiceTotalsData;
 import company.aura.erp.modules.invoice.domain.ParsedInvoiceXml;
 import company.aura.erp.modules.invoice.service.InvoiceXmlReaderService;
 import company.aura.erp.repository.InvoiceRepository;
-import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.specification.InvoiceSpecification;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +38,7 @@ import static company.aura.erp.util.InvoiceUtil.*;
 public class InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
-    private final PartnerRepository partnerRepository;
+    private final PartnerService partnerService;
     private final CloudflareR2Service r2Service;
     private final InvoiceXmlReaderService invoiceXmlReaderService;
 
@@ -67,15 +66,30 @@ public class InvoiceService {
     }
 
     @Transactional(readOnly = true)
+    public LoadedInvoiceXml loadAndParseXml(Long invoiceId, Long companyId) {
+        log.info("loadAndParseXml() - START - invoiceId={}, companyId={}", invoiceId, companyId);
+
+        InvoiceEntity invoice = findOwnedInvoice(invoiceId, companyId);
+        String xmlUrl = invoice.getXmlUrl();
+        if (StringUtils.isBlank(xmlUrl)) {
+            log.warn("loadAndParseXml() - WARN - XML URL absent for invoiceId={}, companyId={}", invoiceId, companyId);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Arquivo XML não encontrado para esta nota fiscal.");
+        }
+
+        String xmlKey = r2Service.extractKeyFromUrl(xmlUrl);
+        byte[] xmlBytes = r2Service.download(xmlKey);
+        ParsedInvoiceXml parsedXml = invoiceXmlReaderService.read(xmlBytes);
+
+        log.info("loadAndParseXml() - END - invoiceId={}, companyId={}, itemsCount={}",
+                invoiceId, companyId, parsedXml.getItems() != null ? parsedXml.getItems().size() : 0);
+        return new LoadedInvoiceXml(invoice, parsedXml);
+    }
+
+    @Transactional(readOnly = true)
     public String getPdfUrl(Long invoiceId, UserPrincipal currentUser) {
         log.info("getPdfUrl() - START - invoiceId={}, companyId={}", invoiceId, currentUser.getCompanyId());
 
-        InvoiceEntity invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + invoiceId));
-
-        if (!invoice.getCompanyId().equals(currentUser.getCompanyId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A nota fiscal informada não pertence à empresa do usuário logado.");
-        }
+        InvoiceEntity invoice = findOwnedInvoice(invoiceId, currentUser.getCompanyId());
 
         String pdfUrl = invoice.getPdfUrl();
         if (pdfUrl == null || pdfUrl.isBlank()) {
@@ -91,12 +105,7 @@ public class InvoiceService {
     public String getXmlUrl(Long invoiceId, UserPrincipal currentUser) {
         log.info("getXmlUrl() - START - invoiceId={}, companyId={}", invoiceId, currentUser.getCompanyId());
 
-        InvoiceEntity invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + invoiceId));
-
-        if (!invoice.getCompanyId().equals(currentUser.getCompanyId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A nota fiscal informada não pertence à empresa do usuário logado.");
-        }
+        InvoiceEntity invoice = findOwnedInvoice(invoiceId, currentUser.getCompanyId());
 
         String xmlUrl = invoice.getXmlUrl();
         if (xmlUrl == null || xmlUrl.isBlank()) {
@@ -144,6 +153,16 @@ public class InvoiceService {
         return responses;
     }
 
+    private InvoiceEntity findOwnedInvoice(Long invoiceId, Long companyId) {
+        InvoiceEntity invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Nota fiscal não encontrada com ID: " + invoiceId));
+
+        if (!invoice.getCompanyId().equals(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A nota fiscal informada não pertence à empresa do usuário logado.");
+        }
+        return invoice;
+    }
+
     private void validateExternalInvoiceInputs(InvoiceCreateRequest request, MultipartFile xmlFile, MultipartFile danfePdf, UserPrincipal currentUser) {
         log.info("validateExternalInvoiceInputs() - START - partnerId={}, companyId={}",
                 request != null ? request.getPartnerId() : null, currentUser.getCompanyId());
@@ -157,7 +176,7 @@ public class InvoiceService {
         if (danfePdf == null || danfePdf.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O arquivo PDF da DANFE é obrigatório.");
         }
-        if (!partnerRepository.existsByIdAndCompanyId(request.getPartnerId(), currentUser.getCompanyId())) {
+        if (!partnerService.existsByIdAndCompanyId(request.getPartnerId(), currentUser.getCompanyId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Parceiro não foi encontrado para esta empresa.");
         }
 
@@ -231,6 +250,9 @@ public class InvoiceService {
         } catch (Exception ex) {
             log.warn("deleteFileOnBucket() - ERROR - Error when delete file in bucket - key: {}, error: {}", xmlKey, ex.getMessage());
         }
+    }
+
+    public record LoadedInvoiceXml(InvoiceEntity invoice, ParsedInvoiceXml parsedXml) {
     }
 
     private record UploadedInvoice(String xmlUrl, String pdfUrl) {

@@ -36,6 +36,32 @@ public interface CatalogItemRepository extends JpaRepository<CatalogItemEntity, 
             @Param("status") String status
     );
 
+    @Query("SELECT c FROM CatalogItemEntity c " +
+           "LEFT JOIN FETCH c.physicalItem " +
+           "LEFT JOIN FETCH c.serviceItem " +
+           "WHERE c.companyId = :companyId " +
+           "AND LOWER(TRIM(c.internalCode)) = LOWER(TRIM(:internalCode)) " +
+           "AND (c.status IS NULL OR c.status <> 'DELETED') " +
+           "AND c.deletedAt IS NULL " +
+           "ORDER BY c.id ASC")
+    List<CatalogItemEntity> findActiveByCompanyIdAndInternalCode(
+            @Param("companyId") Long companyId,
+            @Param("internalCode") String internalCode
+    );
+
+    @Query("SELECT c FROM CatalogItemEntity c " +
+           "JOIN FETCH c.physicalItem p " +
+           "LEFT JOIN FETCH c.serviceItem " +
+           "WHERE c.companyId = :companyId " +
+           "AND LOWER(TRIM(p.gtinEan)) = LOWER(TRIM(:gtinEan)) " +
+           "AND (c.status IS NULL OR c.status <> 'DELETED') " +
+           "AND c.deletedAt IS NULL " +
+           "ORDER BY c.id ASC")
+    List<CatalogItemEntity> findActiveByCompanyIdAndGtinEan(
+            @Param("companyId") Long companyId,
+            @Param("gtinEan") String gtinEan
+    );
+
     @Query("SELECT c FROM CatalogItemEntity c WHERE c.companyId = :companyId AND (c.status IS NULL OR c.status <> 'DELETED') AND c.deletedAt IS NULL AND " +
            "(:categoryId IS NULL OR c.categoryId = :categoryId) AND " +
            "(:type IS NULL OR c.type = :type) AND " +
