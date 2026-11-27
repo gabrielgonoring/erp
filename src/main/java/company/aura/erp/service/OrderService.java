@@ -279,7 +279,13 @@ public class OrderService {
             receivedService.processReceivables(receivablesSanitized, companyId);
         }
 
+        LocalDateTime completionDate = (request != null && request.getCompletedAt() != null)
+                ? request.getCompletedAt()
+                : LocalDateTime.now();
+
         order.setStatus(OrderStatus.COMPLETED);
+        order.setCompletedAt(completionDate);
+        order.setCreatedAt(completionDate);
         OrderEntity savedOrder = orderRepository.save(order);
 
         if (commissionService != null) {

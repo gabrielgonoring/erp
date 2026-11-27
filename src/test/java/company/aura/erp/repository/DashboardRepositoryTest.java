@@ -217,6 +217,32 @@ class DashboardRepositoryTest {
         assertEquals(2L, summary.overdueCustomersCount());
     }
 
+    @Test
+    @DisplayName("OrderEntity — Deve permitir atualizar createdAt e completedAt no banco de dados")
+    void shouldPersistUpdatedCreatedAtAndCompletedAtOnOrder() {
+        OrderEntity saved = orderRepository.saveAndFlush(
+                OrderEntity.builder()
+                        .companyId(1L)
+                        .partnerId(1L)
+                        .status(OrderStatus.OPEN)
+                        .totalAmount(new BigDecimal("250.00"))
+                        .build()
+        );
+
+        LocalDateTime customDate = LocalDateTime.of(2026, 10, 15, 11, 20, 0);
+        saved.setStatus(OrderStatus.COMPLETED);
+        saved.setCompletedAt(customDate);
+        saved.setCreatedAt(customDate);
+        orderRepository.saveAndFlush(saved);
+
+        entityManager.clear();
+
+        OrderEntity reloaded = orderRepository.findById(saved.getId()).orElseThrow();
+        assertEquals(OrderStatus.COMPLETED, reloaded.getStatus());
+        assertEquals(customDate, reloaded.getCompletedAt());
+        assertEquals(customDate, reloaded.getCreatedAt());
+    }
+
     private void saveTransactionWithPaidAt(Long companyId, PaymentTransactionType type, BigDecimal amount, LocalDateTime paidAt) {
         PaymentTransactionEntity entity = paymentTransactionRepository.saveAndFlush(
                 PaymentTransactionEntity.builder()

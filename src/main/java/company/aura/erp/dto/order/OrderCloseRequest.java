@@ -6,8 +6,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Data
@@ -22,4 +30,6 @@ public class OrderCloseRequest {
 
     @DecimalMin(value = "0.00", message = "O valor de desconto não pode ser negativo.")
     private BigDecimal discountAmount;
+
+    private LocalDateTime completedAt;
 }

@@ -1208,4 +1208,71 @@ class OrderServiceTest {
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
         verify(receivedService, never()).processReceivables(any(), any());
     }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve usar completedAt informado para completedAt e createdAt do pedido")
+    void shouldCloseOrderWithCustomCompletedAtAndUpdateCreatedAt() {
+        LocalDateTime customDate = LocalDateTime.of(2026, 11, 10, 14, 30, 0);
+        sampleOrder.setFreightAmount(BigDecimal.ZERO);
+        sampleOrder.setTotalAmount(new BigDecimal("100.00"));
+        sampleOrder.setCreatedAt(LocalDateTime.of(2026, 11, 27, 9, 0, 0));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .completedAt(customDate)
+                .receivables(List.of(
+                        new ReceivableRequest(100L, null, ReceivableOriginType.ORDER, partnerId, 1, LocalDate.now(), new BigDecimal("100.00"), PaymentMethod.PIX, true, null, null, null, null, null, null)
+                ))
+                .build();
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .totalPrice(new BigDecimal("100.00"))
+                .stockDeducted(true)
+                .build();
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
+        when(receivedService.findReceivableResponses(100L)).thenReturn(Collections.emptyList());
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+
+        assertEquals(OrderStatus.COMPLETED, response.getStatus());
+        assertEquals(customDate, response.getCompletedAt());
+        assertEquals(customDate, response.getCreatedAt());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve usar a data de hoje para completedAt e createdAt quando completedAt não for informado")
+    void shouldCloseOrderWithTodayDateWhenCompletedAtIsNull() {
+        sampleOrder.setFreightAmount(BigDecimal.ZERO);
+        sampleOrder.setTotalAmount(new BigDecimal("100.00"));
+        sampleOrder.setCreatedAt(LocalDateTime.of(2026, 10, 1, 10, 0, 0));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .receivables(Collections.emptyList())
+                .build();
+
+        ReceivableResponse existingLinked = ReceivableResponse.builder()
+                .id(400L).orderId(100L).status(ReceivableStatus.PAID).amount(new BigDecimal("100.00")).build();
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L).orderId(100L).itemType(CatalogItemType.SERVICE).totalPrice(new BigDecimal("100.00")).build();
+
+        when(orderShippingService.upsertShippingOnClose(100L, request)).thenReturn(null);
+        when(orderItemService.closeItem(100L)).thenReturn(List.of(item));
+        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(existingLinked));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+        OrderResponse response = orderService.closeOrder(100L, request, companyId);
+        LocalDateTime after = LocalDateTime.now().plusSeconds(1);
+
+        assertNotNull(response.getCompletedAt());
+        assertEquals(response.getCompletedAt(), response.getCreatedAt());
+        assertTrue(!response.getCompletedAt().isBefore(before) && !response.getCompletedAt().isAfter(after));
+    }
 }

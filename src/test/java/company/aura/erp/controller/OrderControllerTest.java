@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,6 +34,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -297,6 +299,47 @@ class OrderControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(responseDto, response.getBody());
         verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close — Deve repassar completedAt opcional no fechamento")
+    void shouldCloseOrderWithCompletedAt() {
+        LocalDateTime customDate = LocalDateTime.of(2026, 11, 15, 16, 45);
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .completedAt(customDate)
+                .build();
+        OrderResponse responseDto = new OrderResponse(
+                1L, 10L, 5L, OrderStatus.COMPLETED,
+                BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
+                null, customDate, customDate, LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
+        );
+
+        when(orderService.closeOrder(1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderResponse> response = orderController.closeOrder(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(customDate, response.getBody().getCompletedAt());
+        assertEquals(customDate, response.getBody().getCreatedAt());
+        verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("OrderCloseRequest — Deve desserializar completedAt em formato LocalDate, LocalDateTime e OffsetDateTime")
+    void shouldDeserializeCompletedAtFormats() {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        OrderCloseRequest dateOnly = objectMapper.readValue("{\"completedAt\":\"2026-11-20\"}", OrderCloseRequest.class);
+        assertEquals(LocalDateTime.of(2026, 11, 20, 0, 0, 0), dateOnly.getCompletedAt());
+
+        OrderCloseRequest dateTime = objectMapper.readValue("{\"completedAt\":\"2026-11-20T14:30:00\"}", OrderCloseRequest.class);
+        assertEquals(LocalDateTime.of(2026, 11, 20, 14, 30, 0), dateTime.getCompletedAt());
+
+        OrderCloseRequest offsetDateTime = objectMapper.readValue("{\"completedAt\":\"2026-11-20T14:30:00Z\"}", OrderCloseRequest.class);
+        assertEquals(LocalDateTime.of(2026, 11, 20, 14, 30, 0), offsetDateTime.getCompletedAt());
+
+        OrderCloseRequest empty = objectMapper.readValue("{}", OrderCloseRequest.class);
+        assertNull(empty.getCompletedAt());
     }
 
     @Test
