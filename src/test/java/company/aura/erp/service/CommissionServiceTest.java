@@ -17,11 +17,13 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -274,5 +276,91 @@ class CommissionServiceTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> commissionService.cancelEntry(900L, 10L));
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("hasNonPendingEntriesForOrder — Deve verificar via exists se há comissão não pendente vinculada ao pedido")
+    void shouldCheckHasNonPendingEntriesForOrder() {
+        when(commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceDocumentIdAndStatusNot(
+                10L, CommissionSourceType.ORDER_ITEM, 100L, CommissionEntryStatus.PENDING))
+                .thenReturn(true);
+
+        assertTrue(commissionService.hasNonPendingEntriesForOrder(100L, 10L));
+
+        when(commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceDocumentIdAndStatusNot(
+                10L, CommissionSourceType.ORDER_ITEM, 101L, CommissionEntryStatus.PENDING))
+                .thenReturn(false);
+
+        assertFalse(commissionService.hasNonPendingEntriesForOrder(101L, 10L));
+        verify(commissionEntryRepository).existsByCompanyIdAndSourceTypeAndSourceDocumentIdAndStatusNot(
+                10L, CommissionSourceType.ORDER_ITEM, 100L, CommissionEntryStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("cancelEntriesForOrder — Deve cancelar lançamentos pendentes do pedido com sucesso")
+    void shouldCancelPendingEntriesForOrder() {
+        CommissionEntryEntity entry1 = CommissionEntryEntity.builder()
+                .id(900L)
+                .companyId(10L)
+                .sourceType(CommissionSourceType.ORDER_ITEM)
+                .sourceDocumentId(100L)
+                .status(CommissionEntryStatus.PENDING)
+                .build();
+        CommissionEntryEntity entry2 = CommissionEntryEntity.builder()
+                .id(901L)
+                .companyId(10L)
+                .sourceType(CommissionSourceType.ORDER_ITEM)
+                .sourceDocumentId(100L)
+                .status(CommissionEntryStatus.CANCELED)
+                .build();
+
+        when(commissionEntryRepository.findByCompanyIdAndSourceTypeAndSourceDocumentId(10L, CommissionSourceType.ORDER_ITEM, 100L))
+                .thenReturn(List.of(entry1, entry2));
+
+        commissionService.cancelEntriesForOrder(100L, 10L);
+
+        assertEquals(CommissionEntryStatus.CANCELED, entry1.getStatus());
+        verify(commissionEntryRepository).saveAll(List.of(entry1));
+    }
+
+    @Test
+    @DisplayName("cancelEntriesForOrder — Deve permitir cancelamento quando pedido não possui lançamentos de comissão")
+    void shouldAllowCancelingOrderWithNoCommissionEntries() {
+        when(commissionEntryRepository.findByCompanyIdAndSourceTypeAndSourceDocumentId(10L, CommissionSourceType.ORDER_ITEM, 100L))
+                .thenReturn(Collections.emptyList());
+
+        commissionService.cancelEntriesForOrder(100L, 10L);
+
+        verify(commissionEntryRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("cancelEntriesForOrder — Deve lançar 422 quando existir comissão em fechamento, aprovada ou paga")
+    void shouldThrow422WhenCancelingOrderWithNonPendingOrStatementCommission() {
+        CommissionEntryEntity pendingEntry = CommissionEntryEntity.builder()
+                .id(900L)
+                .companyId(10L)
+                .sourceType(CommissionSourceType.ORDER_ITEM)
+                .sourceDocumentId(100L)
+                .status(CommissionEntryStatus.PENDING)
+                .build();
+        CommissionEntryEntity inStatementEntry = CommissionEntryEntity.builder()
+                .id(901L)
+                .companyId(10L)
+                .sourceType(CommissionSourceType.ORDER_ITEM)
+                .sourceDocumentId(100L)
+                .statementId(50L)
+                .status(CommissionEntryStatus.IN_STATEMENT)
+                .build();
+
+        when(commissionEntryRepository.findByCompanyIdAndSourceTypeAndSourceDocumentId(10L, CommissionSourceType.ORDER_ITEM, 100L))
+                .thenReturn(List.of(pendingEntry, inStatementEntry));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> commissionService.cancelEntriesForOrder(100L, 10L));
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        assertEquals(CommissionEntryStatus.PENDING, pendingEntry.getStatus());
+        verify(commissionEntryRepository, never()).saveAll(anyList());
     }
 }

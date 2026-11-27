@@ -1059,4 +1059,80 @@ class ReceivedServiceTest {
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         verify(paymentTransactionRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("hasNonCanceledReceivablesForOrder — Deve retornar true quando existir cobrança não cancelada para o pedido")
+    void shouldReturnTrueWhenNonCanceledReceivableExistsForOrder() {
+        when(receivableRepository.existsByOrderIdAndCompanyIdAndStatusNot(100L, COMPANY_ID, ReceivableStatus.CANCELED))
+                .thenReturn(true);
+
+        assertTrue(receivedService.hasNonCanceledReceivablesForOrder(100L, COMPANY_ID));
+        verify(receivableRepository).existsByOrderIdAndCompanyIdAndStatusNot(100L, COMPANY_ID, ReceivableStatus.CANCELED);
+    }
+
+    @Test
+    @DisplayName("hasNonCanceledReceivablesForOrder — Deve retornar false quando não existir cobrança ativa para o pedido")
+    void shouldReturnFalseWhenNoNonCanceledReceivableExistsForOrder() {
+        when(receivableRepository.existsByOrderIdAndCompanyIdAndStatusNot(100L, COMPANY_ID, ReceivableStatus.CANCELED))
+                .thenReturn(false);
+
+        assertFalse(receivedService.hasNonCanceledReceivablesForOrder(100L, COMPANY_ID));
+        verify(receivableRepository).existsByOrderIdAndCompanyIdAndStatusNot(100L, COMPANY_ID, ReceivableStatus.CANCELED);
+    }
+
+    @Test
+    @DisplayName("cancelOrderReceivablesAndTransactions — Deve excluir transações (estornos antes de pagamentos) e cancelar recebíveis")
+    void shouldCancelOrderReceivablesAndDeleteTransactionsPhysically() {
+        ReceivableEntity receivable1 = ReceivableEntity.builder()
+                .id(1L)
+                .orderId(100L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PAID)
+                .amount(BigDecimal.valueOf(100.00))
+                .pendingAmount(BigDecimal.ZERO)
+                .build();
+        ReceivableEntity receivable2 = ReceivableEntity.builder()
+                .id(2L)
+                .orderId(100L)
+                .companyId(COMPANY_ID)
+                .status(ReceivableStatus.PENDING)
+                .amount(BigDecimal.valueOf(50.00))
+                .pendingAmount(BigDecimal.valueOf(50.00))
+                .build();
+
+        PaymentTransactionEntity paymentTx = PaymentTransactionEntity.builder()
+                .id(10L)
+                .receivableId(1L)
+                .companyId(COMPANY_ID)
+                .transactionType(PaymentTransactionType.PAYMENT)
+                .refundedTransactionId(null)
+                .build();
+        PaymentTransactionEntity refundTx = PaymentTransactionEntity.builder()
+                .id(11L)
+                .receivableId(1L)
+                .companyId(COMPANY_ID)
+                .transactionType(PaymentTransactionType.REFUND)
+                .refundedTransactionId(10L)
+                .build();
+
+        when(receivableRepository.findByOrderId(100L)).thenReturn(List.of(receivable1, receivable2));
+        when(paymentTransactionRepository.findByReceivableId(1L)).thenReturn(List.of(paymentTx, refundTx));
+        when(paymentTransactionRepository.findByReceivableId(2L)).thenReturn(Collections.emptyList());
+
+        receivedService.cancelOrderReceivablesAndTransactions(100L, COMPANY_ID);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PaymentTransactionEntity>> txCaptor = ArgumentCaptor.forClass(List.class);
+        verify(paymentTransactionRepository).deleteAll(txCaptor.capture());
+        List<PaymentTransactionEntity> deletedTxs = txCaptor.getValue();
+        assertEquals(2, deletedTxs.size());
+        assertEquals(11L, deletedTxs.get(0).getId());
+        assertEquals(10L, deletedTxs.get(1).getId());
+
+        assertEquals(ReceivableStatus.CANCELED, receivable1.getStatus());
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), receivable1.getPendingAmount());
+        assertEquals(ReceivableStatus.CANCELED, receivable2.getStatus());
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), receivable2.getPendingAmount());
+        verify(receivableRepository).saveAll(List.of(receivable1, receivable2));
+    }
 }

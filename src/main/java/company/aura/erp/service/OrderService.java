@@ -10,8 +10,8 @@ import company.aura.erp.mapper.OrderShippingMapper;
 import company.aura.erp.repository.OrderRepository;
 import company.aura.erp.repository.PartnerRepository;
 import company.aura.erp.security.UserPrincipal;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -31,7 +31,6 @@ import java.util.Objects;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class OrderService {
 
     private final OrderRepository orderRepository;
@@ -41,6 +40,27 @@ public class OrderService {
     private final OrderShippingService orderShippingService;
     private final OrderInvoiceService orderInvoiceService;
     private final CommissionService commissionService;
+    private final ServiceOrderService serviceOrderService;
+
+    public OrderService(
+            OrderRepository orderRepository,
+            PartnerRepository partnerRepository,
+            ReceivedService receivedService,
+            OrderItemService orderItemService,
+            OrderShippingService orderShippingService,
+            OrderInvoiceService orderInvoiceService,
+            CommissionService commissionService,
+            @Lazy ServiceOrderService serviceOrderService
+    ) {
+        this.orderRepository = orderRepository;
+        this.partnerRepository = partnerRepository;
+        this.receivedService = receivedService;
+        this.orderItemService = orderItemService;
+        this.orderShippingService = orderShippingService;
+        this.orderInvoiceService = orderInvoiceService;
+        this.commissionService = commissionService;
+        this.serviceOrderService = serviceOrderService;
+    }
 
     @Transactional
     public OrderResponse openOrder(OrderCreateRequest request, Long companyId) {
@@ -239,7 +259,54 @@ public class OrderService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public OrderSimilarCheckResponse checkSimilarOnClose(Long orderId, OrderCloseRequest request, Long companyId) {
+        log.info("checkSimilarOnClose() - START - orderId={}, companyId={}", orderId, companyId);
 
+        OrderEntity order = findOrder(orderId, companyId);
+
+        BigDecimal extraDiscount = (request != null && request.getDiscountAmount() != null)
+                ? request.getDiscountAmount()
+                : BigDecimal.ZERO;
+
+        BigDecimal freight = isShippingProvided(request)
+                ? resolveFreightAmount(request.getShipping())
+                : (order.getFreightAmount() != null ? order.getFreightAmount() : BigDecimal.ZERO);
+
+        List<OrderItemEntity> items = orderItemService.findOrderItems(orderId);
+        BigDecimal itemsTotal = calculateItemsTotal(order, items);
+
+        BigDecimal projectedTotal = itemsTotal.add(freight).subtract(extraDiscount);
+        if (projectedTotal.compareTo(BigDecimal.ZERO) < 0) {
+            projectedTotal = BigDecimal.ZERO;
+        }
+        projectedTotal = projectedTotal.setScale(2, RoundingMode.HALF_UP);
+
+        LocalDate targetDate = (request != null && request.getCompletedAt() != null)
+                ? request.getCompletedAt().toLocalDate()
+                : LocalDate.now();
+        LocalDateTime startDateTime = targetDate.minusDays(2).atStartOfDay();
+        LocalDateTime endDateTimeExclusive = targetDate.plusDays(3).atStartOfDay();
+
+        List<OrderSummaryResponse> similarOrders = orderRepository.findSimilarOrders(
+                companyId,
+                orderId,
+                order.getPartnerId(),
+                OrderStatus.CANCELED,
+                projectedTotal,
+                startDateTime,
+                endDateTimeExclusive
+        );
+
+        OrderSimilarCheckResponse response = OrderSimilarCheckResponse.builder()
+                .hasSimilar(!similarOrders.isEmpty())
+                .similarOrders(similarOrders)
+                .build();
+
+        log.info("checkSimilarOnClose() - END - orderId={}, companyId={}, hasSimilar={}, count={}",
+                orderId, companyId, response.isHasSimilar(), similarOrders.size());
+        return response;
+    }
 
     @Transactional
     public OrderResponse closeOrder(Long orderId, OrderCloseRequest request, Long companyId) {
@@ -302,6 +369,98 @@ public class OrderService {
         OrderResponse response = OrderMapper.fromEntity(savedOrder, customerName, items, savedReceivables, savedShipping, null);
         log.info("closeOrder() - END - orderId={}, companyId={}, status={}", response.getId(), companyId, savedOrder.getStatus());
         return response;
+    }
+
+    @Transactional
+    public void deleteOrder(Long orderId, Long companyId) {
+        log.info("deleteOrder() - START - orderId={}, companyId={}", orderId, companyId);
+
+        OrderEntity order = findOrder(orderId, companyId);
+
+        validateOrderDeletion(order, orderId, companyId);
+
+        orderItemService.deleteAllByOrderId(orderId);
+        orderShippingService.deleteShipping(orderId);
+        orderRepository.delete(order);
+
+        log.info("deleteOrder() - END - orderId={}, companyId={}", orderId, companyId);
+    }
+
+    private void validateOrderDeletion(OrderEntity order, Long orderId, Long companyId) {
+        if (order.getStatus() != OrderStatus.OPEN) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Somente pedidos em aberto podem ser excluídos.");
+        }
+
+        List<OrderInvoiceResponse> linkedInvoices = orderInvoiceService.findInvoicesByOrderId(orderId, companyId);
+        if (linkedInvoices != null && !linkedInvoices.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível excluir um pedido que possui nota fiscal vinculada.");
+        }
+
+        if (serviceOrderService != null && serviceOrderService.existsByOrderId(orderId, companyId)) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível excluir um pedido vinculado a uma ordem de serviço.");
+        }
+
+        if (commissionService != null && commissionService.hasNonPendingEntriesForOrder(orderId, companyId)) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível excluir um pedido que possui comissões que não estão pendentes.");
+        }
+
+        if (receivedService.hasNonCanceledReceivablesForOrder(orderId, companyId)) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível excluir um pedido que possui cobranças não canceladas vinculadas.");
+        }
+    }
+
+    @Transactional
+    public OrderResponse cancelOrder(Long orderId, Long companyId) {
+        log.info("cancelOrder() - START - orderId={}, companyId={}", orderId, companyId);
+
+        OrderEntity order = findOrder(orderId, companyId);
+
+        validateOrderCancellation(order, orderId, companyId);
+
+        commissionService.cancelEntriesForOrder(orderId, companyId);
+
+        receivedService.cancelOrderReceivablesAndTransactions(orderId, companyId);
+
+        order.setStatus(OrderStatus.CANCELED);
+        OrderEntity savedOrder = orderRepository.save(order);
+
+        String customerName = savedOrder.getPartnerId() != null
+                ? partnerRepository.findNameByIdAndCompanyId(savedOrder.getPartnerId(), companyId)
+                        .orElse(null)
+                : null;
+
+        List<ReceivableResponse> receivables = receivedService.findReceivableResponses(orderId);
+
+        OrderShippingEntity shipping = orderShippingService.findByOrderId(orderId).orElse(null);
+
+        List<OrderItemEntity> items = orderItemService.cancelItems(orderId);
+
+        OrderResponse response = OrderMapper.fromEntityWithResponses(
+                savedOrder, customerName, items, receivables, shipping, Collections.emptyList()
+        );
+        log.info("cancelOrder() - END - orderId={}, companyId={}, status={}", response.getId(), companyId, savedOrder.getStatus());
+        return response;
+    }
+
+    private void validateOrderCancellation(OrderEntity order, Long orderId, Long companyId) {
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "O pedido já está cancelado.");
+        }
+        if (order.getStatus() != OrderStatus.COMPLETED) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Somente pedidos fechados podem ser cancelados.");
+        }
+
+        List<OrderInvoiceResponse> linkedInvoices = orderInvoiceService.findInvoicesByOrderId(orderId, companyId);
+        if (linkedInvoices != null && !linkedInvoices.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível cancelar um pedido que possui nota fiscal vinculada.");
+        }
     }
 
     private void validateOrderPayment(List<ReceivableRequest> requestReceivables, OrderEntity order, BigDecimal extraDiscount) {
@@ -398,6 +557,18 @@ public class OrderService {
 
     private boolean isShippingProvided(OrderCloseRequest request) {
         return request != null && request.getShipping() != null && request.getShipping().getFreightAmount() != null;
+    }
+
+    private BigDecimal calculateItemsTotal(OrderEntity order, List<OrderItemEntity> items) {
+        if (items != null && !items.isEmpty()) {
+            return items.stream()
+                    .map(OrderItemEntity::getTotalPrice)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+        BigDecimal servicesAmount = order.getServicesAmount() != null ? order.getServicesAmount() : BigDecimal.ZERO;
+        BigDecimal productsAmount = order.getProductsAmount() != null ? order.getProductsAmount() : BigDecimal.ZERO;
+        return servicesAmount.add(productsAmount);
     }
 
     private void recalculateOrderTotals(OrderEntity order, List<OrderItemEntity> items) {

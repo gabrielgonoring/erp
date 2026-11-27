@@ -302,4 +302,40 @@ class OrderItemServiceTest {
         assertEquals(new BigDecimal("120.00"), updated.getUnitPrice());
         assertEquals(new BigDecimal("240.00"), updated.getTotalPrice());
     }
+
+    @Test
+    @DisplayName("deleteAllByOrderId — Deve remover todos os itens do pedido")
+    void shouldDeleteAllByOrderId() {
+        orderItemService.deleteAllByOrderId(1L);
+
+        verify(orderItemRepository).deleteByOrderId(1L);
+    }
+
+    @Test
+    @DisplayName("cancelItems — Deve reverter stockDeducted apenas dos itens que tiveram baixa de estoque")
+    void shouldCancelItemsAndRevertStockDeduction() {
+        OrderItemEntity physicalItem = OrderItemEntity.builder()
+                .id(10L)
+                .orderId(1L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .stockDeducted(true)
+                .build();
+        OrderItemEntity serviceItem = OrderItemEntity.builder()
+                .id(11L)
+                .orderId(1L)
+                .itemType(CatalogItemType.SERVICE)
+                .stockDeducted(false)
+                .build();
+
+        when(orderItemRepository.findByOrderId(1L)).thenReturn(List.of(physicalItem, serviceItem));
+        when(orderItemRepository.save(physicalItem)).thenReturn(physicalItem);
+
+        List<OrderItemEntity> result = orderItemService.cancelItems(1L);
+
+        assertEquals(2, result.size());
+        assertEquals(Boolean.FALSE, physicalItem.getStockDeducted());
+        assertEquals(Boolean.FALSE, serviceItem.getStockDeducted());
+        verify(orderItemRepository).save(physicalItem);
+        verify(orderItemRepository, never()).save(serviceItem);
+    }
 }

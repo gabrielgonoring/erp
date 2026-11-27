@@ -35,6 +35,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -148,6 +149,15 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve apagar pedido em aberto e retornar HTTP 204")
+    void shouldDeleteOpenOrder() {
+        ResponseEntity<Void> response = orderController.deleteOrder(1L, userPrincipal);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(orderService).deleteOrder(1L, 10L);
+    }
+
+    @Test
     @DisplayName("PUT /api/orders/{id}/shipping — Deve alterar as informações de frete do pedido")
     void shouldUpdateOrderShipping() {
         OrderShippingRequest request = new OrderShippingRequest(
@@ -255,6 +265,32 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/orders/{id}/close/check-similar — Deve retornar verificação de pedidos similares e HTTP 200")
+    void shouldCheckSimilarOrdersOnClose() {
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .discountAmount(BigDecimal.valueOf(10.00))
+                .completedAt(LocalDateTime.of(2026, 11, 20, 14, 30))
+                .build();
+        OrderSummaryResponse similar = new OrderSummaryResponse(
+                2L, "12345678901", "Cliente Teste", BigDecimal.valueOf(90.00), OrderStatus.COMPLETED, LocalDateTime.of(2026, 11, 20, 10, 0)
+        );
+        OrderSimilarCheckResponse responseDto = OrderSimilarCheckResponse.builder()
+                .hasSimilar(true)
+                .similarOrders(List.of(similar))
+                .build();
+
+        when(orderService.checkSimilarOnClose(1L, request, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderSimilarCheckResponse> response = orderController.checkSimilarOnClose(1L, request, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        assertTrue(response.getBody().isHasSimilar());
+        assertEquals(1, response.getBody().getSimilarOrders().size());
+        verify(orderService).checkSimilarOnClose(1L, request, 10L);
+    }
+
+    @Test
     @DisplayName("POST /api/orders/{id}/close — Deve fechar comanda e retornar HTTP 200")
     void shouldCloseOrder() {
         OrderCloseRequest request = OrderCloseRequest.builder()
@@ -322,6 +358,25 @@ class OrderControllerTest {
         assertEquals(customDate, response.getBody().getCompletedAt());
         assertEquals(customDate, response.getBody().getCreatedAt());
         verify(orderService).closeOrder(1L, request, 10L);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve cancelar pedido fechado e retornar HTTP 200")
+    void shouldCancelClosedOrder() {
+        OrderResponse responseDto = new OrderResponse(
+                1L, 10L, 5L, OrderStatus.CANCELED,
+                BigDecimal.ZERO, BigDecimal.valueOf(100.00), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(100.00),
+                null, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now(), Collections.emptyList(), Collections.emptyList()
+        );
+
+        when(orderService.cancelOrder(1L, 10L)).thenReturn(responseDto);
+
+        ResponseEntity<OrderResponse> response = orderController.cancelOrder(1L, userPrincipal);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(responseDto, response.getBody());
+        assertEquals(OrderStatus.CANCELED, response.getBody().getStatus());
+        verify(orderService).cancelOrder(1L, 10L);
     }
 
     @Test

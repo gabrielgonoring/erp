@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -261,6 +262,44 @@ public class ReceivedService {
         ReceivableResponse response = ReceivableMapper.fromEntity(saved, Collections.emptyList());
         log.info("cancelReceivable() - END - companyId={}, receivableId={}, status={}", companyId, receivableId, response != null ? response.getStatus() : null);
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasNonCanceledReceivablesForOrder(Long orderId, Long companyId) {
+        log.info("hasNonCanceledReceivablesForOrder() - START - orderId={}, companyId={}", orderId, companyId);
+        boolean exists = receivableRepository.existsByOrderIdAndCompanyIdAndStatusNot(
+                orderId, companyId, ReceivableStatus.CANCELED
+        );
+        log.info("hasNonCanceledReceivablesForOrder() - END - orderId={}, companyId={}, exists={}", orderId, companyId, exists);
+        return exists;
+    }
+
+    @Transactional
+    public void cancelOrderReceivablesAndTransactions(Long orderId, Long companyId) {
+        log.info("cancelOrderReceivablesAndTransactions() - START - orderId={}, companyId={}", orderId, companyId);
+
+        List<ReceivableEntity> receivables = receivableRepository.findByOrderId(orderId).stream()
+                .filter(r -> r.getCompanyId() == null || Objects.equals(r.getCompanyId(), companyId))
+                .toList();
+
+        for (ReceivableEntity receivable : receivables) {
+            List<PaymentTransactionEntity> transactions = paymentTransactionRepository.findByReceivableId(receivable.getId());
+            if (transactions != null && !transactions.isEmpty()) {
+                List<PaymentTransactionEntity> sortedTransactions = transactions.stream()
+                        .sorted(Comparator.comparing(tx -> tx.getRefundedTransactionId() == null ? 1 : 0))
+                        .toList();
+                paymentTransactionRepository.deleteAll(sortedTransactions);
+            }
+            receivable.setStatus(ReceivableStatus.CANCELED);
+            receivable.setPendingAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        }
+
+        if (!receivables.isEmpty()) {
+            receivableRepository.saveAll(receivables);
+        }
+
+        log.info("cancelOrderReceivablesAndTransactions() - END - orderId={}, companyId={}, canceledCount={}",
+                orderId, companyId, receivables.size());
     }
 
     public ReceivableResponse uploadPaymentFile(Long companyId, Long receivableId, MultipartFile file, String bankSlipCode) {

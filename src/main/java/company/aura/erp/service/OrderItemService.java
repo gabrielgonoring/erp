@@ -188,6 +188,25 @@ public class OrderItemService {
         log.info("deleteItem() - END - orderId={}, itemId={}", orderId, itemId);
     }
 
+    public void deleteAllByOrderId(Long orderId) {
+        log.info("deleteAllByOrderId() - START - orderId={}", orderId);
+        orderItemRepository.deleteByOrderId(orderId);
+        log.info("deleteAllByOrderId() - END - orderId={}", orderId);
+    }
+
+    public List<OrderItemEntity> cancelItems(Long orderId) {
+        log.info("cancelItems() - START - orderId={}", orderId);
+        List<OrderItemEntity> items = findOrderItems(orderId);
+        for (OrderItemEntity item : items) {
+            if (Boolean.TRUE.equals(item.getStockDeducted())) {
+                item.setStockDeducted(false);
+                orderItemRepository.save(item);
+            }
+        }
+        log.info("cancelItems() - END - orderId={}, itemsCount={}", orderId, items.size());
+        return items;
+    }
+
     public List<OrderItemEntity> closeItem(Long orderId) {
         log.info("closeItem() - START - orderId={}", orderId);
         List<OrderItemEntity> items = findOrderItems(orderId);

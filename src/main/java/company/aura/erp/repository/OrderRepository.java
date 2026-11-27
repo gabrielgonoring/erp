@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -102,6 +103,36 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
             @Param("canceledStatus") OrderStatus canceledStatus,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
+    );
+
+    @Query("""
+        SELECT new company.aura.erp.dto.order.OrderSummaryResponse(
+            o.id,
+            p.document,
+            p.name,
+            o.totalAmount,
+            o.status,
+            COALESCE(o.completedAt, o.createdAt)
+        )
+        FROM OrderEntity o
+        JOIN PartnerEntity p ON o.partnerId = p.id
+        WHERE o.companyId = :companyId
+          AND o.id <> :orderId
+          AND o.partnerId = :partnerId
+          AND o.status <> :canceledStatus
+          AND o.totalAmount = :totalAmount
+          AND COALESCE(o.completedAt, o.createdAt) >= :startDateTime
+          AND COALESCE(o.completedAt, o.createdAt) < :endDateTimeExclusive
+        ORDER BY COALESCE(o.completedAt, o.createdAt) DESC, o.id DESC
+    """)
+    List<OrderSummaryResponse> findSimilarOrders(
+            @Param("companyId") Long companyId,
+            @Param("orderId") Long orderId,
+            @Param("partnerId") Long partnerId,
+            @Param("canceledStatus") OrderStatus canceledStatus,
+            @Param("totalAmount") BigDecimal totalAmount,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTimeExclusive") LocalDateTime endDateTimeExclusive
     );
 
 }

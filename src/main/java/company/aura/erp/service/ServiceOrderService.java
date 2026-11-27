@@ -120,6 +120,11 @@ public class ServiceOrderService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public boolean existsByOrderId(Long orderId, Long companyId) {
+        return serviceOrderRepository.existsByOrderIdAndCompanyId(orderId, companyId);
+    }
+
     @Transactional
     public ServiceOrderResponse create(ServiceOrderCreateRequest request, Long companyId) {
         log.info("create() - START - companyId={}, partnerId={}", companyId, request.getPartnerId());

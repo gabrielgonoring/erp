@@ -24,6 +24,8 @@ public interface ReceivableRepository extends JpaRepository<ReceivableEntity, Lo
 
     List<ReceivableEntity> findByServiceOrderId(Long serviceOrderId);
 
+    boolean existsByOrderIdAndCompanyIdAndStatusNot(Long orderId, Long companyId, ReceivableStatus status);
+
     Optional<ReceivableEntity> findByIdAndCompanyId(Long id, Long companyId);
 
     @Query("SELECT COALESCE(MAX(r.installmentNumber), 0) FROM ReceivableEntity r WHERE r.orderId = :orderId")

@@ -156,6 +156,44 @@ public class CommissionService {
         log.info("cancelEntry() - END - entryId={}, companyId={}", entryId, companyId);
     }
 
+    @Transactional(readOnly = true)
+    public boolean hasNonPendingEntriesForOrder(Long orderId, Long companyId) {
+        return commissionEntryRepository.existsByCompanyIdAndSourceTypeAndSourceDocumentIdAndStatusNot(
+                companyId,
+                CommissionSourceType.ORDER_ITEM,
+                orderId,
+                CommissionEntryStatus.PENDING
+        );
+    }
+
+    @Transactional
+    public void cancelEntriesForOrder(Long orderId, Long companyId) {
+        log.info("cancelEntriesForOrder() - START - orderId={}, companyId={}", orderId, companyId);
+
+        List<CommissionEntryEntity> entries = commissionEntryRepository
+                .findByCompanyIdAndSourceTypeAndSourceDocumentId(companyId, CommissionSourceType.ORDER_ITEM, orderId);
+
+        List<CommissionEntryEntity> activeEntries = entries.stream()
+                .filter(entry -> entry.getStatus() != CommissionEntryStatus.CANCELED)
+                .toList();
+
+        boolean hasNonPendingCommission = activeEntries.stream()
+                .anyMatch(entry -> entry.getStatus() != CommissionEntryStatus.PENDING || entry.getStatementId() != null);
+
+        if (hasNonPendingCommission) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Não é possível cancelar o pedido pois existem lançamentos de comissão que não estão pendentes.");
+        }
+
+        if (!activeEntries.isEmpty()) {
+            activeEntries.forEach(entry -> entry.setStatus(CommissionEntryStatus.CANCELED));
+            commissionEntryRepository.saveAll(activeEntries);
+        }
+
+        log.info("cancelEntriesForOrder() - END - orderId={}, companyId={}, canceledCount={}",
+                orderId, companyId, activeEntries.size());
+    }
+
     @Transactional
     public CommissionStatementResponse createStatement(CommissionStatementCreateRequest request, Long companyId) {
         log.info("createStatement() - START - companyId={}, collaboratorId={}, period={}..{}",

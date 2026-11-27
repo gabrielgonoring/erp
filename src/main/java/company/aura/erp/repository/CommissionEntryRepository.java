@@ -21,6 +21,19 @@ public interface CommissionEntryRepository extends JpaRepository<CommissionEntry
 
     boolean existsByCompanyIdAndSourceTypeAndSourceItemId(Long companyId, CommissionSourceType sourceType, Long sourceItemId);
 
+    boolean existsByCompanyIdAndSourceTypeAndSourceDocumentIdAndStatusNot(
+            Long companyId,
+            CommissionSourceType sourceType,
+            Long sourceDocumentId,
+            CommissionEntryStatus status
+    );
+
+    List<CommissionEntryEntity> findByCompanyIdAndSourceTypeAndSourceDocumentId(
+            Long companyId,
+            CommissionSourceType sourceType,
+            Long sourceDocumentId
+    );
+
     List<CommissionEntryEntity> findByCompanyIdAndSourceTypeAndSourceItemIdInAndStatusNot(
             Long companyId,
             CommissionSourceType sourceType,

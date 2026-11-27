@@ -69,6 +69,9 @@ class OrderServiceTest {
     @Mock
     private CommissionService commissionService;
 
+    @Mock
+    private ServiceOrderService serviceOrderService;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -1274,5 +1277,328 @@ class OrderServiceTest {
         assertNotNull(response.getCompletedAt());
         assertEquals(response.getCompletedAt(), response.getCreatedAt());
         assertTrue(!response.getCompletedAt().isBefore(before) && !response.getCompletedAt().isAfter(after));
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close/check-similar — Deve retornar hasSimilar=true quando houver pedido parecido considerando frete, desconto e data")
+    void shouldReturnSimilarOrdersOnCheckSimilarWhenMatchExists() {
+        LocalDateTime customDate = LocalDateTime.of(2026, 11, 20, 15, 30, 0);
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .totalPrice(new BigDecimal("100.00"))
+                .build();
+        when(orderItemService.findOrderItems(100L)).thenReturn(List.of(item));
+
+        OrderCloseRequest request = OrderCloseRequest.builder()
+                .shipping(OrderShippingRequest.builder().freightAmount(new BigDecimal("25.00")).build())
+                .discountAmount(new BigDecimal("10.00"))
+                .completedAt(customDate)
+                .build();
+
+        OrderSummaryResponse similar = new OrderSummaryResponse(
+                99L, "12345678901", "Cliente Teste", new BigDecimal("115.00"), OrderStatus.COMPLETED,
+                LocalDateTime.of(2026, 11, 20, 9, 15, 0)
+        );
+        when(orderRepository.findSimilarOrders(
+                eq(companyId),
+                eq(100L),
+                eq(partnerId),
+                eq(OrderStatus.CANCELED),
+                eq(new BigDecimal("115.00")),
+                eq(LocalDateTime.of(2026, 11, 18, 0, 0, 0)),
+                eq(LocalDateTime.of(2026, 11, 23, 0, 0, 0))
+        )).thenReturn(List.of(similar));
+
+        OrderSimilarCheckResponse response = orderService.checkSimilarOnClose(100L, request, companyId);
+
+        assertTrue(response.isHasSimilar());
+        assertEquals(1, response.getSimilarOrders().size());
+        assertEquals(99L, response.getSimilarOrders().get(0).getId());
+        verify(orderRepository, never()).save(any());
+        verify(orderItemService, never()).closeItem(any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close/check-similar — Deve retornar hasSimilar=false usando data atual quando completedAt for nulo")
+    void shouldReturnFalseOnCheckSimilarWhenNoMatchExists() {
+        sampleOrder.setFreightAmount(new BigDecimal("15.00"));
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.SERVICE)
+                .totalPrice(new BigDecimal("85.00"))
+                .build();
+        when(orderItemService.findOrderItems(100L)).thenReturn(List.of(item));
+
+        LocalDate today = LocalDate.now();
+        when(orderRepository.findSimilarOrders(
+                eq(companyId),
+                eq(100L),
+                eq(partnerId),
+                eq(OrderStatus.CANCELED),
+                eq(new BigDecimal("100.00")),
+                eq(today.minusDays(2).atStartOfDay()),
+                eq(today.plusDays(3).atStartOfDay())
+        )).thenReturn(Collections.emptyList());
+
+        OrderSimilarCheckResponse response = orderService.checkSimilarOnClose(100L, new OrderCloseRequest(), companyId);
+
+        assertFalse(response.isHasSimilar());
+        assertTrue(response.getSimilarOrders().isEmpty());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/close/check-similar — Deve lançar HTTP 404 quando pedido não existir")
+    void shouldThrow404OnCheckSimilarWhenOrderNotFound() {
+        when(orderRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.checkSimilarOnClose(999L, new OrderCloseRequest(), companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(orderRepository, never()).findSimilarOrders(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve excluir pedido em aberto e suas dependências com sucesso")
+    void shouldDeleteOpenOrderSuccessfully() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(Collections.emptyList());
+        when(serviceOrderService.existsByOrderId(100L, companyId)).thenReturn(false);
+        when(commissionService.hasNonPendingEntriesForOrder(100L, companyId)).thenReturn(false);
+        when(receivedService.hasNonCanceledReceivablesForOrder(100L, companyId)).thenReturn(false);
+
+        orderService.deleteOrder(100L, companyId);
+
+        verify(serviceOrderService).existsByOrderId(100L, companyId);
+        verify(commissionService).hasNonPendingEntriesForOrder(100L, companyId);
+        verify(receivedService).hasNonCanceledReceivablesForOrder(100L, companyId);
+        verify(orderItemService).deleteAllByOrderId(100L);
+        verify(orderShippingService).deleteShipping(100L);
+        verify(orderRepository).delete(sampleOrder);
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve lançar HTTP 404 quando pedido não for encontrado")
+    void shouldThrow404WhenDeletingNonExistentOrder() {
+        when(orderRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.deleteOrder(999L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(orderRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve lançar HTTP 422 ao tentar excluir pedido que não está aberto")
+    void shouldThrow422WhenDeletingNonOpenOrder() {
+        sampleOrder.setStatus(OrderStatus.COMPLETED);
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.deleteOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(serviceOrderService, never()).existsByOrderId(any(), any());
+        verify(commissionService, never()).hasNonPendingEntriesForOrder(any(), any());
+        verify(receivedService, never()).hasNonCanceledReceivablesForOrder(any(), any());
+        verify(orderRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve lançar HTTP 422 quando pedido aberto possuir nota fiscal vinculada")
+    void shouldThrow422WhenDeletingOrderWithLinkedInvoices() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(List.of(
+                OrderInvoiceResponse.builder().id(1L).orderId(100L).invoiceId(200L).build()
+        ));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.deleteOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(serviceOrderService, never()).existsByOrderId(any(), any());
+        verify(commissionService, never()).hasNonPendingEntriesForOrder(any(), any());
+        verify(receivedService, never()).hasNonCanceledReceivablesForOrder(any(), any());
+        verify(orderRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve lançar HTTP 422 quando pedido aberto estiver vinculado a uma ordem de serviço")
+    void shouldThrow422WhenDeletingOrderLinkedToServiceOrder() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(Collections.emptyList());
+        when(serviceOrderService.existsByOrderId(100L, companyId)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.deleteOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(commissionService, never()).hasNonPendingEntriesForOrder(any(), any());
+        verify(receivedService, never()).hasNonCanceledReceivablesForOrder(any(), any());
+        verify(orderRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve lançar HTTP 422 quando pedido aberto possuir comissão não pendente")
+    void shouldThrow422WhenDeletingOrderWithNonPendingCommission() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(Collections.emptyList());
+        when(serviceOrderService.existsByOrderId(100L, companyId)).thenReturn(false);
+        when(commissionService.hasNonPendingEntriesForOrder(100L, companyId)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.deleteOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(receivedService, never()).hasNonCanceledReceivablesForOrder(any(), any());
+        verify(orderRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/orders/{id} — Deve lançar HTTP 422 quando pedido aberto possuir cobrança não cancelada")
+    void shouldThrow422WhenDeletingOrderWithNonCanceledReceivables() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(Collections.emptyList());
+        when(serviceOrderService.existsByOrderId(100L, companyId)).thenReturn(false);
+        when(commissionService.hasNonPendingEntriesForOrder(100L, companyId)).thenReturn(false);
+        when(receivedService.hasNonCanceledReceivablesForOrder(100L, companyId)).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.deleteOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(orderItemService, never()).deleteAllByOrderId(any());
+        verify(orderRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve cancelar pedido fechado, cobranças, comissões e itens com sucesso")
+    void shouldCancelClosedOrderSuccessfully() {
+        sampleOrder.setStatus(OrderStatus.COMPLETED);
+        OrderItemEntity item = OrderItemEntity.builder()
+                .id(201L)
+                .orderId(100L)
+                .itemType(CatalogItemType.PHYSICAL)
+                .totalPrice(new BigDecimal("100.00"))
+                .stockDeducted(false)
+                .build();
+        ReceivableResponse canceledReceivable = ReceivableResponse.builder()
+                .id(500L)
+                .orderId(100L)
+                .status(ReceivableStatus.CANCELED)
+                .pendingAmount(BigDecimal.ZERO)
+                .build();
+
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(Collections.emptyList());
+        when(orderItemService.cancelItems(100L)).thenReturn(List.of(item));
+        when(orderRepository.save(any(OrderEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(partnerRepository.findNameByIdAndCompanyId(partnerId, companyId)).thenReturn(Optional.of("Cliente Teste"));
+        when(receivedService.findReceivableResponses(100L)).thenReturn(List.of(canceledReceivable));
+        when(orderShippingService.findByOrderId(100L)).thenReturn(Optional.empty());
+
+        OrderResponse response = orderService.cancelOrder(100L, companyId);
+
+        assertNotNull(response);
+        assertEquals(OrderStatus.CANCELED, response.getStatus());
+        assertEquals("Cliente Teste", response.getCustomerName());
+        assertEquals(1, response.getItems().size());
+        assertFalse(response.getItems().get(0).getStockDeducted());
+        assertEquals(1, response.getReceivables().size());
+        assertEquals(ReceivableStatus.CANCELED, response.getReceivables().get(0).getStatus());
+        verify(commissionService).cancelEntriesForOrder(100L, companyId);
+        verify(receivedService).cancelOrderReceivablesAndTransactions(100L, companyId);
+        verify(orderItemService).cancelItems(100L);
+        verify(orderRepository).save(sampleOrder);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve lançar HTTP 404 quando pedido não for encontrado")
+    void shouldThrow404WhenCancelingNonExistentOrder() {
+        when(orderRepository.findByIdAndCompanyId(999L, companyId)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder(999L, companyId)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve lançar HTTP 422 quando pedido já estiver cancelado")
+    void shouldThrow422WhenCancelingAlreadyCanceledOrder() {
+        sampleOrder.setStatus(OrderStatus.CANCELED);
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verifyNoInteractions(commissionService);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve lançar HTTP 422 quando pedido ainda estiver aberto")
+    void shouldThrow422WhenCancelingOpenOrder() {
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verifyNoInteractions(commissionService);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve lançar HTTP 422 quando pedido possuir nota fiscal vinculada")
+    void shouldThrow422WhenCancelingOrderWithLinkedInvoices() {
+        sampleOrder.setStatus(OrderStatus.COMPLETED);
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(List.of(
+                OrderInvoiceResponse.builder().id(1L).orderId(100L).invoiceId(200L).build()
+        ));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verifyNoInteractions(commissionService);
+    }
+
+    @Test
+    @DisplayName("POST /api/orders/{id}/cancel — Deve propagar HTTP 422 quando comissão do pedido não estiver pendente")
+    void shouldThrow422WhenCancelingOrderWithNonPendingCommission() {
+        sampleOrder.setStatus(OrderStatus.COMPLETED);
+        when(orderRepository.findByIdAndCompanyId(100L, companyId)).thenReturn(Optional.of(sampleOrder));
+        when(orderInvoiceService.findInvoicesByOrderId(100L, companyId)).thenReturn(Collections.emptyList());
+        doThrow(new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Comissão não pendente"))
+                .when(commissionService).cancelEntriesForOrder(100L, companyId);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder(100L, companyId)
+        );
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, ex.getStatusCode());
+        verify(receivedService, never()).cancelOrderReceivablesAndTransactions(any(), any());
+        verify(orderItemService, never()).cancelItems(any());
+        verify(orderRepository, never()).save(any());
     }
 }

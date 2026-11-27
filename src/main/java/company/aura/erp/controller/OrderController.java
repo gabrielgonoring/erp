@@ -58,6 +58,15 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteOrder(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        orderService.deleteOrder(id, userPrincipal.getCompanyId());
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{id}/shipping")
     public ResponseEntity<OrderShippingResponse> updateShipping(
             @PathVariable Long id,
@@ -108,6 +117,16 @@ public class OrderController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/close/check-similar")
+    public ResponseEntity<OrderSimilarCheckResponse> checkSimilarOnClose(
+            @PathVariable Long id,
+            @RequestBody @Valid OrderCloseRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderSimilarCheckResponse response = orderService.checkSimilarOnClose(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{id}/close")
     public ResponseEntity<OrderResponse> closeOrder(
             @PathVariable Long id,
@@ -115,6 +134,15 @@ public class OrderController {
             @AuthenticationPrincipal UserPrincipal userPrincipal
     ) {
         OrderResponse response = orderService.closeOrder(id, request, userPrincipal.getCompanyId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<OrderResponse> cancelOrder(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        OrderResponse response = orderService.cancelOrder(id, userPrincipal.getCompanyId());
         return ResponseEntity.ok(response);
     }
 

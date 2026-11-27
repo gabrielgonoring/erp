@@ -421,4 +421,17 @@ class ServiceOrderServiceTest {
         assertEquals(1, result.getTotalElements());
         assertEquals(100L, result.getContent().get(0).getId());
     }
+
+    @Test
+    @DisplayName("existsByOrderId — Deve verificar existência de OS vinculada ao pedido via repository")
+    void shouldCheckExistsByOrderId() {
+        when(serviceOrderRepository.existsByOrderIdAndCompanyId(500L, companyId)).thenReturn(true);
+        when(serviceOrderRepository.existsByOrderIdAndCompanyId(501L, companyId)).thenReturn(false);
+
+        assertTrue(serviceOrderService.existsByOrderId(500L, companyId));
+        assertFalse(serviceOrderService.existsByOrderId(501L, companyId));
+
+        verify(serviceOrderRepository).existsByOrderIdAndCompanyId(500L, companyId);
+        verify(serviceOrderRepository).existsByOrderIdAndCompanyId(501L, companyId);
+    }
 }
