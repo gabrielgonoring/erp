@@ -248,6 +248,19 @@ public class CatalogItemService {
         return page;
     }
 
+    @Transactional(readOnly = true)
+    public Page<CatalogItemSearchResponse> search(String search, Long companyId, Pageable pageable) {
+        log.info("search() - START - companyId={}, search={}", companyId, search);
+
+        String cleanSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+        Page<CatalogItemSearchResponse> page = cleanSearch == null
+                ? catalogItemRepository.findActiveSimplifiedByCompanyId(companyId, pageable)
+                : catalogItemRepository.searchSimplified(companyId, cleanSearch, pageable);
+
+        log.info("search() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
+    }
+
     private void validateCategory(Long categoryId, Long companyId) {
         if (categoryId == null) {
             return;

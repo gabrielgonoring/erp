@@ -2,6 +2,7 @@ package company.aura.erp.controller;
 
 import company.aura.erp.dto.partner.PartnerCreateRequest;
 import company.aura.erp.dto.partner.PartnerResponse;
+import company.aura.erp.dto.partner.PartnerSearchResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
 import company.aura.erp.security.UserPrincipal;
@@ -15,7 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/partners")
@@ -41,6 +41,21 @@ public class PartnerController {
     ) {
         PartnerResponse response = partnerService.update(id, request, userPrincipal.getCompanyId());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<Page<PartnerSearchResponse>> search(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean isCustomer,
+            @RequestParam(required = false) Boolean isCarrier,
+            @RequestParam(required = false) Boolean isSupplier,
+            @PageableDefault(size = 20, sort = "name") Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<PartnerSearchResponse> page = partnerService.search(
+                search, isCustomer, isCarrier, isSupplier, userPrincipal.getCompanyId(), pageable
+        );
+        return ResponseEntity.ok(page);
     }
 
     @GetMapping("/{id}")

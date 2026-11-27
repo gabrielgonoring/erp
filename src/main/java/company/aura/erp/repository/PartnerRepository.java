@@ -1,5 +1,6 @@
 package company.aura.erp.repository;
 
+import company.aura.erp.dto.partner.PartnerSearchResponse;
 import company.aura.erp.entity.PartnerEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,7 +9,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -38,6 +38,59 @@ public interface PartnerRepository extends JpaRepository<PartnerEntity, Long> {
             @Param("isCustomer") Boolean isCustomer,
             @Param("isSupplier") Boolean isSupplier,
             @Param("isCarrier") Boolean isCarrier,
+            Pageable pageable
+    );
+
+    @Query(
+            value = "SELECT new company.aura.erp.dto.partner.PartnerSearchResponse(" +
+                    "p.id, p.partnerIdentifier, p.name, p.document) " +
+                    "FROM PartnerEntity p " +
+                    "WHERE p.companyId = :companyId AND p.status = 'ACTIVE' AND p.deletedAt IS NULL AND " +
+                    "(:isCustomer IS NULL OR p.isCustomer = :isCustomer OR (:isCustomer = false AND p.isCustomer IS NULL)) AND " +
+                    "(:isCarrier IS NULL OR p.isCarrier = :isCarrier) AND " +
+                    "(:isSupplier IS NULL OR p.isSupplier = :isSupplier OR (:isSupplier = false AND p.isSupplier IS NULL))",
+            countQuery = "SELECT count(p) " +
+                    "FROM PartnerEntity p " +
+                    "WHERE p.companyId = :companyId AND p.status = 'ACTIVE' AND p.deletedAt IS NULL AND " +
+                    "(:isCustomer IS NULL OR p.isCustomer = :isCustomer OR (:isCustomer = false AND p.isCustomer IS NULL)) AND " +
+                    "(:isCarrier IS NULL OR p.isCarrier = :isCarrier) AND " +
+                    "(:isSupplier IS NULL OR p.isSupplier = :isSupplier OR (:isSupplier = false AND p.isSupplier IS NULL))"
+    )
+    Page<PartnerSearchResponse> findActiveSimplifiedByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("isCustomer") Boolean isCustomer,
+            @Param("isCarrier") Boolean isCarrier,
+            @Param("isSupplier") Boolean isSupplier,
+            Pageable pageable
+    );
+
+    @Query(
+            value = "SELECT new company.aura.erp.dto.partner.PartnerSearchResponse(" +
+                    "p.id, p.partnerIdentifier, p.name, p.document) " +
+                    "FROM PartnerEntity p " +
+                    "WHERE p.companyId = :companyId AND p.status = 'ACTIVE' AND p.deletedAt IS NULL AND " +
+                    "(:isCustomer IS NULL OR p.isCustomer = :isCustomer OR (:isCustomer = false AND p.isCustomer IS NULL)) AND " +
+                    "(:isCarrier IS NULL OR p.isCarrier = :isCarrier) AND " +
+                    "(:isSupplier IS NULL OR p.isSupplier = :isSupplier OR (:isSupplier = false AND p.isSupplier IS NULL)) AND (" +
+                    "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(p.partnerIdentifier) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')))",
+            countQuery = "SELECT count(p) " +
+                    "FROM PartnerEntity p " +
+                    "WHERE p.companyId = :companyId AND p.status = 'ACTIVE' AND p.deletedAt IS NULL AND " +
+                    "(:isCustomer IS NULL OR p.isCustomer = :isCustomer OR (:isCustomer = false AND p.isCustomer IS NULL)) AND " +
+                    "(:isCarrier IS NULL OR p.isCarrier = :isCarrier) AND " +
+                    "(:isSupplier IS NULL OR p.isSupplier = :isSupplier OR (:isSupplier = false AND p.isSupplier IS NULL)) AND (" +
+                    "LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(p.partnerIdentifier) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(p.document) LIKE LOWER(CONCAT('%', :search, '%')))"
+    )
+    Page<PartnerSearchResponse> searchSimplified(
+            @Param("companyId") Long companyId,
+            @Param("search") String search,
+            @Param("isCustomer") Boolean isCustomer,
+            @Param("isCarrier") Boolean isCarrier,
+            @Param("isSupplier") Boolean isSupplier,
             Pageable pageable
     );
 }

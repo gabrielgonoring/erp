@@ -143,6 +143,27 @@ class CatalogItemControllerTest {
     }
 
     @Test
+    void shouldSearchCatalogItemsAndReturnOk() {
+        Pageable pageable = PageRequest.of(0, 20);
+        CatalogItemSearchResponse item = new CatalogItemSearchResponse(
+                1L, "PROD-001", new BigDecimal("1200.00"), "Monitor", "UN"
+        );
+        Page<CatalogItemSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        when(catalogItemService.search("Monitor", 10L, pageable)).thenReturn(page);
+
+        ResponseEntity<Page<CatalogItemSearchResponse>> response = catalogItemController.search(
+                "Monitor", pageable, userPrincipal
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().getTotalElements());
+        assertEquals(item, response.getBody().getContent().get(0));
+        verify(catalogItemService).search("Monitor", 10L, pageable);
+    }
+
+    @Test
     void shouldFindByIdAndReturnOk() {
         CatalogItemResponse expectedResponse = new CatalogItemResponse(
                 1L, 10L, CatalogItemType.PHYSICAL, "PROD-001", "ACTIVE", "Monitor",

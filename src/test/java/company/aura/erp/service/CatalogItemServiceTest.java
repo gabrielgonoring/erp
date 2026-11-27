@@ -310,6 +310,43 @@ class CatalogItemServiceTest {
     }
 
     @Test
+    void shouldSearchCatalogItemsTrimmingSearchTerm() {
+        Pageable pageable = PageRequest.of(0, 20);
+        CatalogItemSearchResponse item = new CatalogItemSearchResponse(
+                1L, "PROD-001", new BigDecimal("1500.00"), "Monitor Gamer 27", "UN"
+        );
+        Page<CatalogItemSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        when(catalogItemRepository.searchSimplified(10L, "Monitor", pageable)).thenReturn(page);
+
+        Page<CatalogItemSearchResponse> result = catalogItemService.search("  Monitor  ", 10L, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals(item, result.getContent().get(0));
+        verify(catalogItemRepository).searchSimplified(10L, "Monitor", pageable);
+        verify(catalogItemRepository, never()).findActiveSimplifiedByCompanyId(any(), any());
+    }
+
+    @Test
+    void shouldSearchCatalogItemsCallingUnfilteredQueryWhenSearchIsBlank() {
+        Pageable pageable = PageRequest.of(0, 20);
+        CatalogItemSearchResponse item = new CatalogItemSearchResponse(
+                1L, "PROD-001", new BigDecimal("1500.00"), "Monitor Gamer 27", "UN"
+        );
+        Page<CatalogItemSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        when(catalogItemRepository.findActiveSimplifiedByCompanyId(10L, pageable)).thenReturn(page);
+
+        Page<CatalogItemSearchResponse> result = catalogItemService.search("   ", 10L, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        verify(catalogItemRepository).findActiveSimplifiedByCompanyId(10L, pageable);
+        verify(catalogItemRepository, never()).searchSimplified(any(), any(), any());
+    }
+
+    @Test
     void shouldSavePhysicalWithCategoryId() {
         when(companyRepository.existsById(10L)).thenReturn(true);
         when(catalogCategoryRepository.findByIdAndCompanyIdAndStatusNot(5L, 10L, CatalogCategoryStatus.DELETED))

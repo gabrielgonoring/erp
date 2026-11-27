@@ -1,5 +1,6 @@
 package company.aura.erp.repository;
 
+import company.aura.erp.dto.catalog.CatalogItemSearchResponse;
 import company.aura.erp.entity.CatalogItemEntity;
 import company.aura.erp.enums.CatalogItemType;
 import org.springframework.data.domain.Page;
@@ -47,6 +48,41 @@ public interface CatalogItemRepository extends JpaRepository<CatalogItemEntity, 
             @Param("search") String search,
             @Param("categoryId") Long categoryId,
             @Param("type") CatalogItemType type,
+            Pageable pageable
+    );
+
+    @Query(
+            value = "SELECT new company.aura.erp.dto.catalog.CatalogItemSearchResponse(" +
+                    "c.id, c.internalCode, c.unitPrice, c.description, c.unitOfMeasure) " +
+                    "FROM CatalogItemEntity c " +
+                    "WHERE c.companyId = :companyId AND c.status = 'ACTIVE' AND c.deletedAt IS NULL",
+            countQuery = "SELECT count(c) " +
+                    "FROM CatalogItemEntity c " +
+                    "WHERE c.companyId = :companyId AND c.status = 'ACTIVE' AND c.deletedAt IS NULL"
+    )
+    Page<CatalogItemSearchResponse> findActiveSimplifiedByCompanyId(
+            @Param("companyId") Long companyId,
+            Pageable pageable
+    );
+
+    @Query(
+            value = "SELECT new company.aura.erp.dto.catalog.CatalogItemSearchResponse(" +
+                    "c.id, c.internalCode, c.unitPrice, c.description, c.unitOfMeasure) " +
+                    "FROM CatalogItemEntity c " +
+                    "WHERE c.companyId = :companyId AND c.status = 'ACTIVE' AND c.deletedAt IS NULL AND (" +
+                    "CAST(c.id AS string) LIKE CONCAT('%', :search, '%') OR " +
+                    "LOWER(c.internalCode) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(c.description) LIKE LOWER(CONCAT('%', :search, '%')))",
+            countQuery = "SELECT count(c) " +
+                    "FROM CatalogItemEntity c " +
+                    "WHERE c.companyId = :companyId AND c.status = 'ACTIVE' AND c.deletedAt IS NULL AND (" +
+                    "CAST(c.id AS string) LIKE CONCAT('%', :search, '%') OR " +
+                    "LOWER(c.internalCode) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+                    "LOWER(c.description) LIKE LOWER(CONCAT('%', :search, '%')))"
+    )
+    Page<CatalogItemSearchResponse> searchSimplified(
+            @Param("companyId") Long companyId,
+            @Param("search") String search,
             Pageable pageable
     );
 

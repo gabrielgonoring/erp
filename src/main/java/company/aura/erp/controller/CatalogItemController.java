@@ -59,6 +59,16 @@ public class CatalogItemController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<Page<CatalogItemSearchResponse>> search(
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20, sort = "description") Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal userPrincipal
+    ) {
+        Page<CatalogItemSearchResponse> page = catalogItemService.search(search, userPrincipal.getCompanyId(), pageable);
+        return ResponseEntity.ok(page);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<CatalogItemResponse> findById(
             @PathVariable Long id,

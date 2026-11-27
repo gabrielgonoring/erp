@@ -2,6 +2,7 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.partner.PartnerCreateRequest;
 import company.aura.erp.dto.partner.PartnerResponse;
+import company.aura.erp.dto.partner.PartnerSearchResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
 import company.aura.erp.entity.PartnerEntity;
@@ -251,5 +252,42 @@ class PartnerServiceTest {
         assertEquals(1, result.getTotalElements());
         assertEquals("São Paulo", result.getContent().get(0).city());
         verify(partnerRepository).searchByCompanyIdAndTerm(10L, "São Paulo", true, false, false, pageable);
+    }
+
+    @Test
+    void shouldSearchPartnersTrimmingSearchTermAndPassingRoleFilters() {
+        Pageable pageable = PageRequest.of(0, 20);
+        PartnerSearchResponse item = new PartnerSearchResponse(
+                1L, "USER-PARTNER-001", "Empresa Parceira", "12345678000199"
+        );
+        Page<PartnerSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        when(partnerRepository.searchSimplified(10L, "Parceira", true, false, true, pageable)).thenReturn(page);
+
+        Page<PartnerSearchResponse> result = partnerService.search("  Parceira  ", true, false, true, 10L, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        assertEquals(item, result.getContent().get(0));
+        verify(partnerRepository).searchSimplified(10L, "Parceira", true, false, true, pageable);
+        verify(partnerRepository, never()).findActiveSimplifiedByCompanyId(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void shouldSearchPartnersCallingUnfilteredQueryWhenSearchIsBlank() {
+        Pageable pageable = PageRequest.of(0, 20);
+        PartnerSearchResponse item = new PartnerSearchResponse(
+                1L, "USER-PARTNER-001", "Empresa Parceira", "12345678000199"
+        );
+        Page<PartnerSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        when(partnerRepository.findActiveSimplifiedByCompanyId(10L, null, true, null, pageable)).thenReturn(page);
+
+        Page<PartnerSearchResponse> result = partnerService.search("   ", null, true, null, 10L, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getTotalElements());
+        verify(partnerRepository).findActiveSimplifiedByCompanyId(10L, null, true, null, pageable);
+        verify(partnerRepository, never()).searchSimplified(any(), any(), any(), any(), any(), any());
     }
 }

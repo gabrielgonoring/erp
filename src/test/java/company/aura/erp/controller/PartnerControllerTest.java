@@ -1,5 +1,6 @@
 package company.aura.erp.controller;
 
+import company.aura.erp.dto.partner.PartnerSearchResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.security.UserPrincipal;
 import company.aura.erp.service.PartnerService;
@@ -45,6 +46,34 @@ class PartnerControllerTest {
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(partnerService).delete(5L, 10L);
+    }
+
+    @Test
+    void shouldSearchPartnersAndReturnOk() {
+        UserPrincipal userPrincipal = UserPrincipal.builder()
+                .id(1L)
+                .companyId(10L)
+                .email("user@company.com")
+                .authorities(Collections.emptyList())
+                .build();
+
+        Pageable pageable = PageRequest.of(0, 20);
+        PartnerSearchResponse item = new PartnerSearchResponse(
+                1L, "CLI-001", "Partner Test", "12345678000199"
+        );
+        Page<PartnerSearchResponse> page = new PageImpl<>(List.of(item), pageable, 1);
+
+        when(partnerService.search("Partner", true, false, false, 10L, pageable)).thenReturn(page);
+
+        ResponseEntity<Page<PartnerSearchResponse>> response = partnerController.search(
+                "Partner", true, false, false, pageable, userPrincipal
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().getTotalElements());
+        assertEquals(item, response.getBody().getContent().get(0));
+        verify(partnerService).search("Partner", true, false, false, 10L, pageable);
     }
 
     @Test

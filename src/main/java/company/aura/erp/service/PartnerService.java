@@ -2,6 +2,7 @@ package company.aura.erp.service;
 
 import company.aura.erp.dto.partner.PartnerCreateRequest;
 import company.aura.erp.dto.partner.PartnerResponse;
+import company.aura.erp.dto.partner.PartnerSearchResponse;
 import company.aura.erp.dto.partner.PartnerSummaryResponse;
 import company.aura.erp.dto.partner.PartnerUpdateRequest;
 import company.aura.erp.entity.PartnerEntity;
@@ -150,6 +151,32 @@ public class PartnerService {
                 .map(PartnerSummaryResponse::fromEntity);
 
         log.info("listSummarized() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
+        return page;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PartnerSearchResponse> search(String search, Long companyId, Pageable pageable) {
+        return search(search, null, null, null, companyId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PartnerSearchResponse> search(
+            String search,
+            Boolean isCustomer,
+            Boolean isCarrier,
+            Boolean isSupplier,
+            Long companyId,
+            Pageable pageable
+    ) {
+        log.info("search() - START - companyId={}, search={}, isCustomer={}, isCarrier={}, isSupplier={}",
+                companyId, search, isCustomer, isCarrier, isSupplier);
+
+        String cleanSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+        Page<PartnerSearchResponse> page = cleanSearch == null
+                ? partnerRepository.findActiveSimplifiedByCompanyId(companyId, isCustomer, isCarrier, isSupplier, pageable)
+                : partnerRepository.searchSimplified(companyId, cleanSearch, isCustomer, isCarrier, isSupplier, pageable);
+
+        log.info("search() - END - companyId={}, totalElements={}, totalPages={}", companyId, page.getTotalElements(), page.getTotalPages());
         return page;
     }
 }
