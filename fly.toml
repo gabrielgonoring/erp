@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for erp-hwzl0w on 2026-11-09T23:16:11Z
+# fly.toml app configuration file generated for erp-hwzl0w on 2026-11-28T03:05:53Z
 #
 # See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
 app = 'erp-hwzl0w'
-primary_region = 'gru'
+primary_region = 'ewr'
 
 [build]
   dockerfile = 'Dockerfile'
